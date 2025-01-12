@@ -97,7 +97,6 @@ def select_and_process_files():
 
 
 def open_excel_file(normalization_label, start_button):
-    # global X, y, ylabels, encoder, train_X, test_X, train_y, test_y, train_labels, test_labels
     global row, column, df
     file_path = filedialog.askopenfilename(
         filetypes=[("Excel files", "*.xls *.xlsx")])
@@ -114,16 +113,13 @@ def open_excel_file(normalization_label, start_button):
         ylabels = df.iloc[0, :].values
         ylabels = pd.Series(ylabels)
         print(ylabels.value_counts())
-
         encoder = LabelEncoder()
         column = encoder.fit_transform(ylabels)
-        train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
-            row, column, df.columns, test_size=0.2, stratify=column)  # 取20%为训练集
+
 
 
 def on_selcted(var_selection, display_label):
     global exact_selection
-    exact_selection = ''
     exact_selection = var_selection.get()
     display_label.config(text='您选择了'+exact_selection.split('(')[0])
 
@@ -140,12 +136,12 @@ def predict_by(progress_label, balanced_accuracy_train_label, balanced_accuracy_
     auc_list = []
     for i in tqdm.tqdm(range(500)):
         percentage = (i + 1) / 500 * 100
-        5.config(text='分析进度: {0:.2f}%'.format(percentage))
+        progress_label.config(text='分析进度: {0:.2f}%'.format(percentage))
         progress_bar['value'] = percentage
         root.update()
 
         train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
-            row, column, df.columns, test_size=0.2, stratify=column)
+            row, column, df.columns, test_size=0.2, stratify=column)# 取20%为训练集
         lrcv = eval(exact_selection)  # 可以改成上面注释里的不同方法
 
         lrcv.fit(train_X, train_y)
