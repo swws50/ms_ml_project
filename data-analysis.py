@@ -62,8 +62,9 @@ def select_and_process_files():
 
         # 创建进度条
         progress_label = tkinter.Label(root, text="进度: 0%")
-        progress_label.grid(column=0, row=8, columnspan=2, sticky='ew')
-        progress_bar.grid(column=0, row=9, columnspan=2, sticky='ew')
+        progress_label.grid(row=8, column=0, columnspan=2, sticky='ew')
+        progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
+        progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew')
 
         progress_label.config(text="正在处理文件...")
         progress_bar['maximum'] = len(file_paths)
@@ -96,7 +97,7 @@ def select_and_process_files():
 # 函数：选择归一化好的文件
 
 
-def open_excel_file(normalization_label, start_button):
+def open_excel_file(normalization_label, start_button, progress_bar):
     global row, column, df
     file_path = filedialog.askopenfilename(
         filetypes=[("Excel files", "*.xls *.xlsx")])
@@ -108,14 +109,15 @@ def open_excel_file(normalization_label, start_button):
             normalization_label.config(text="已选择")
             start_button.config(state='normal')
             progress_bar['value'] = 0
-            progress_bar.grid(column=1, row=4, sticky='ew')
         row = df.iloc[1:, :].values.T
         ylabels = df.iloc[0, :].values
         ylabels = pd.Series(ylabels)
         print(ylabels.value_counts())
+
         encoder = LabelEncoder()
         column = encoder.fit_transform(ylabels)
-
+        train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
+            row, column, df.columns, test_size=0.2, stratify=column)  # 取20%为训练集
 
 
 def on_selcted(var_selection, display_label):
@@ -124,7 +126,7 @@ def on_selcted(var_selection, display_label):
     display_label.config(text='您选择了'+exact_selection.split('(')[0])
 
 
-def predict_by(progress_label, balanced_accuracy_train_label, balanced_accuracy_test_label):
+def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label):
     global row, column, df
     balanced_accuracy_train = []
     balanced_accuracy_test = []
@@ -141,7 +143,7 @@ def predict_by(progress_label, balanced_accuracy_train_label, balanced_accuracy_
         root.update()
 
         train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
-            row, column, df.columns, test_size=0.2, stratify=column)# 取20%为训练集
+            row, column, df.columns, test_size=0.2, stratify=column)
         lrcv = eval(exact_selection)  # 可以改成上面注释里的不同方法
 
         lrcv.fit(train_X, train_y)
@@ -258,14 +260,8 @@ def create_gui():
     command_menu.add_command(label="选择处理文件", command=select_and_process_files)
 
     option_menu = tkinter.Menu(menu_bar, tearoff=0)
-    selections = ["RandomForestClassifier(500)",
-                  "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', multi_class='ovr', n_jobs=-1)",
-                  "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
-                  "svm.LinearSVC(max_iter=10000)",
-                  "MLPClassifier((100, 200, 100), activation='logistic',max_iter=2000)"
-                  ]
     var_selection = tkinter.StringVar()
-    var_selection.set(selections[1])
+    var_selection.set(exact_selection)
 
     for item in selections:
         option_menu.add_radiobutton(label=item.split(
@@ -273,46 +269,54 @@ def create_gui():
     menu_bar.add_cascade(label="模型选择", menu=option_menu)
 
     open_button = tkinter.Button(
-        root, text="选择归一化excel文件", command=lambda: open_excel_file(normalization_label, start_button))
-    open_button.grid(column=0, row=1)
+        root, text="选择归一化excel文件", command=lambda: open_excel_file(normalization_label, start_button, progress_bar))
+    open_button.grid(row=1, column=0)
 
     normalization_label_text = "文件未选择"
     normalization_label = tkinter.Label(root, text=normalization_label_text)
-    normalization_label.grid(column=1, row=1)
-
-    display_label = tkinter.Label(root, text='默认使用LogisticRegressionCV')
-    display_label.grid(column=1, row=2)
+    normalization_label.grid(row=1, column=1)
 
     start_button = tkinter.Button(root, text='开始分析', command=lambda: predict_by(
-        progress_label, balanced_accuracy_train_label, balanced_accuracy_test_label))
-    start_button.grid(column=0, row=2)
+        progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label))
+    start_button.grid(row=2, column=0)
     start_button.config(state='disabled')
 
+    display_label = tkinter.Label(
+        root, text='默认使用'+exact_selection.split('(')[0])
+    display_label.grid(row=2, column=1)
+
     progress_label = tkinter.Label(root, text='分析进度: 0%')
-    progress_label.grid(column=0, row=4)
+    progress_label.grid(row=4, column=0)
+    progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
+    progress_bar.grid(row=4, column=1, sticky='ew')
 
     balanced_accuracy_train_label = tkinter.Label(root, text='平均训练集平衡精度: ')
-    balanced_accuracy_train_label.grid(column=0, row=5)
+    balanced_accuracy_train_label.grid(row=5, column=0)
 
     balanced_accuracy_test_label = tkinter.Label(root, text='平均测试集平衡精度: ')
-    balanced_accuracy_test_label.grid(column=1, row=5)
+    balanced_accuracy_test_label.grid(row=5, column=1)
 
+    # row 6 用来显示分析后的图标
     file_button = tkinter.Button(
         root, text="选择要检测的txt文件", command=lambda: open_file_dialog(file_name_label))
-    file_button.grid(column=0, row=7)
+    file_button.grid(row=7, column=0)
 
     file_name_label = tkinter.Label(root, text='您尚未进行检测')
-    file_name_label.grid(column=1, row=7)
+    file_name_label.grid(row=7, column=1)
 
     root.config(menu=menu_bar)
     root.mainloop()
 
 
 photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix = None, None, None
-# defult selection 但是在 on_selcted() 被清空了，所以缺省值是否有意义？
-exact_selection = "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', multi_class='ovr', n_jobs=-1)"
-
+selections = ["RandomForestClassifier(500)",
+              "svm.LinearSVC(max_iter=10000)",
+              "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
+              "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', n_jobs=-1)",
+              "MLPClassifier((100, 200, 100), activation='logistic',max_iter=2000)"
+              ]
+exact_selection = selections[3]
 root = tkinter.Tk()
-progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
+
 if __name__ == "__main__":
     create_gui()
