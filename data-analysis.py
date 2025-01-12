@@ -315,7 +315,7 @@ selections = ["RandomForestClassifier(500)",
               "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', n_jobs=-1)",
               "MLPClassifier((100, 200, 100), activation='logistic',max_iter=2000)"
               ]
-exact_selection = selections[3]
+exact_selection = selections[1]#学习模型缺省设置为:selections[1] -> "svm.LinearSVC(max_iter=10000)"
 root = tkinter.Tk()
 
 if __name__ == "__main__":
