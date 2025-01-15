@@ -104,7 +104,6 @@ def open_excel_file(normalization_label, start_button, progress_bar):
     if file_path:
         df = pd.read_excel(file_path, header=0)
         df = df.iloc[:, 1:]
-        print(df)
         if df.empty:
             normalization_label.config(text="文件未选择")
         else:
