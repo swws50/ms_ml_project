@@ -86,7 +86,7 @@ def select_and_process_files():
             root.update()
 
         # 保存结果
-        all_results.to_excel('LC_MAX.xlsx', index=False,
+        all_results.to_excel('LC_MAX.xlsx', index=True,
                              columns=all_results.columns[1:])
         messagebox.showinfo("处理完成", "结果已保存为 LC_MAX.xlsx")
         progress_bar.grid_remove()
@@ -103,6 +103,8 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         filetypes=[("Excel files", "*.xls *.xlsx")])
     if file_path:
         df = pd.read_excel(file_path, header=0)
+        df = df.iloc[:, 1:]
+        print(df)
         if df.empty:
             normalization_label.config(text="文件未选择")
         else:
