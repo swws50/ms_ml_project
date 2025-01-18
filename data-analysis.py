@@ -23,6 +23,8 @@ from sklearn import metrics
 import seaborn as sns
 from PIL import Image, ImageTk
 import io
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.metrics import balanced_accuracy_score
 
 # %matplotlib widget
 
@@ -148,10 +150,21 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         lrcv = eval(exact_selection)  # 可以改成上面注释里的不同方法
 
         lrcv.fit(train_X, train_y)
-        balanced_accuracy_train.append(lrcv.score(train_X, train_y))
-        balanced_accuracy_test.append(lrcv.score(test_X, test_y))
 
-        y_pred = lrcv.predict(test_X)
+        #如果模型为PLSRegression，则需要对预测值进行二值化处理
+        if isinstance(lrcv, PLSRegression):
+            train_pred_raw = lrcv.predict(train_X)
+            test_pred_raw = lrcv.predict(test_X)
+            train_pred = (train_pred_raw > 0.5).astype(int)
+            y_pred = (test_pred_raw > 0.5).astype(int)
+        else:
+            train_pred = lrcv.predict(train_X)
+            y_pred = lrcv.predict(test_X)
+
+        #之前代码直接用的是 lrcv.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下   
+        balanced_accuracy_train.append(balanced_accuracy_score(train_y, train_pred))
+        balanced_accuracy_test.append(balanced_accuracy_score(test_y, y_pred))
+        
         confusion_matrixs[i] = confusion_matrix(test_y, y_pred).flatten()
         Fscore = metrics.classification_report(
             test_y, y_pred, labels=[0, 1], output_dict=True)
@@ -310,7 +323,8 @@ def create_gui():
 
 
 photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix = None, None, None
-selections = ["RandomForestClassifier(500)",
+selections = ["PLSRegression(n_components=10)",
+              "RandomForestClassifier(500)",
               "svm.LinearSVC(max_iter=10000)",
               "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
               "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', n_jobs=-1)",
