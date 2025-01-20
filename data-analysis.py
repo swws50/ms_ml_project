@@ -6,23 +6,23 @@ from tkinter import ttk
 from sklearn import metrics  # 矩阵
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import LabelEncoder
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import confusion_matrix, recall_score, classification_report, accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import StratifiedKFold
 import os
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.neural_network import MLPClassifier
 from sklearn import svm, datasets
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.model_selection import train_test_split, StratifiedKFold
 import tqdm
 from sklearn.metrics import roc_curve, auc
 from sklearn import metrics
 import seaborn as sns
 from PIL import Image, ImageTk
-import io
+
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.neural_network import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.svm import LinearSVC
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import balanced_accuracy_score
 
@@ -126,7 +126,7 @@ def open_excel_file(normalization_label, start_button, progress_bar):
 def on_selcted(var_selection, display_label):
     global exact_selection
     exact_selection = var_selection.get()
-    display_label.config(text='您选择了'+exact_selection.split('(')[0])
+    display_label.config(text='您选择了: '+exact_selection)
 
 
 def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label):
@@ -147,11 +147,13 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
 
         train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
             row, column, df.columns, test_size=0.2, stratify=column)
-        lrcv = eval(exact_selection)  # 可以改成上面注释里的不同方法
+        params = class_dict[exact_selection]
+        lrcv = globals()[exact_selection](**params)
+        # lrcv = eval(exact_selection)  # 可以改成上面注释里的不同方法
 
         lrcv.fit(train_X, train_y)
 
-        #如果模型为PLSRegression，则需要对预测值进行二值化处理
+        # 如果模型为PLSRegression，则需要对预测值进行二值化处理
         if isinstance(lrcv, PLSRegression):
             train_pred_raw = lrcv.predict(train_X)
             test_pred_raw = lrcv.predict(test_X)
@@ -161,10 +163,11 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
             train_pred = lrcv.predict(train_X)
             y_pred = lrcv.predict(test_X)
 
-        #之前代码直接用的是 lrcv.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下   
-        balanced_accuracy_train.append(balanced_accuracy_score(train_y, train_pred))
+        # 之前代码直接用的是 lrcv.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下
+        balanced_accuracy_train.append(
+            balanced_accuracy_score(train_y, train_pred))
         balanced_accuracy_test.append(balanced_accuracy_score(test_y, y_pred))
-        
+
         confusion_matrixs[i] = confusion_matrix(test_y, y_pred).flatten()
         Fscore = metrics.classification_report(
             test_y, y_pred, labels=[0, 1], output_dict=True)
@@ -277,9 +280,9 @@ def create_gui():
     var_selection = tkinter.StringVar()
     var_selection.set(exact_selection)
 
-    for item in selections:
-        option_menu.add_radiobutton(label=item.split(
-            '(')[0], variable=var_selection, value=item, command=lambda: on_selcted(var_selection, display_label))
+    for item in class_dict.keys():
+        option_menu.add_radiobutton(label=item, variable=var_selection,
+                                    value=item, command=lambda: on_selcted(var_selection, display_label))
     menu_bar.add_cascade(label="模型选择", menu=option_menu)
 
     open_button = tkinter.Button(
@@ -296,7 +299,7 @@ def create_gui():
     start_button.config(state='disabled')
 
     display_label = tkinter.Label(
-        root, text='默认使用'+exact_selection.split('(')[0])
+        root, text='默认使用'+exact_selection)
     display_label.grid(row=2, column=1)
 
     progress_label = tkinter.Label(root, text='分析进度: 0%')
@@ -323,14 +326,23 @@ def create_gui():
 
 
 photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix = None, None, None
-selections = ["PLSRegression(n_components=10)",
-              "RandomForestClassifier(500)",
-              "svm.LinearSVC(max_iter=10000)",
-              "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
-              "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', n_jobs=-1)",
-              "MLPClassifier((100, 200, 100), activation='logistic',max_iter=2000)"
-              ]
-exact_selection = selections[1]#学习模型缺省设置为:selections[1] -> "svm.LinearSVC(max_iter=10000)"
+# selections = ["RandomForestClassifier(500)",
+#               "svm.LinearSVC(max_iter=10000)",
+#               "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
+#               "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', n_jobs=-1)",
+#               "MLPClassifier((100, 200, 100), activation='logistic',max_iter=2000)"
+#               ]
+# exact_selection = selections[3]
+
+class_dict = {
+    "RandomForestClassifier": {"n_estimators": 500},
+    "LinearSVC": {"max_iter": 10000},
+    "LinearDiscriminantAnalysis": {"solver": 'eigen', "shrinkage": 'auto'},
+    "LogisticRegressionCV": {"Cs": 20, "penalty": 'l1', "cv": StratifiedKFold(5, shuffle=True), "max_iter": 10000, "solver": 'liblinear', "scoring": 'balanced_accuracy', "n_jobs": -1},
+    "MLPClassifier": {"hidden_layer_sizes": (100, 200, 100), "activation": 'logistic', "max_iter": 2000},
+    "PLSRegression": {"n_components": 10},
+}
+exact_selection = list(class_dict.keys())[3]
 root = tkinter.Tk()
 
 if __name__ == "__main__":
