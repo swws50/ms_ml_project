@@ -117,7 +117,7 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         ylabels = pd.Series(ylabels)
         print(ylabels.value_counts())
 
-        encoder = LabelEncoder()
+        encoder = LabelEncoder() 
         column = encoder.fit_transform(ylabels)
         train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
             row, column, df.columns, test_size=0.2, stratify=column)  # 取20%为训练集
@@ -128,13 +128,20 @@ def on_selcted(var_selection, display_label):
     exact_selection = var_selection.get()
     display_label.config(text='您选择了: '+exact_selection)
 
+def find_optimal_threshold(y_true, y_pred_proba):#使用ROC曲线找到最优分类阈值
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
+    # 找到最优点（约登指数最大的点）
+    optimal_idx = np.argmax(tpr - fpr)
+    return thresholds[optimal_idx]
 
 def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label):
-    global row, column, df
+    global row, column, df, thresholds_used
     balanced_accuracy_train = []
     balanced_accuracy_test = []
     lrs = []
     Fscores = np.zeros((500, 4))
+    thresholds_used = []
 
     confusion_matrixs = np.zeros((500, 4))
     auc_lists = np.zeros((500, 1))
@@ -153,12 +160,25 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
 
         lrcv.fit(train_X, train_y)
 
-        # 如果模型为PLSRegression，则需要对预测值进行二值化处理
+        # 如果模型为PLSRegression，则需要对预测值进行ROC二值化处理
         if isinstance(lrcv, PLSRegression):
-            train_pred_raw = lrcv.predict(train_X)
-            test_pred_raw = lrcv.predict(test_X)
-            train_pred = (train_pred_raw > 0.5).astype(int)
-            y_pred = (test_pred_raw > 0.5).astype(int)
+            train_pred_raw = lrcv.predict(train_X).flatten()  # 确保是一维数组
+            test_pred_raw = lrcv.predict(test_X).flatten()    # 确保是一维数组
+    
+            # 使用训练集寻找最优阈值
+            optimal_threshold = find_optimal_threshold(train_y, train_pred_raw)
+            thresholds_used.append(optimal_threshold)
+            # 使用找到的阈值进行预测
+            train_pred = (train_pred_raw > optimal_threshold).astype(int)
+            y_pred = (test_pred_raw > optimal_threshold).astype(int)
+    
+            # 计算AUC值
+            try:
+                fpr, tpr, _ = roc_curve(test_y, test_pred_raw)
+                auc_lists[i] = auc(fpr, tpr)
+            except Exception as e:
+                print(f"计算AUC时出错: {e}")
+                auc_lists[i] = np.nan
         else:
             train_pred = lrcv.predict(train_X)
             y_pred = lrcv.predict(test_X)
@@ -185,6 +205,13 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
     np.savetxt("Fscore_SVM.csv", Fscores, delimiter=",")
     np.savetxt("2C_auc_SVM.csv", auc_lists, delimiter=",")
+    
+    # 如果使用了PLS回归，则保存阈值数据
+    if len(lrs) > 0 and isinstance(lrs[0], PLSRegression) and len(thresholds_used) > 0:
+        np.savetxt("PLS_optimal_thresholds.csv", thresholds_used, delimiter=",")
+        mean_threshold = np.mean(thresholds_used)
+        print(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
+
     mean_balanced_accuracy_train = np.mean(balanced_accuracy_train)
     mean_balanced_accuracy_test = np.mean(balanced_accuracy_test)
 
@@ -193,13 +220,21 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     balanced_accuracy_test_label.config(
         text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
     print(np.mean(balanced_accuracy_train), np.mean(balanced_accuracy_test))
-    visualize_performance(balanced_accuracy_train,
+
+    # 如果是PLS回归，则传递阈值数据进行可视化
+    if len(lrs) > 0 and isinstance(lrs[0], PLSRegression) and len(thresholds_used) > 0:
+        visualize_performance(balanced_accuracy_train,
+                          balanced_accuracy_test, Fscores, confusion_matrixs, thresholds_used)
+    else:
+        visualize_performance(balanced_accuracy_train,
                           balanced_accuracy_test, Fscores, confusion_matrixs)
 # print(np.mean(metrics.auc(disp.fpr,disp.tpr)))
 
 
-def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs):
-    global photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix
+def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs, thresholds_used=None):
+    global photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix, photo_threshold
+    global notebook
+
     # Visualization of balanced accuracy
     plt.figure(figsize=(6, 4))
     plt.scatter(range(len(balanced_accuracy_train)), balanced_accuracy_train,
@@ -237,26 +272,80 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     plt.savefig('Mean Confusion Matrix.png')
     plt.close()
 
+     # 如果有阈值数据，则添加阈值分布的可视化
+    if thresholds_used is not None and len(thresholds_used) > 0:
+        mean_threshold = np.mean(thresholds_used)
+        std_threshold = np.std(thresholds_used)
+        
+        plt.figure(figsize=(6, 4), dpi=100)
+        hist_data = plt.hist(thresholds_used, bins=20, color='skyblue', 
+                         edgecolor='black', alpha=0.7)
+    
+        if isinstance(hist_data, tuple) and len(hist_data) > 0:
+            y_max = max(hist_data[0]) * 1.1  # 如果hist_data是元组且有值
+        else:
+            y_max = plt.ylim()[1] * 1.1
+        # 添加平均阈值和默认阈值的竖线
+        plt.axvline(x=mean_threshold, color='r', linestyle='--', 
+               label=f'Mean Threshold: {mean_threshold:.4f}')
+        plt.axvline(x=0.5, color='g', linestyle='--', 
+               label='Default Threshold: 0.5')
+        
+        plt.xlabel('Threshold Value', fontsize=12)
+        plt.ylabel('Frequency', fontsize=12)
+    # 修改图例位置和样式
+        plt.legend(loc='upper right', fontsize=10)
+        plt.title(f'PLS-DA Optimal Threshold Distribution (Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', 
+              fontsize=12)
+    # 调整Y轴范围确保显示完整
+        plt.ylim(0, y_max)
+    # 确保图形边缘有足够的空间显示标签
+        plt.tight_layout()
+        plt.savefig('PLS_optimal_thresholds.png', dpi=100, bbox_inches='tight')
+        plt.close()
     root.update()
 
+    # 创建选项卡控件
+    if notebook is not None:
+        try:
+            notebook.destroy()  # 尝试销毁旧的notebook
+        except:
+            pass
+    notebook = ttk.Notebook(root)
+    notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
+        
+     # 第一个选项卡 - 准确率
+    tab1 = ttk.Frame(notebook)
+    notebook.add(tab1, text="准确率")
     image_accuracy = Image.open('Training and Test Balanced Accuracy.png')
     photo_accuracy = ImageTk.PhotoImage(image_accuracy)
-    accuracy_label = tkinter.Label(root, image=photo_accuracy)
-    accuracy_label.grid(column=0, row=6)
-
-    image_precision_recall_f1score = Image.open(
-        'Weighted Average Precision, Recall, and F1-score.png')
-    photo_precision_recall_f1score = ImageTk.PhotoImage(
-        image_precision_recall_f1score)
-    precision_recall_f1score_label = tkinter.Label(
-        root, image=photo_precision_recall_f1score)
-    precision_recall_f1score_label.grid(column=1, row=6)
-
+    label1 = tkinter.Label(tab1, image=photo_accuracy)
+    label1.pack(fill='both', expand=True)
+        
+    # 第二个选项卡 - 精确率/召回率/F1
+    tab2 = ttk.Frame(notebook)
+    notebook.add(tab2, text="精确率/召回率/F1")
+    image_precision_recall_f1score = Image.open('Weighted Average Precision, Recall, and F1-score.png')
+    photo_precision_recall_f1score = ImageTk.PhotoImage(image_precision_recall_f1score)
+    label2 = tkinter.Label(tab2, image=photo_precision_recall_f1score)
+    label2.pack(fill='both', expand=True)
+        
+    # 第三个选项卡 - 混淆矩阵
+    tab3 = ttk.Frame(notebook)
+    notebook.add(tab3, text="混淆矩阵")
     image_Confusion_Matrix = Image.open('Mean Confusion Matrix.png')
     photo_Confusion_Matrix = ImageTk.PhotoImage(image_Confusion_Matrix)
-    Confusion_Matrix_label = tkinter.Label(root, image=photo_Confusion_Matrix)
-    Confusion_Matrix_label.grid(column=2, row=6)
-
+    label3 = tkinter.Label(tab3, image=photo_Confusion_Matrix)
+    label3.pack(fill='both', expand=True)
+        
+    # 如果有阈值数据, 添加第四个选项卡
+    if thresholds_used is not None and len(thresholds_used) > 0:
+        tab4 = ttk.Frame(notebook)
+        notebook.add(tab4, text="阈值分布")
+        image_threshold = Image.open('PLS_optimal_thresholds.png')
+        photo_threshold = ImageTk.PhotoImage(image_threshold)
+        label4 = tkinter.Label(tab4, image=photo_threshold)
+        label4.pack(fill='both', expand=True)    
     root.update()
 
 
@@ -272,6 +361,14 @@ def open_file_dialog(file_name_label):
 def create_gui():
     root.title('诊断分析')
     menu_bar = tkinter.Menu(root)
+     # 设置窗口大小为屏幕大小
+    width = root.winfo_screenwidth()
+    height = root.winfo_screenheight()
+    root.geometry(f"{width}x{height}+0+0")
+    
+    # 让窗口最大化，这在Windows上能保留任务栏
+    root.state('zoomed')
+
     command_menu = tkinter.Menu(menu_bar, tearoff=0)
     menu_bar.add_cascade(label="数据预处理", menu=command_menu)
     command_menu.add_command(label="选择处理文件", command=select_and_process_files)
@@ -325,7 +422,8 @@ def create_gui():
     root.mainloop()
 
 
-photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix = None, None, None
+photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix,photo_threshold = None, None, None, None
+notebook = None
 # selections = ["RandomForestClassifier(500)",
 #               "svm.LinearSVC(max_iter=10000)",
 #               "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
