@@ -136,16 +136,19 @@ def find_optimal_threshold(y_true, y_pred_proba):#使用ROC曲线找到最优分
     return thresholds[optimal_idx]
 
 def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label):
-    global row, column, df, thresholds_used
+    global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list
     balanced_accuracy_train = []
     balanced_accuracy_test = []
     lrs = []
+    fpr_list = []
+    tpr_list = []
+    thresholds_list = []#记录训练结果的阈值
+    auc_list = []
     Fscores = np.zeros((500, 4))
-    thresholds_used = []
+    thresholds_used = []#用于二值化的阈值
 
     confusion_matrixs = np.zeros((500, 4))
-    auc_lists = np.zeros((500, 1))
-    auc_list = []
+    
     for i in tqdm.tqdm(range(500)):
         percentage = (i + 1) / 500 * 100
         progress_label.config(text='分析进度: {0:.2f}%'.format(percentage))
@@ -171,17 +174,26 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
             # 使用找到的阈值进行预测
             train_pred = (train_pred_raw > optimal_threshold).astype(int)
             y_pred = (test_pred_raw > optimal_threshold).astype(int)
-    
             # 计算AUC值
-            try:
-                fpr, tpr, _ = roc_curve(test_y, test_pred_raw)
-                auc_lists[i] = auc(fpr, tpr)
-            except Exception as e:
-                print(f"计算AUC时出错: {e}")
-                auc_lists[i] = np.nan
+            fpr, tpr, thresholds = roc_curve(test_y, test_pred_raw)
+            fpr_list.append(fpr)
+            tpr_list.append(tpr)
+            thresholds_list.append(thresholds)
+            auc_score = auc(fpr, tpr)
+            auc_list.append(auc_score)
+            
         else:
             train_pred = lrcv.predict(train_X)
             y_pred = lrcv.predict(test_X)
+        # 计算AUC值
+            fpr, tpr, thresholds = roc_curve(test_y, y_pred)
+            fpr_list.append(fpr)
+            tpr_list.append(tpr)
+            thresholds_list.append(thresholds)
+            auc_score = auc(fpr, tpr)
+            auc_list.append(auc_score)
+        
+           
 
         # 之前代码直接用的是 lrcv.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下
         balanced_accuracy_train.append(
@@ -197,14 +209,14 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         Fscores[i][2] = Fscore["weighted avg"]["f1-score"]
 
         lrs.append(lrcv)
-    '''
-    from sklearn.metrics import RocCurveDisplay
-    disp = RocCurveDisplay.from_estimator(lrcv,test_X, test_y)
-    auc_lists[i]=metrics.auc(disp.fpr,disp.tpr)'''
+  
 
     np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
     np.savetxt("Fscore_SVM.csv", Fscores, delimiter=",")
-    np.savetxt("2C_auc_SVM.csv", auc_lists, delimiter=",")
+    np.savetxt("2C_auc_SVM.csv", auc_list, delimiter=",")
+    np.save("fpr_values.npy", np.array(fpr_list, dtype=object))
+    np.save("tpr_values.npy", np.array(tpr_list, dtype=object))
+    np.save("thresholds_values.npy", np.array(thresholds_list, dtype=object))
     
     # 如果使用了PLS回归，则保存阈值数据
     if len(lrs) > 0 and isinstance(lrs[0], PLSRegression) and len(thresholds_used) > 0:
@@ -220,19 +232,19 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     balanced_accuracy_test_label.config(
         text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
     print(np.mean(balanced_accuracy_train), np.mean(balanced_accuracy_test))
-
     # 如果是PLS回归，则传递阈值数据进行可视化
     if len(lrs) > 0 and isinstance(lrs[0], PLSRegression) and len(thresholds_used) > 0:
         visualize_performance(balanced_accuracy_train,
-                          balanced_accuracy_test, Fscores, confusion_matrixs, thresholds_used)
+                          balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list,tpr_list,auc_list,thresholds_used)
     else:
         visualize_performance(balanced_accuracy_train,
-                          balanced_accuracy_test, Fscores, confusion_matrixs)
-# print(np.mean(metrics.auc(disp.fpr,disp.tpr)))
+                          balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list=fpr_list,tpr_list=tpr_list,auc_list=auc_list)
 
 
-def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs, thresholds_used=None):
-    global photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix, photo_threshold
+
+def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list, tpr_list,auc_list,thresholds_used=None):
+    global root
+    global photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix
     global notebook
 
     # Visualization of balanced accuracy
@@ -272,6 +284,18 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     plt.savefig('Mean Confusion Matrix.png')
     plt.close()
 
+    # 计算ROC曲线的均值和标准差
+    plt.figure()
+    mean_fpr = np.linspace(0, 1, 100)
+    mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)], axis=0)
+    plt.plot(mean_fpr, mean_tpr, color='red', lw=3, label=f'Mean ROC (AUC={np.mean(auc_list):.2f})')
+    plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # 对角线
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('Mean ROC Curve')
+    plt.savefig('Mean ROC Curve.png')
+    plt.close()
+    
      # 如果有阈值数据，则添加阈值分布的可视化
     if thresholds_used is not None and len(thresholds_used) > 0:
         mean_threshold = np.mean(thresholds_used)
@@ -345,7 +369,16 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
         image_threshold = Image.open('PLS_optimal_thresholds.png')
         photo_threshold = ImageTk.PhotoImage(image_threshold)
         label4 = tkinter.Label(tab4, image=photo_threshold)
-        label4.pack(fill='both', expand=True)    
+        label4.pack(fill='both', expand=True)  
+
+    # 第五个选项卡 - ROC曲线
+    tab_roc = ttk.Frame(notebook)
+    notebook.add(tab_roc, text="ROC曲线")
+    image_roc = Image.open('Mean ROC Curve.png')  
+    photo_roc = ImageTk.PhotoImage(image_roc)
+    label_roc = tkinter.Label(tab_roc, image=photo_roc)
+    label_roc.image = photo_roc  
+    label_roc.pack(fill='both', expand=True)  
     root.update()
 
 
