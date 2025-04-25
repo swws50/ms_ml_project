@@ -25,8 +25,9 @@ from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.svm import LinearSVC
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import balanced_accuracy_score
+from joblib import dump 
+from joblib import load
 
-# %matplotlib widget
 
 
 # 函数：处理原始数据
@@ -149,6 +150,11 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     thresholds_used = []#用于二值化的阈值
     confusion_matrixs = np.zeros((500, 4))
 
+    # 在训练循环中记录关键数据
+    best_model = None
+    best_score = -1
+    all_metrics = []  # 记录每次迭代的指标
+
     #500次循环训练
     for i in tqdm.tqdm(range(500)):
         percentage = (i + 1) / 500 * 100
@@ -173,27 +179,21 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
             thresholds_used.append(optimal_threshold)
             # 使用找到的阈值进行预测
             train_pred = (train_pred_raw > optimal_threshold).astype(int)
-            y_pred = (test_pred_raw > optimal_threshold).astype(int)
-            # 计算AUC值
-            fpr, tpr, thresholds = roc_curve(test_y, test_pred_raw)
-            fpr_list.append(fpr)
-            tpr_list.append(tpr)
-            thresholds_list.append(thresholds)
-            auc_score = auc(fpr, tpr)
-            auc_list.append(auc_score)
-            
+            y_pred = (test_pred_raw > optimal_threshold).astype(int)   
+
+        # 其他模型直接预测   
         else:
             train_pred = current_model.predict(train_X)
             y_pred = current_model.predict(test_X)
-        # 计算AUC值
-            fpr, tpr, thresholds = roc_curve(test_y, y_pred)
-            fpr_list.append(fpr)
-            tpr_list.append(tpr)
-            thresholds_list.append(thresholds)
-            auc_score = auc(fpr, tpr)
-            auc_list.append(auc_score)
         
-           
+        
+        # 计算AUC值
+        fpr, tpr, thresholds = roc_curve(test_y, y_pred)
+        fpr_list.append(fpr)
+        tpr_list.append(tpr)
+        thresholds_list.append(thresholds)
+        auc_score = auc(fpr, tpr)
+        auc_list.append(auc_score)
 
         # 之前代码直接用的是 current_model.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下
         balanced_accuracy_train.append(
@@ -209,6 +209,11 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         Fscores[i][2] = Fscore["weighted avg"]["f1-score"]
 
         trained_models.append(current_model)
+
+        if balanced_accuracy_test[i] > best_score:
+            best_score = balanced_accuracy_test[i]
+            dump(current_model, 'best_model.joblib')
+
   
     # 保存训练数据
     np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
@@ -231,6 +236,9 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     balanced_accuracy_test_label.config(
         text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
     print(np.mean(balanced_accuracy_train), np.mean(balanced_accuracy_test))
+
+    # 模型参数最终保存
+    np.save('all_training_metrics.npy', all_metrics)
     
     # 传参进行可视化
     if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:

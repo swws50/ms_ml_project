@@ -2,3 +2,4 @@
 *.png
 *.npy
 *.xlsx
+*.joblib
