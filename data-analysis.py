@@ -433,8 +433,7 @@ def predict_unknown_sample(file_path,prediction_result_label):
         loaded_model = load('best_model.joblib')
         
         if loaded_model is None:
-            messagebox.showerror("错误", "未找到保存的模型文件")
-            return
+            prediction_result_label.config(text="错误，未找到保存的模型文件", fg='red',font=('Helvetica', 12, 'bold'))
             
         # 定义要处理的特征列表（与训练时相同）
         X = [563.43, 887.77, 804.50, 811.54, 619.52, 647.56, 805.51, 591.47, 806.53, 579.38, 771.60, 797.60, 
@@ -448,94 +447,46 @@ def predict_unknown_sample(file_path,prediction_result_label):
         # 准备预测数据 (转换为与训练数据相同的格式)
         sample_features = sample_data['Max_Value'].values.reshape(1, -1)
 
-         # 进行预测
+        # 进行预测
         prediction = loaded_model.predict(sample_features)[0]
         confidence = None
-        
-       # 根据不同的模型类型获取置信度
-        model_type = type(loaded_model).__name__
-        # 1. 处理支持predict_proba()的模型
-        if hasattr(loaded_model, 'predict_proba'):
-            proba = loaded_model.predict_proba(sample_features)[0]
-            confidence = proba[prediction] * 100
-            confidence_detail = f"类别概率: {', '.join([f'{p:.2f}' for p in proba])}"
-        
-        # 2. 处理LinearSVC (使用decision_function)
-        elif isinstance(loaded_model, LinearSVC):
-            decision_scores = loaded_model.decision_function(sample_features)[0]
-            # 对于二分类，decision_function返回一个值
-            if not isinstance(decision_scores, np.ndarray):
-                decision_scores = [decision_scores]
-            
-            # 计算置信度 - 将决策分数转换为概率的近似值
-            decision_abs = abs(decision_scores[0])
-            confidence = min(100, decision_abs / (1 + decision_abs) * 100)
-            confidence_detail = f"决策分数: {decision_scores[0]:.4f}"
-        
-        # 3. 对于PLSRegression模型
-        elif isinstance(loaded_model, PLSRegression):
-            # 预测原始值
-            pred_raw = loaded_model.predict(sample_features).flatten()[0]
-            
-            # 加载最优阈值
-            try:
-                thresholds = np.loadtxt("PLS_optimal_thresholds.csv", delimiter=",")
-                optimal_threshold = np.mean(thresholds)
-            except:
-                # 如果找不到阈值文件，使用默认值
-                optimal_threshold = 0.5
-                
-            # 根据阈值确定预测类别
-            prediction = 1 if pred_raw > optimal_threshold else 0
-            
-            # 计算"置信度" - 这里使用距离阈值的相对位置作为置信度指标
-            if pred_raw >= optimal_threshold:  # 阳性预测
-                # 计算预测值在[阈值,1]范围内的相对位置
-                max_possible = 1.0  # PLS回归标准化后的最大理论值
-                confidence = min(100, ((pred_raw - optimal_threshold) / 
-                                    (max_possible - optimal_threshold)) * 100)
-            else:  # 阴性预测
-                # 计算预测值在[0,阈值]范围内的相对位置
-                min_possible = 0.0  # PLS回归标准化后的最小理论值
-                confidence = min(100, ((optimal_threshold - pred_raw) / 
-                                    (optimal_threshold - min_possible)) * 100)
-            
-            # 添加PLS特有的详细信息
-            confidence_detail = (f"原始预测值: {pred_raw:.4f}, "
-                                f"阈值: {optimal_threshold:.4f}")
-            
-            # 获取PLS组件相关信息
-            n_components = loaded_model.n_components
-            x_scores = loaded_model.transform(sample_features)
-            
-            # 添加额外的PLS特定信息
-            pls_detail = f"PLS组件数: {n_components}"
-            if x_scores.size > 0:
-                pls_detail += f"\n首个组件得分: {x_scores[0][0]:.4f}"
-                if x_scores.shape[1] > 1:
-                    pls_detail += f", 第二组件得分: {x_scores[0][1]:.4f}"
-        
+
+        # 根据不同的模型类型获取置信度
+        def get_confidence(model, sample_features):
+            if hasattr(model, "predict_proba"):
+                confidence = model.predict_proba(sample_features)
+                if confidence.shape[1] > 1:
+                    return confidence[:, 1]
+                else:
+                    return confidence
+            elif hasattr(model, "decision_function"):
+                confidence = model.decision_function(sample_features)
+                return confidence
+            else:
+                raise ValueError("Model does not have the necessary methods for getting confidence")
+
         # 显示预测结果
         class_labels = {0: "阴性", 1: "阳性"}
         result_text = f"预测结果: {class_labels.get(prediction, str(prediction))}"
-        
+
+        # 获取置信度
+        confidence = get_confidence(loaded_model, sample_features)
+        print(confidence)
         if confidence is not None:
-            result_text += f" (置信度: {confidence:.2f}%)"
-        result_text += f"\n模型类型: {model_type}"
-            
-        # 如果有详细的置信度信息，也显示出来
-        if locals().get('confidence_detail'):
-            result_text += f"\n{confidence_detail}"
+            if isinstance(confidence, np.ndarray):
+                result_text += f" (置信度: {confidence[0]:.2f}%)"
+
+        # 增加显示处理的文件名及模型类型
+        result_text +="\n" + f"文件: {os.path.basename(file_path)}"
+        prediction_result_label.config(text=result_text)
+        result_text += f"\n模型类型: {type(loaded_model).__name__}"
 
         # 更新UI
         prediction_result_label.config(text=result_text, 
-                                       fg='red' if prediction == 1 else 'green',
-                                       font=('Helvetica', 12, 'bold'))
+                                    fg='red' if prediction == 1 else 'green',
+                                    font=('Helvetica', 12, 'bold'))
         
-        # 显示处理的文件名
-        result_text = f"文件: {os.path.basename(file_path)}\n预测结果: {'阳性' if prediction == 1 else '阴性'}"
-        prediction_result_label.config(text=result_text,
-        fg='red' if prediction == 1 else 'green')
+        
         
     except Exception as e:
         messagebox.showerror("预测错误", f"预测过程中发生错误：\n{str(e)}")
@@ -610,7 +561,7 @@ def show_model_info(loaded_model):
 def create_gui():
     root.title('诊断分析')
     menu_bar = tkinter.Menu(root)
-     # 设置窗口大小为屏幕大小
+    # 设置窗口大小为屏幕大小
     width = root.winfo_screenwidth()
     height = root.winfo_screenheight()
     root.geometry(f"{width}x{height}+0+0")
@@ -618,22 +569,21 @@ def create_gui():
     # 让窗口最大化，这在Windows上能保留任务栏
     root.state('zoomed')
 
+    # 菜单栏数据预处理显示
     command_menu = tkinter.Menu(menu_bar, tearoff=0)
     menu_bar.add_cascade(label="数据预处理", menu=command_menu)
     command_menu.add_command(label="选择处理文件", command=select_and_process_files)
 
-    #模型选择显示
+    # 菜单栏模型选择显示
     option_menu = tkinter.Menu(menu_bar, tearoff=0)
     var_selection = tkinter.StringVar()
     var_selection.set(exact_selection)
-
-   
-
     for item in class_dict.keys():
         option_menu.add_radiobutton(label=item, variable=var_selection,
                                     value=item, command=lambda: on_selcted(var_selection, display_label))
     menu_bar.add_cascade(label="模型选择", menu=option_menu)
 
+    # 训练部分控件
     open_button = tkinter.Button(
         root, text="选择归一化excel文件", command=lambda: open_excel_file(normalization_label, start_button, progress_bar))
     open_button.grid(row=1, column=0)
@@ -677,7 +627,7 @@ def create_gui():
     
     
 
-    # row 6 用来显示分析后的图标
+    # row 6 用来显示预测后的图像
 
     # 预测结果显示区域
     prediction_result_label = tkinter.Label(root,text='状态：等待选择文件')
