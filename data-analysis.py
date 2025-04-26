@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import tkinter
-from tkinter import messagebox, filedialog
+from tkinter import messagebox, filedialog,scrolledtext
 from tkinter import ttk
 from sklearn import metrics  # 矩阵
 from matplotlib import pyplot as plt
@@ -135,8 +135,8 @@ def find_optimal_threshold(y_true, y_pred_proba):#使用ROC曲线找到最优分
     optimal_idx = np.argmax(tpr - fpr)
     return thresholds[optimal_idx]
 
-def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label):
-    global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list
+def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label):
+    global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list,best_model
     
     #创建需要的数据结构
     balanced_accuracy_train = []
@@ -151,10 +151,19 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     confusion_matrixs = np.zeros((500, 4))
 
     # 在训练循环中记录关键数据
-    best_model = None
     best_score = -1
-    all_metrics = []  # 记录每次迭代的指标
 
+    # 清空旧信息
+    info_text.delete(1.0, tkinter.END)
+    
+    # 替换所有print为文本框输出
+    def log_message(message):
+        info_text.insert(tkinter.END, message + "\n")
+        info_text.see(tkinter.END)  # 自动滚动到底部
+        root.update()
+    
+    log_message("=> 开始模型训练...")
+    
     #500次循环训练
     for i in tqdm.tqdm(range(500)):
         percentage = (i + 1) / 500 * 100
@@ -210,10 +219,24 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
 
         trained_models.append(current_model)
 
+
+        #覆写保存最佳模型
         if balanced_accuracy_test[i] > best_score:
             best_score = balanced_accuracy_test[i]
-            dump(current_model, 'best_model.joblib')
+            best_model = current_model
+            log_message(f"发现更高分数：{best_score:.4f} (迭代{i})")
 
+    log_message(f"\n训练完成！最优模型分数：{best_score:.4f}")  
+          
+    
+    # 循环结束后保存最终的最优模型（只保存一次）
+    if best_model is not None:
+        dump(best_model, 'best_model.joblib')
+        log_message(f"最优模型已保存，测试集分数: {best_score:.4f}")
+        model_save_status_label.config(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', fg='green')
+    else:
+        log_message("警告：未训练出有效模型")
+        model_save_status_label.config(text='模型保存状态: 保存失败', fg='red')
   
     # 保存训练数据
     np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
@@ -237,8 +260,6 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
     print(np.mean(balanced_accuracy_train), np.mean(balanced_accuracy_test))
 
-    # 模型参数最终保存
-    np.save('all_training_metrics.npy', all_metrics)
     
     # 传参进行可视化
     if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:
@@ -413,9 +434,12 @@ def create_gui():
     menu_bar.add_cascade(label="数据预处理", menu=command_menu)
     command_menu.add_command(label="选择处理文件", command=select_and_process_files)
 
+    #模型选择显示
     option_menu = tkinter.Menu(menu_bar, tearoff=0)
     var_selection = tkinter.StringVar()
     var_selection.set(exact_selection)
+
+   
 
     for item in class_dict.keys():
         option_menu.add_radiobutton(label=item, variable=var_selection,
@@ -431,7 +455,7 @@ def create_gui():
     normalization_label.grid(row=1, column=1)
 
     start_button = tkinter.Button(root, text='开始分析', command=lambda: predict_by(
-        progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label))
+        progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label))
     start_button.grid(row=2, column=0)
     start_button.config(state='disabled')
 
@@ -440,15 +464,30 @@ def create_gui():
     display_label.grid(row=2, column=1)
 
     progress_label = tkinter.Label(root, text='分析进度: 0%')
-    progress_label.grid(row=4, column=0)
+    progress_label.grid(row=3, column=0)
     progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
-    progress_bar.grid(row=4, column=1, sticky='ew')
+    progress_bar.grid(row=3, column=1, sticky='ew')
 
     balanced_accuracy_train_label = tkinter.Label(root, text='平均训练集平衡精度: ')
     balanced_accuracy_train_label.grid(row=5, column=0)
 
     balanced_accuracy_test_label = tkinter.Label(root, text='平均测试集平衡精度: ')
     balanced_accuracy_test_label.grid(row=5, column=1)
+
+    model_save_status_label = tkinter.Label(root, text='模型保存状态: 未保存')
+    model_save_status_label.grid(row=5, column=2) 
+
+    # 新增：信息显示区域（放在 row 1）
+    info_label = tkinter.Label(root, text="运行信息：")
+    info_label.grid(row=1, column=2, sticky='w')
+    
+
+    # 使用ScrolledText替代普通Text（带滚动条）
+    info_text = scrolledtext.ScrolledText(root, width=100, height=4, wrap=tkinter.WORD)
+    info_text.grid(row=2, column=2, columnspan=2, padx=10, pady=5, sticky='nsew')
+
+    
+    
 
     # row 6 用来显示分析后的图标
     file_button = tkinter.Button(
