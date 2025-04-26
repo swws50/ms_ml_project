@@ -47,9 +47,9 @@ def process_file(file_name, X):
         results.append([x, max_value])
     return pd.DataFrame(results, columns=['m/z', 'Max_Value'])
 
+
+
 # 函数：选择并归一化原始数据
-
-
 def select_and_process_files():
     file_paths = filedialog.askopenfilenames(
         title="选择要分析的文件", filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
@@ -76,7 +76,7 @@ def select_and_process_files():
         for index, file_path in enumerate(file_paths, 1):
             file_result = process_file(
                 file_path, [x for x in X if x != 'class'])
-            file_result.set_index('m/z', inplace=True)
+            file_result.set_index('m/z', inplace=True) 
             file_result.columns = [os.path.splitext(
                 os.path.basename(file_path))[0]]  # 使用文件名作为列名
             file_result.loc['class'] = [os.path.splitext(
@@ -97,9 +97,9 @@ def select_and_process_files():
     else:
         messagebox.showwarning("", "未选择任何文件。")
 
+
+
 # 函数：选择归一化好的文件
-
-
 def open_excel_file(normalization_label, start_button, progress_bar):
     global row, column, df
     file_path = filedialog.askopenfilename(
@@ -116,47 +116,52 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         row = df.iloc[1:, :].values.T
         ylabels = df.iloc[0, :].values
         ylabels = pd.Series(ylabels)
+        #测试用，可以删除
         print(ylabels.value_counts())
-
-        encoder = LabelEncoder() 
-        column = encoder.fit_transform(ylabels)
+        # 进行标签编码（可随需求更改）
+        class_mapping = {"HC": 0, "LC": 1}
+        column = np.array([class_mapping.get(label, -1) for label in ylabels])
+        # 未知类别报错
+        if -1 in column:
+            unknown_classes = set(ylabels[column == -1])
+            print(f"警告: 发现未知类别: {unknown_classes}")
+            messagebox.showwarning("警告", f"发现未知类别: {unknown_classes}\n请检查您的类别映射")
         
-
+        
 
 def on_selcted(var_selection, display_label):
     global exact_selection
     exact_selection = var_selection.get()
     display_label.config(text='您选择了: '+exact_selection)
 
-def find_optimal_threshold(y_true, y_pred_proba):#使用ROC曲线找到最优分类阈值
 
+# 使用ROC曲线返回最优分类阈值
+def find_optimal_threshold(y_true, y_pred_proba):
     fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
     # 找到最优点（约登指数最大的点）
     optimal_idx = np.argmax(tpr - fpr)
     return thresholds[optimal_idx]
 
+# 主功能函数：训练
 def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label):
     global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list,best_model
     
-    #创建需要的数据结构
-    balanced_accuracy_train = []
+    # 初始化数据结构
+    balanced_accuracy_train = []  
     balanced_accuracy_test = []
     trained_models = []
     fpr_list = []
     tpr_list = []
-    thresholds_list = []#记录训练结果的阈值
+    thresholds_list = [] # 记录训练结果的阈值
     auc_list = []
     Fscores = np.zeros((500, 4))
-    thresholds_used = []#用于二值化的阈值
+    thresholds_used = [] # 用于二值化的阈值
     confusion_matrixs = np.zeros((500, 4))
+    best_score = -1 # 用于跟踪最佳模型性能
 
-    # 在训练循环中记录关键数据
-    best_score = -1
-
-    # 清空旧信息
+    # 清空日志旧信息
     info_text.delete(1.0, tkinter.END)
-    
-    # 替换所有print为文本框输出
+    # 局部函数：用于文本框中的日志记录
     def log_message(message):
         info_text.insert(tkinter.END, message + "\n")
         info_text.see(tkinter.END)  # 自动滚动到底部
@@ -164,54 +169,55 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     
     log_message("=> 开始模型训练...")
     
-    #500次循环训练
+    #主训练循环500次
     for i in tqdm.tqdm(range(500)):
         percentage = (i + 1) / 500 * 100
         progress_label.config(text='分析进度: {0:.2f}%'.format(percentage))
         progress_bar['value'] = percentage
         root.update()
 
-        train_X, test_X, train_y, test_y, train_labels, test_labels = train_test_split(
-            row, column, df.columns, test_size=0.2, stratify=column) # 取20%为训练集
+        # 划分20%为训练集
+        train_X, test_X, train_y, test_y = train_test_split(
+            row, column, test_size=0.2, stratify=column) 
+        
+        # 模型初始化和训练 => 模型可以改成params里的不同类型
         params = class_dict[exact_selection]
-        current_model = globals()[exact_selection](**params) # 可以改成params里的不同方法
-        # 训练模型
+        current_model = globals()[exact_selection](**params) 
         current_model.fit(train_X, train_y)
 
-        # 如果模型为PLSRegression，则需要对预测值进行ROC二值化处理
+        # 模型预测处理
         if isinstance(current_model, PLSRegression):
+        # 如果模型为PLSRegression，则需要对预测值进行ROC二值化处理    
             train_pred_raw = current_model.predict(train_X).flatten()  # 确保是一维数组
             test_pred_raw = current_model.predict(test_X).flatten()    # 确保是一维数组
     
             # 使用训练集寻找最优阈值
             optimal_threshold = find_optimal_threshold(train_y, train_pred_raw)
             thresholds_used.append(optimal_threshold)
-            # 使用找到的阈值进行预测
-            train_pred = (train_pred_raw > optimal_threshold).astype(int)
-            y_pred = (test_pred_raw > optimal_threshold).astype(int)   
-
-        # 其他模型直接预测   
-        else:
-            train_pred = current_model.predict(train_X)
-            y_pred = current_model.predict(test_X)
+            # 应用阈值进行二值化
+            train_y_pred = (train_pred_raw > optimal_threshold).astype(int)
+            text_y_pred = (test_pred_raw > optimal_threshold).astype(int)    
+        else: 
+        # 其他模型直接预测       
+            train_y_pred = current_model.predict(train_X)
+            text_y_pred = current_model.predict(test_X)
         
         
-        # 计算AUC值
-        fpr, tpr, thresholds = roc_curve(test_y, y_pred)
+        # 性能评估
+        fpr, tpr, thresholds = roc_curve(test_y, text_y_pred)
         fpr_list.append(fpr)
         tpr_list.append(tpr)
         thresholds_list.append(thresholds)
         auc_score = auc(fpr, tpr)
         auc_list.append(auc_score)
 
-        # 之前代码直接用的是 current_model.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下
-        balanced_accuracy_train.append(
-            balanced_accuracy_score(train_y, train_pred))
-        balanced_accuracy_test.append(balanced_accuracy_score(test_y, y_pred))
+        # 之前代码用的是 current_model.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下
+        balanced_accuracy_train.append(balanced_accuracy_score(train_y, train_y_pred))
+        balanced_accuracy_test.append(balanced_accuracy_score(test_y, text_y_pred))
 
-        confusion_matrixs[i] = confusion_matrix(test_y, y_pred).flatten()
+        confusion_matrixs[i] = confusion_matrix(test_y, text_y_pred).flatten()
         Fscore = metrics.classification_report(
-            test_y, y_pred, labels=[0, 1], output_dict=True)
+            test_y, text_y_pred, labels=[0, 1], output_dict=True)
 
         Fscores[i][0] = Fscore["weighted avg"]["precision"]
         Fscores[i][1] = Fscore["weighted avg"]["recall"]
@@ -238,7 +244,7 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         log_message("警告：未训练出有效模型")
         model_save_status_label.config(text='模型保存状态: 保存失败', fg='red')
   
-    # 保存训练数据
+    # 保存训练数据和指标
     np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
     np.savetxt("Fscore_SVM.csv", Fscores, delimiter=",")
     np.savetxt("2C_auc_SVM.csv", auc_list, delimiter=",")
@@ -251,13 +257,11 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         mean_threshold = np.mean(thresholds_used)
         print(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
 
+    # 显示平均性能指标
     mean_balanced_accuracy_train = np.mean(balanced_accuracy_train)
     mean_balanced_accuracy_test = np.mean(balanced_accuracy_test)
-
-    balanced_accuracy_train_label.config(
-        text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
-    balanced_accuracy_test_label.config(
-        text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
+    balanced_accuracy_train_label.config(text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
+    balanced_accuracy_test_label.config(text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
     print(np.mean(balanced_accuracy_train), np.mean(balanced_accuracy_test))
 
     
@@ -304,10 +308,20 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     plt.close()
 
     # Visualization of Confusion Matrix
+    reverse_class_mapping = {0: "HC", 1: "LC"}
     plt.figure(figsize=(4, 4))
     mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
-    sns.heatmap(mean_conf_matrix, annot=True,
-                fmt='g', cmap='Blues', cbar=False)
+    plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
+    plt.colorbar(fraction=0.046, pad=0.04)
+    plt.xticks([0, 1], [reverse_class_mapping[0], reverse_class_mapping[1]])
+    plt.yticks([0, 1], [reverse_class_mapping[0], reverse_class_mapping[1]])
+    # 添加数值标签
+    for i in range(2):
+        for j in range(2):
+            plt.text(j, i, f"{mean_conf_matrix[i, j]:.1f}", 
+                    ha="center", va="center", color="black")
+    plt.xlabel('Predicted Class')
+    plt.ylabel('True Class')
     plt.title('Mean Confusion Matrix')
     plt.savefig('Mean Confusion Matrix.png')
     plt.close()
@@ -410,14 +424,187 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     root.update()
 
 
-def open_file_dialog(file_name_label):
-    file_path = filedialog.askopenfilename(initialdir="/", title="Select File",
-                                           filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
-    if file_path != '':
-        file_name_label.config(text='已选择'+file_path)
-    pass
-# 没写完
+def predict_unknown_sample(file_path, file_name_label, prediction_result_label):
+    """加载保存的模型并对未知样本进行预测"""
+    try:
+        # 加载保存的模型
+        loaded_model = load('best_model.joblib')
+        
+        if loaded_model is None:
+            messagebox.showerror("错误", "未找到保存的模型文件")
+            return
+            
+        # 定义要处理的特征列表（与训练时相同）
+        X = [563.43, 887.77, 804.50, 811.54, 619.52, 647.56, 805.51, 591.47, 806.53, 579.38, 771.60, 797.60, 
+             769.59, 655.39, 695.57, 731.54, 565.36, 929.75, 759.48, 697.59, 807.55, 671.56, 673.57, 879.76, 
+             931.77, 953.77, 641.50, 881.77, 901.73, 927.68, 799.59, 763.52, 903.77, 883.70, 979.80, 955.71,
+             675.59, 669.52, 905.77, 643.53, 825.70, 639.41, 971.65, 981.84, 869.71, 925.73, 907.77, 507.27]
+        
+        # 处理文件
+        sample_data = process_file(file_path, X)
+        
+        # 准备预测数据 (转换为与训练数据相同的格式)
+        sample_features = sample_data['Max_Value'].values.reshape(1, -1)
 
+         # 进行预测
+        prediction = loaded_model.predict(sample_features)[0]
+        confidence = None
+        
+       # 根据不同的模型类型获取置信度
+        model_type = type(loaded_model).__name__
+        # 1. 处理支持predict_proba()的模型
+        if hasattr(loaded_model, 'predict_proba'):
+            proba = loaded_model.predict_proba(sample_features)[0]
+            confidence = proba[prediction] * 100
+            confidence_detail = f"类别概率: {', '.join([f'{p:.2f}' for p in proba])}"
+        
+        # 2. 处理LinearSVC (使用decision_function)
+        elif isinstance(loaded_model, LinearSVC):
+            decision_scores = loaded_model.decision_function(sample_features)[0]
+            # 对于二分类，decision_function返回一个值
+            if not isinstance(decision_scores, np.ndarray):
+                decision_scores = [decision_scores]
+            
+            # 计算置信度 - 将决策分数转换为概率的近似值
+            decision_abs = abs(decision_scores[0])
+            confidence = min(100, decision_abs / (1 + decision_abs) * 100)
+            confidence_detail = f"决策分数: {decision_scores[0]:.4f}"
+        
+        # 3. 对于PLSRegression模型
+        elif isinstance(loaded_model, PLSRegression):
+            # 预测原始值
+            pred_raw = loaded_model.predict(sample_features).flatten()[0]
+            
+            # 加载最优阈值
+            try:
+                thresholds = np.loadtxt("PLS_optimal_thresholds.csv", delimiter=",")
+                optimal_threshold = np.mean(thresholds)
+            except:
+                # 如果找不到阈值文件，使用默认值
+                optimal_threshold = 0.5
+                
+            # 根据阈值确定预测类别
+            prediction = 1 if pred_raw > optimal_threshold else 0
+            
+            # 计算"置信度" - 这里使用距离阈值的相对位置作为置信度指标
+            if pred_raw >= optimal_threshold:  # 阳性预测
+                # 计算预测值在[阈值,1]范围内的相对位置
+                max_possible = 1.0  # PLS回归标准化后的最大理论值
+                confidence = min(100, ((pred_raw - optimal_threshold) / 
+                                    (max_possible - optimal_threshold)) * 100)
+            else:  # 阴性预测
+                # 计算预测值在[0,阈值]范围内的相对位置
+                min_possible = 0.0  # PLS回归标准化后的最小理论值
+                confidence = min(100, ((optimal_threshold - pred_raw) / 
+                                    (optimal_threshold - min_possible)) * 100)
+            
+            # 添加PLS特有的详细信息
+            confidence_detail = (f"原始预测值: {pred_raw:.4f}, "
+                                f"阈值: {optimal_threshold:.4f}")
+            
+            # 获取PLS组件相关信息
+            n_components = loaded_model.n_components
+            x_scores = loaded_model.transform(sample_features)
+            
+            # 添加额外的PLS特定信息
+            pls_detail = f"PLS组件数: {n_components}"
+            if x_scores.size > 0:
+                pls_detail += f"\n首个组件得分: {x_scores[0][0]:.4f}"
+                if x_scores.shape[1] > 1:
+                    pls_detail += f", 第二组件得分: {x_scores[0][1]:.4f}"
+        
+        # 显示预测结果
+        class_labels = {0: "阴性", 1: "阳性"}
+        result_text = f"预测结果: {class_labels.get(prediction, str(prediction))}"
+        
+        if confidence is not None:
+            result_text += f" (置信度: {confidence:.2f}%)"
+        result_text += f"\n模型类型: {model_type}"
+            
+        # 如果有详细的置信度信息，也显示出来
+        if locals().get('confidence_detail'):
+            result_text += f"\n{confidence_detail}"
+
+        # 更新UI
+        prediction_result_label.config(text=result_text, 
+                                       fg='red' if prediction == 1 else 'green',
+                                       font=('Helvetica', 12, 'bold'))
+        
+        # 显示处理的文件名
+        file_name = os.path.basename(file_path)
+        file_name_label.config(text=f'已检测文件: {file_name}')
+        
+    except Exception as e:
+        messagebox.showerror("预测错误", f"预测过程中发生错误：\n{str(e)}")
+        import traceback
+        traceback.print_exc()  # 打印详细错误信息
+        prediction_result_label.config(text="预测失败")
+
+def open_file_dialog(file_name_label, prediction_result_label):
+    file_path = filedialog.askopenfilename(
+        initialdir="/", 
+        title="选择要预测的文件",
+        filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
+    )
+    
+    if file_path != '':
+        predict_unknown_sample(file_path, file_name_label, prediction_result_label)
+
+# 添加在predict_unknown_sample函数中显示模型信息的部分
+def show_model_info(loaded_model):
+    """显示模型的详细信息"""
+    info_window = tkinter.Toplevel()
+    info_window.title(f"模型信息: {type(loaded_model).__name__}")
+    info_window.geometry("600x400")
+    
+    # 使用文本框显示模型信息
+    info_text = scrolledtext.ScrolledText(info_window, width=70, height=20)
+    info_text.pack(fill='both', expand=True, padx=10, pady=10)
+    
+    # 获取模型信息
+    info_text.insert(tkinter.END, f"模型类型: {type(loaded_model).__name__}\n\n")
+    
+    # 获取模型参数
+    info_text.insert(tkinter.END, "模型参数:\n")
+    for param_name, param_value in loaded_model.get_params().items():
+        info_text.insert(tkinter.END, f"- {param_name}: {param_value}\n")
+    
+    # 特殊模型信息
+    if hasattr(loaded_model, 'feature_importances_'):
+        info_text.insert(tkinter.END, "\n特征重要性:\n")
+        importances = loaded_model.feature_importances_
+        for i, imp in enumerate(importances):
+            info_text.insert(tkinter.END, f"- 特征 {i+1}: {imp:.4f}\n")
+    
+    elif hasattr(loaded_model, 'coef_'):
+        info_text.insert(tkinter.END, "\n特征系数:\n")
+        coefs = loaded_model.coef_
+        if coefs.ndim == 1:
+            for i, coef in enumerate(coefs):
+                info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
+        
+        elif isinstance(loaded_model, PLSRegression):
+            info_text.insert(tkinter.END, "\nPLS回归特有信息:\n")
+            info_text.insert(tkinter.END, f"- 组件数: {loaded_model.n_components}\n")
+            
+            if hasattr(loaded_model, 'x_weights_'):
+                info_text.insert(tkinter.END, "\nX权重 (前5个特征的前3个组件):\n")
+                weights = loaded_model.x_weights_
+                for i in range(min(5, weights.shape[0])):
+                    weight_str = ", ".join([f"{w:.4f}" for w in weights[i, :min(3, weights.shape[1])]])
+                    info_text.insert(tkinter.END, f"- 特征 {i+1}: {weight_str}\n")
+            
+            if hasattr(loaded_model, 'x_loadings_'):
+                info_text.insert(tkinter.END, "\nX载荷 (前5个特征的前3个组件):\n")
+                loadings = loaded_model.x_loadings_
+                for i in range(min(5, loadings.shape[0])):
+                    loading_str = ", ".join([f"{l:.4f}" for l in loadings[i, :min(3, loadings.shape[1])]])
+                    info_text.insert(tkinter.END, f"- 特征 {i+1}: {loading_str}\n")
+        else:
+            for class_idx, class_coef in enumerate(coefs):
+                info_text.insert(tkinter.END, f"\n类别 {class_idx} 的系数:\n")
+                for i, coef in enumerate(class_coef):
+                    info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
 
 def create_gui():
     root.title('诊断分析')
@@ -490,12 +677,22 @@ def create_gui():
     
 
     # row 6 用来显示分析后的图标
+
+    prediction_result_label = tkinter.Label(root, text='等待预测...', font=('Helvetica', 12))
+    prediction_result_label.grid(row=7, column=2, columnspan=2)
+    
     file_button = tkinter.Button(
-        root, text="选择要检测的txt文件", command=lambda: open_file_dialog(file_name_label))
+        root, text="选择要检测的txt文件", 
+        command=lambda: open_file_dialog(file_name_label, prediction_result_label))
     file_button.grid(row=7, column=0)
 
     file_name_label = tkinter.Label(root, text='您尚未进行检测')
     file_name_label.grid(row=7, column=1)
+    
+    model_info_button = tkinter.Button(
+    root, text="查看模型详情", 
+    command=lambda: show_model_info(load('best_model.joblib')) if os.path.exists('best_model.joblib') else messagebox.showerror("错误", "未找到模型文件"))
+    model_info_button.grid(row=7, column=3)
 
     root.config(menu=menu_bar)
     root.mainloop()
