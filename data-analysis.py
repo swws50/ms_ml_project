@@ -135,6 +135,7 @@ def on_selcted(var_selection, display_label):
     display_label.config(text='您选择了: '+exact_selection)
 
 
+
 # 使用ROC曲线返回最优分类阈值
 def find_optimal_threshold(y_true, y_pred_proba):
     fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
@@ -142,7 +143,7 @@ def find_optimal_threshold(y_true, y_pred_proba):
     optimal_idx = np.argmax(tpr - fpr)
     return thresholds[optimal_idx]
 
-# 主功能函数：训练
+# 主功能函数：监督训练 + 更新训练部分UI
 def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label):
     global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list,best_model
     
@@ -419,12 +420,13 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     image_roc = Image.open('Mean ROC Curve.png')  
     photo_roc = ImageTk.PhotoImage(image_roc)
     label_roc = tkinter.Label(tab_roc, image=photo_roc)
-    label_roc.image = photo_roc  
+    #label_roc.image = photo_roc  这行代码会让得图片不会被垃圾回收，即一直显示在窗口上
     label_roc.pack(fill='both', expand=True)  
     root.update()
 
 
-def predict_unknown_sample(file_path, file_name_label, prediction_result_label):
+
+def predict_unknown_sample(file_path,prediction_result_label):
     """加载保存的模型并对未知样本进行预测"""
     try:
         # 加载保存的模型
@@ -531,8 +533,9 @@ def predict_unknown_sample(file_path, file_name_label, prediction_result_label):
                                        font=('Helvetica', 12, 'bold'))
         
         # 显示处理的文件名
-        file_name = os.path.basename(file_path)
-        file_name_label.config(text=f'已检测文件: {file_name}')
+        result_text = f"文件: {os.path.basename(file_path)}\n预测结果: {'阳性' if prediction == 1 else '阴性'}"
+        prediction_result_label.config(text=result_text,
+        fg='red' if prediction == 1 else 'green')
         
     except Exception as e:
         messagebox.showerror("预测错误", f"预测过程中发生错误：\n{str(e)}")
@@ -540,15 +543,13 @@ def predict_unknown_sample(file_path, file_name_label, prediction_result_label):
         traceback.print_exc()  # 打印详细错误信息
         prediction_result_label.config(text="预测失败")
 
-def open_file_dialog(file_name_label, prediction_result_label):
-    file_path = filedialog.askopenfilename(
-        initialdir="/", 
-        title="选择要预测的文件",
-        filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
-    )
-    
-    if file_path != '':
-        predict_unknown_sample(file_path, file_name_label, prediction_result_label)
+
+
+# 函数：选择文件并连锁预测 + 传递预测部分UI
+def open_file_dialog(prediction_result_label):
+    file_path = filedialog.askopenfilename(initialdir="/",title="选择要预测的文件",filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
+    if file_path:
+        predict_unknown_sample(file_path,prediction_result_label)
 
 # 添加在predict_unknown_sample函数中显示模型信息的部分
 def show_model_info(loaded_model):
@@ -678,16 +679,15 @@ def create_gui():
 
     # row 6 用来显示分析后的图标
 
-    prediction_result_label = tkinter.Label(root, text='等待预测...', font=('Helvetica', 12))
-    prediction_result_label.grid(row=7, column=2, columnspan=2)
-    
+    # 预测结果显示区域
+    prediction_result_label = tkinter.Label(root,text='状态：等待选择文件')
+    prediction_result_label.grid(row=7, column=1) 
+    # 选择文件按钮
     file_button = tkinter.Button(
         root, text="选择要检测的txt文件", 
-        command=lambda: open_file_dialog(file_name_label, prediction_result_label))
+        command=lambda: open_file_dialog(prediction_result_label))
     file_button.grid(row=7, column=0)
 
-    file_name_label = tkinter.Label(root, text='您尚未进行检测')
-    file_name_label.grid(row=7, column=1)
     
     model_info_button = tkinter.Button(
     root, text="查看模型详情", 
@@ -698,15 +698,8 @@ def create_gui():
     root.mainloop()
 
 
-photo_accuracy, photo_precision_recall_f1score, photo_Confusion_Matrix,photo_threshold = None, None, None, None
 notebook = None
-# selections = ["RandomForestClassifier(500)",
-#               "svm.LinearSVC(max_iter=10000)",
-#               "LinearDiscriminantAnalysis(solver='eigen', shrinkage='auto')",
-#               "LogisticRegressionCV(Cs=20, penalty='l1', cv=StratifiedKFold(5, shuffle=True), max_iter=10000, solver='liblinear', scoring='balanced_accuracy', n_jobs=-1)",
-#               "MLPClassifier((100, 200, 100), activation='logistic',max_iter=2000)"
-#               ]
-# exact_selection = selections[3]
+
 
 class_dict = {
     "RandomForestClassifier": {"n_estimators": 500},
