@@ -1,37 +1,60 @@
-import pandas as pd
-import numpy as np
-import tkinter
-from tkinter import messagebox, filedialog,scrolledtext
-from tkinter import ttk
-from sklearn import metrics  # 矩阵
-from matplotlib import pyplot as plt
-from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import confusion_matrix, recall_score, classification_report, accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedKFold
+# 基础数据处理
 import os
-from sklearn import svm, datasets
-from sklearn.model_selection import train_test_split, StratifiedKFold
+import numpy as np
+import pandas as pd
 import tqdm
-from sklearn.metrics import roc_curve, auc
-from sklearn import metrics
-import seaborn as sns
+
+# GUI组件
+import tkinter
+from tkinter import ttk, messagebox, filedialog, scrolledtext
 from PIL import Image, ImageTk
 
+# 机器学习核心库
+import sklearn
+from sklearn import metrics, svm
+from sklearn.model_selection import train_test_split, StratifiedKFold
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import (confusion_matrix, recall_score, classification_report, 
+                            accuracy_score, balanced_accuracy_score, roc_curve, auc)
+
+# 机器学习模型
 from sklearn.linear_model import LogisticRegressionCV
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.svm import LinearSVC
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.metrics import balanced_accuracy_score
-from joblib import dump 
-from joblib import load
 
+# 模型存取
+from joblib import dump, load
+
+# 可视化
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 # 函数：处理原始数据
 def process_file(file_name, X):
+    """
+    处理原始光谱数据文件，提取指定m/z值附近的最大信号强度。
+    
+    对每个指定的m/z值，在其±0.2的范围内查找最大信号强度，并进行归一化处理。
+    这个函数适用于质谱数据的预处理，用于提取特定质谱峰的特征。
+    
+    参数:
+        file_name (str): 原始数据文件路径，文件应为以空白分隔的CSV格式
+        X (list): 待提取的m/z值列表
+        
+    返回:
+        pd.DataFrame: 包含两列的DataFrame:
+            - 'm/z': 指定的m/z值
+            - 'Max_Value': 对应m/z值范围内的最大归一化信号强度
+            
+    注意:
+        - 输入文件应为两列格式：第一列为m/z值，第二列为信号强度
+        - 信号强度会除以871.7725进行归一化
+        - 如果指定范围内没有数据点，则对应的Max_Value为None
+    """
     raw_data = pd.read_csv(file_name, sep=r'\s+', header=None)
     results = []
     for x in X:
@@ -51,6 +74,31 @@ def process_file(file_name, X):
 
 # 函数：选择并归一化原始数据
 def select_and_process_files():
+    """
+    通过图形界面选择并处理多个原始光谱数据文件，生成用于机器学习的特征矩阵。
+    
+    此函数打开文件选择对话框，允许用户选择多个txt格式的原始数据文件。
+    对每个文件，提取预定义的47个m/z值处的峰值强度，并将结果合并为一个特征矩阵。
+    结果保存为Excel文件，其中行为特征(m/z值)，列为样本，包含样本类别标签。
+    
+    参数:
+        无
+        
+    返回:
+        无: 结果直接保存为'LC_MAX.xlsx'文件
+        
+    全局变量依赖:
+        root: tkinter根窗口对象
+        
+    副作用:
+        - 在GUI中创建和更新进度条和标签
+        - 生成并保存Excel文件
+        - 显示处理完成的消息框
+        
+    注意:
+        - 默认提取48个特征(包括'class'和47个m/z值)
+        - 样本类别从文件名的前两个字符获取(LC或HC)
+    """
     file_paths = filedialog.askopenfilenames(
         title="选择要分析的文件", filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
 
@@ -101,6 +149,30 @@ def select_and_process_files():
 
 # 函数：选择归一化好的文件
 def open_excel_file(normalization_label, start_button, progress_bar):
+    """
+    打开并加载已处理的特征矩阵Excel文件，准备机器学习模型训练。
+    
+    此函数打开文件选择对话框，允许用户选择一个Excel文件(通常是由select_and_process_files函数生成的)。
+    加载数据后，提取特征矩阵和类别标签，并进行必要的预处理使其满足模型训练要求。
+    
+    参数:
+        normalization_label (tkinter.Label): 用于显示文件选择状态的标签
+        start_button (tkinter.Button): 训练开始按钮，文件加载成功后启用
+        progress_bar (ttk.Progressbar): 进度条组件，文件加载后重置
+        
+    返回:
+        无: 结果存储在全局变量中
+        
+    全局变量修改:
+        row: 设置为特征矩阵，形状为(n_samples, n_features)
+        column: 设置为类别标签向量，形状为(n_samples,)
+        df: 设置为原始加载的DataFrame
+        
+    注意:
+        - 期望Excel文件格式：第一行为类别标签(HC或LC)，随后各行为特征值
+        - 类别标签会被映射为数值：HC=0, LC=1
+        - 如果发现未知类别，将显示警告消息
+    """
     global row, column, df
     file_path = filedialog.askopenfilename(
         filetypes=[("Excel files", "*.xls *.xlsx")])
@@ -130,6 +202,22 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         
 
 def on_selcted(var_selection, display_label):
+    """
+     处理模型选择变化的回调函数，更新全局模型选择和显示标签。
+    
+    当用户从下拉菜单中选择不同的机器学习模型时，此函数将被调用。
+    它更新全局变量以存储当前选择的模型类型，并更新UI显示。
+    
+    参数:
+        var_selection (tkinter.StringVar): 包含当前选择的模型名称的变量
+        display_label (tkinter.Label): 用于显示当前选择的标签组件
+        
+    返回:
+        无: 修改全局变量和UI
+        
+    全局变量修改:
+        exact_selection: 设置为当前选择的模型名称
+    """
     global exact_selection
     exact_selection = var_selection.get()
     display_label.config(text='您选择了: '+exact_selection)
@@ -138,6 +226,25 @@ def on_selcted(var_selection, display_label):
 
 # 使用ROC曲线返回最优分类阈值
 def find_optimal_threshold(y_true, y_pred_proba):
+    """
+    基于ROC曲线分析寻找最优分类阈值。
+    
+    通过计算ROC曲线上的所有点，找到约登指数(Youden's J statistic)最大的点作为最优阈值。
+    约登指数定义为: J = 灵敏度 + 特异度 - 1 = TPR - FPR
+    此方法适用于需要将连续预测值(如回归模型输出)转换为二分类结果的情况。
+    
+    参数:
+        y_true (array-like): 真实类别标签，通常为0和1
+        y_pred_proba (array-like): 模型的连续预测值或概率估计
+        
+    返回:
+        float: 最优分类阈值，应用此阈值可获得最佳的综合分类性能
+        
+    注意:
+        - 此函数常用于PLS回归等输出连续值的模型
+        - 约登指数最大的点平衡了灵敏度和特异度
+        - 在不同应用场景中，可能需要其他标准来确定最优阈值
+    """
     fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
     # 找到最优点（约登指数最大的点）
     optimal_idx = np.argmax(tpr - fpr)
@@ -145,6 +252,43 @@ def find_optimal_threshold(y_true, y_pred_proba):
 
 # 主功能函数：监督训练 + 更新训练部分UI
 def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label):
+    """
+    执行机器学习模型的训练、评估和保存，并通过GUI界面显示训练进度和结果。
+    
+    此函数通过重复训练模型500次来获得稳定的性能评估，使用交叉验证（80%训练/20%测试）。
+    每次迭代中会跟踪多种评估指标，并最终保存性能最佳的模型。特别适用于
+    二分类问题（HC vs LC），支持多种分类器，包括普通分类器和PLS回归模型。
+    
+    参数:
+        progress_label (tkinter.Label): 用于显示训练进度百分比的标签组件
+        progress_bar (ttk.Progressbar): 用于可视化训练进度的进度条组件
+        balanced_accuracy_train_label (tkinter.Label): 显示训练集平均平衡准确率的标签
+        balanced_accuracy_test_label (tkinter.Label): 显示测试集平均平衡准确率的标签
+        info_text (tkinter.Text): 用于显示训练日志信息的文本框组件
+        model_save_status_label (tkinter.Label): 显示模型保存状态的标签
+        
+    全局变量依赖:
+        row: 特征数据数组，形状为(n_samples, n_features)
+        column: 类别标签数组，形状为(n_samples,)
+        df: 原始数据DataFrame
+        exact_selection: 当前选择的模型类型名称
+        class_dict: 包含各种模型参数配置的字典
+        best_model: 存储性能最佳的模型实例
+        
+    返回:
+        None: 函数结果通过UI组件和文件保存表现
+        
+    副作用:
+        - 创建并保存多个CSV和NPY文件记录训练结果
+        - 保存性能最佳的模型到'best_model.joblib'
+        - 更新UI组件显示训练结果
+        - 调用visualize_performance函数生成可视化图表
+        
+    注意:
+        - 使用前确保已正确设置全局变量row、column和exact_selection
+        - 对于PLSRegression模型，使用ROC曲线寻找最优分类阈值
+        - 支持的评估指标包括：平衡准确率、混淆矩阵、精确率、召回率、F1分数和ROC曲线
+    """
     global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list,best_model
     
     # 初始化数据结构
@@ -277,6 +421,27 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
 
 
 def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list, tpr_list,auc_list,thresholds_used=None):
+    """
+    可视化机器学习模型的多种性能指标并在GUI中显示结果。
+    
+    参数:
+        balanced_accuracy_train: 训练集平衡准确率列表
+        balanced_accuracy_test: 测试集平衡准确率列表
+        Fscores: 包含加权平均精确率、召回率和F1分数的数组，形状为(n_iterations, 3)
+        confusion_matrixs: 混淆矩阵数组，形状为(n_iterations, 4)
+        fpr_list: 假阳性率列表，每个元素对应一次迭代的ROC曲线
+        tpr_list: 真阳性率列表，每个元素对应一次迭代的ROC曲线
+        auc_list: AUC值列表，每个元素对应一次迭代的ROC曲线AUC
+        thresholds_used: 可选，PLS回归模型使用的最优阈值列表
+        output_dir: 可选，图像保存路径，默认为当前目录
+        dpi: 可选，图像DPI，默认为100
+        
+    返回:
+        None: 函数将图像保存到指定目录并在GUI中显示
+        
+    注意:
+        此函数依赖于全局变量root和notebook，需要在tkinter环境中运行
+        """
     global root
     global notebook
 
@@ -387,6 +552,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     image_accuracy = Image.open('Training and Test Balanced Accuracy.png')
     photo_accuracy = ImageTk.PhotoImage(image_accuracy)
     label1 = tkinter.Label(tab1, image=photo_accuracy)
+    label1.image = photo_accuracy  # 保持引用
     label1.pack(fill='both', expand=True)
         
     # 第二个选项卡 - 精确率/召回率/F1
@@ -395,6 +561,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     image_precision_recall_f1score = Image.open('Weighted Average Precision, Recall, and F1-score.png')
     photo_precision_recall_f1score = ImageTk.PhotoImage(image_precision_recall_f1score)
     label2 = tkinter.Label(tab2, image=photo_precision_recall_f1score)
+    label2.image = photo_precision_recall_f1score  # 保持引用
     label2.pack(fill='both', expand=True)
         
     # 第三个选项卡 - 混淆矩阵
@@ -403,6 +570,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     image_Confusion_Matrix = Image.open('Mean Confusion Matrix.png')
     photo_Confusion_Matrix = ImageTk.PhotoImage(image_Confusion_Matrix)
     label3 = tkinter.Label(tab_CM, image=photo_Confusion_Matrix)
+    label3.image = photo_Confusion_Matrix  # 保持引用
     label3.pack(fill='both', expand=True)
         
     # 如果有阈值数据, 添加第四个选项卡
@@ -412,6 +580,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
         image_threshold = Image.open('PLS_optimal_thresholds.png')
         photo_threshold = ImageTk.PhotoImage(image_threshold)
         label4 = tkinter.Label(tab4, image=photo_threshold)
+        label4.image = photo_threshold  # 保持引用
         label4.pack(fill='both', expand=True)  
 
     # 第五个选项卡 - ROC曲线
@@ -420,14 +589,31 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     image_roc = Image.open('Mean ROC Curve.png')  
     photo_roc = ImageTk.PhotoImage(image_roc)
     label_roc = tkinter.Label(tab_roc, image=photo_roc)
-    #label_roc.image = photo_roc  这行代码会让得图片不会被垃圾回收，即一直显示在窗口上
+    label_roc.image = photo_roc  
     label_roc.pack(fill='both', expand=True)  
     root.update()
 
 
 
 def predict_unknown_sample(file_path,prediction_result_label):
-    """加载保存的模型并对未知样本进行预测"""
+    """支持多种类型的sklearn模型，包括:
+    - 带predict_proba方法的分类器(如RandomForest, LogisticRegression)
+    - 带decision_function方法的分类器(如默认SVM)
+    - PLSRegression模型(需配合阈值进行概率转换)
+    - 其他不提供概率估计的模型
+    
+    参数:
+        model: 已训练的sklearn模型
+        features: 样本特征，形状为 (1, n_features)
+        
+    返回:
+        tuple: (prediction, probabilities)
+            - prediction: 预测的类别标签 (0表示HC, 1表示LC)
+            - probabilities: 各类别的概率数组 [HC概率, LC概率]
+            
+    注意:
+        对于PLSRegression等回归模型，概率是通过Sigmoid函数转换得到，
+        可能需要适当校准以获得更准确的概率估计。"""
     try:
         # 加载保存的模型
         loaded_model = load('best_model.joblib')
@@ -530,13 +716,52 @@ def predict_unknown_sample(file_path,prediction_result_label):
 
 # 函数：选择文件并连锁预测 + 传递预测部分UI
 def open_file_dialog(prediction_result_label):
+    """
+    打开文件选择对话框，用于选择要预测的样本文件。
+    
+    此函数提供图形化界面让用户选择一个txt格式的样本文件，并自动
+    调用predict_unknown_sample函数进行预测，结果将显示在指定标签中。
+    
+    参数:
+        prediction_result_label (tkinter.Label): 用于显示预测结果的标签控件
+        
+    返回:
+        None: 直接通过GUI界面展示预测结果
+        
+    注意:
+        - 初始目录设置为根目录"/"
+        - 默认文件过滤为txt文件，但允许选择任何类型文件
+        - 若用户取消选择，将不会执行任何操作
+    """
     file_path = filedialog.askopenfilename(initialdir="/",title="选择要预测的文件",filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
     if file_path:
         predict_unknown_sample(file_path,prediction_result_label)
 
 # 添加在predict_unknown_sample函数中显示模型信息的部分
 def show_model_info(loaded_model):
-    """显示模型的详细信息"""
+    """
+    显示加载模型的详细信息窗口。
+    
+    创建一个新窗口，详细展示模型的类型、参数以及模型特定的重要信息，
+    如特征重要性、系数等。对于PLSRegression模型，还会显示组件数、
+    权重和载荷等特有信息。
+    
+    参数:
+        loaded_model: 已加载的scikit-learn模型实例
+        
+    返回:
+        None: 在新窗口中显示模型信息
+        
+    功能特点:
+        - 根据不同模型类型自动显示相应特性
+        - 对于有feature_importances_属性的模型(如随机森林)，显示特征重要性
+        - 对于有coef_属性的模型(如线性模型)，显示系数值
+        - 对于PLSRegression模型，特别展示其组件数、权重和载荷信息
+        
+    注意:
+        - 新窗口尺寸固定为600x400像素
+        - 使用ScrolledText组件允许滚动查看大量信息
+    """
     info_window = tkinter.Toplevel()
     info_window.title(f"模型信息: {type(loaded_model).__name__}")
     info_window.geometry("600x400")
@@ -591,6 +816,42 @@ def show_model_info(loaded_model):
                     info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
 
 def create_gui():
+    """ 
+    创建并配置应用程序的主图形用户界面。
+    
+    构建完整的应用程序GUI，包括菜单栏、文件选择按钮、进度显示、
+    模型选择、训练控制、结果展示等所有界面元素。设置窗口尺寸为
+    全屏并处理各组件的布局和初始状态。
+    
+    参数:
+        None
+        
+    返回:
+        None: 启动主GUI循环
+        
+    全局变量依赖:
+        root: tkinter主窗口对象
+        class_dict: 包含可用模型类型及其参数配置的字典
+        exact_selection: 当前选择的模型类型名称
+        
+    界面组件:
+        - 菜单栏: 提供数据预处理和模型选择功能
+        - 文件操作区: 用于选择训练数据和预测样本
+        - 训练控制区: 包含开始分析按钮和进度显示
+        - 结果展示区: 显示训练精度和预测结果
+        - 信息面板: 展示运行日志和状态信息
+        
+    功能入口点:
+        - 数据预处理: select_and_process_files
+        - 模型训练: predict_by
+        - 样本预测: predict_unknown_sample
+        - 模型信息查看: show_model_info
+        
+    注意:
+        - 窗口使用zoomed状态实现全屏显示，保留Windows任务栏
+        - 使用网格布局(grid)管理界面组件位置
+        - 某些按钮初始状态为禁用，需要先完成前置操作才能启用
+    """
     root.title('诊断分析')
     menu_bar = tkinter.Menu(root)
     # 设置窗口大小为屏幕大小
@@ -679,10 +940,11 @@ def create_gui():
     root.config(menu=menu_bar)
     root.mainloop()
 
+# 全局变量初始化
 
-notebook = None
+notebook = None # tkinter.ttk.Notebook对象，用于在GUI中显示选项卡式图表展示区
 
-
+# 定义支持的模型类型及其参数配置字典
 class_dict = {
     "RandomForestClassifier": {"n_estimators": 500},
     "LinearSVC": {"max_iter": 10000},
@@ -691,8 +953,12 @@ class_dict = {
     "MLPClassifier": {"hidden_layer_sizes": (100, 200, 100), "activation": 'logistic', "max_iter": 2000},
     "PLSRegression": {"n_components": 10},
 }
-exact_selection = list(class_dict.keys())[3]
+# 默认选择的模型类型（字典中的第4个）
+exact_selection = list(class_dict.keys())[3]    # LogisticRegressionCV
+
+# 创建tkinter主窗口
 root = tkinter.Tk()
 
+# 程序入口点
 if __name__ == "__main__":
-    create_gui()
+    create_gui()    # 启动GUI界面
