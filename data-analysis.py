@@ -447,52 +447,84 @@ def predict_unknown_sample(file_path,prediction_result_label):
         # 准备预测数据 (转换为与训练数据相同的格式)
         sample_features = sample_data['Max_Value'].values.reshape(1, -1)
 
-        # 进行预测
-        prediction = loaded_model.predict(sample_features)[0]
-        confidence = None
+        
 
-        # 根据不同的模型类型获取置信度
-        def get_confidence(model, sample_features):
-            if hasattr(model, "predict_proba"):
-                confidence = model.predict_proba(sample_features)
-                if confidence.shape[1] > 1:
-                    return confidence[:, 1]
-                else:
-                    return confidence
-            elif hasattr(model, "decision_function"):
-                confidence = model.decision_function(sample_features)
-                return confidence
+        def get_prediction_probability(model, features):
+            """获取给定模型对特征的预测概率
+            
+            参数:
+                model: 训练好的模型
+                features: 样本特征
+                
+            返回:
+                预测类别和概率数组 [类别0的概率, 类别1的概率]
+            """
+            # 针对不同类型的模型处理
+            if isinstance(model, PLSRegression):
+                # 1. PLS回归模型处理
+                # 获取原始预测值
+                raw_value = model.predict(features).flatten()[0]
+                
+                # 获取阈值
+                try:
+                    threshold = np.mean(np.loadtxt("PLS_optimal_thresholds.csv", delimiter=","))
+                except:
+                    threshold = 0.5
+                    
+                # 计算概率和预测类别
+                prob1 = 1 / (1 + np.exp(-(raw_value - threshold) * 10))
+                probs = np.array([1 - prob1, prob1])
+                pred = 1 if raw_value > threshold else 0
+                
+            elif hasattr(model, 'predict_proba'):
+                # 2. 有predict_proba方法的模型(大多数分类器)
+                probs = model.predict_proba(features)[0]
+                pred = model.predict(features)[0]
+                
+            elif hasattr(model, 'decision_function'):
+                # 3. 有decision_function的模型(如SVM)
+                decision_value = model.decision_function(features)
+                
+                # 确保决策值是标量(针对二分类)
+                if isinstance(decision_value, np.ndarray):
+                    decision_value = decision_value.flatten()[0]
+                    
+                # 转换为概率
+                prob1 = 1 / (1 + np.exp(-decision_value))
+                probs = np.array([1 - prob1, prob1])
+                pred = model.predict(features)[0]
+                
             else:
-                raise ValueError("Model does not have the necessary methods for getting confidence")
+                # 4. 其他模型(无法获取概率信息)
+                pred = model.predict(features)[0]
+                probs = np.array([0, 1]) if pred == 1 else np.array([1, 0])
+            
+            return pred, probs
 
-        # 显示预测结果
-        class_labels = {0: "阴性", 1: "阳性"}
-        result_text = f"预测结果: {class_labels.get(prediction, str(prediction))}"
-
-        # 获取置信度
-        confidence = get_confidence(loaded_model, sample_features)
-        print(confidence)
-        if confidence is not None:
-            if isinstance(confidence, np.ndarray):
-                result_text += f" (置信度: {confidence[0]:.2f}%)"
-
-        # 增加显示处理的文件名及模型类型
-        result_text +="\n" + f"文件: {os.path.basename(file_path)}"
-        prediction_result_label.config(text=result_text)
-        result_text += f"\n模型类型: {type(loaded_model).__name__}"
-
-        # 更新UI
-        prediction_result_label.config(text=result_text, 
-                                    fg='red' if prediction == 1 else 'green',
-                                    font=('Helvetica', 12, 'bold'))
+        # 利用内嵌函数获取预测类别和类别概率
+        prediction, probabilities = get_prediction_probability(loaded_model, sample_features)
         
+         # 将预测结果映射回类别标签
+        class_mapping = {0: "HC", 1: "LC"}
+        predicted_class = class_mapping.get(prediction, "未知")
         
+        # 显示预测结果和概率
+        confidence_text = f"类别概率: HC={probabilities[0]:.4f}, LC={probabilities[1]:.4f}"
+        result_text = f"预测结果: {predicted_class}\n{confidence_text}"
+
+        # 更新UI显示
+        result_text += f"\n预测样本: {os.path.basename(file_path)}"
+        result_text += f"\n模型信息:{loaded_model.__class__.__name__}"
+        
+        prediction_result_label.config(text=result_text, fg='red' if predicted_class == "LC" else 'green', font=('Helvetica', 12, 'bold'))
+        
+        return predicted_class, probabilities
         
     except Exception as e:
-        messagebox.showerror("预测错误", f"预测过程中发生错误：\n{str(e)}")
-        import traceback
-        traceback.print_exc()  # 打印详细错误信息
-        prediction_result_label.config(text="预测失败")
+        error_message = f"预测过程中发生错误：{str(e)}"
+        prediction_result_label.config(text=error_message, fg='red', font=('Helvetica', 12, 'bold'))
+        print(error_message)
+        return None, None
 
 
 
