@@ -1,5 +1,6 @@
 # 基础数据处理
 import os
+import datetime
 import numpy as np
 import pandas as pd
 import tqdm
@@ -33,16 +34,29 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 # 全局日志函数
-def log_message(message):
-    """全局日志记录函数，向信息框添加消息"""
+def log_message(message, level="INFO"):
+    """增强的日志函数，支持不同级别"""
     global info_text, root
     if info_text is not None:
-        info_text.insert(tkinter.END, message + "\n")
-        info_text.see(tkinter.END)  # 自动滚动到底部
+        # 使用简单符号
+        if level == "ERROR":
+            formatted_message = f"x 错误: {message}"
+        elif level == "WARNING": 
+            formatted_message = f"! 警告: {message}"
+        elif level == "SUCCESS":
+            formatted_message = f"√ 成功: {message}"
+        elif level == "INFO":
+            formatted_message = f"• 信息: {message}"
+        else:
+            formatted_message = message
+            
+        info_text.insert(tkinter.END, formatted_message + "\n")
+        info_text.see(tkinter.END)
         if root is not None:
             root.update()
     else:
-        print(message)  # 如果GUI未初始化，则打印到控制台
+        print(message)
+
 
 def clear_log():
     """清空日志信息"""
@@ -156,15 +170,78 @@ def select_and_process_files():
             progress_label.config(text=f"正在处理: {index}/{len(file_paths)}")
             root.update()
 
-        # 保存结果
-        all_results.to_excel('LC_MAX.xlsx', index=True,
-                             columns=all_results.columns[1:])
-        log_message("数据处理完成，结果已保存为 LC_MAX.xlsx")
-        messagebox.showinfo("处理完成", "结果已保存为 LC_MAX.xlsx")
-        progress_bar.grid_remove()
-        progress_label.grid_remove()
+        #增加数据持久化的异常处理
+        try:
+            # 检查LC_MAX.xlsx是否已存在
+            original_file_path = 'LC_MAX.xlsx'
+            if os.path.exists(original_file_path):
+                log_message("发现已存在的文件，正在创建备份...", "INFO")
+                
+                # 获取当前日期
+                current_date = datetime.datetime.now().strftime("%Y%m%d")
+                # 构建新的文件名
+                backup_file_path = f'LC_MAX-{current_date}.xlsx'
+
+                # 如果备份文件也存在，为避免覆盖，添加编号
+                counter = 1
+                while os.path.exists(backup_file_path):
+                    backup_file_path = f'LC_MAX-{current_date}_{counter}.xlsx'
+                    counter += 1
+
+                try:
+                    # 重命名旧文件
+                    os.rename(original_file_path, backup_file_path)
+                    log_message(f"备份完成: {backup_file_path}", "SUCCESS")
+                except Exception as e:
+                    log_message(f"无法重命名已有文件: {str(e)}，将尝试直接保存新文件", "WARNING")
+
+            # 保存新文件
+            log_message("正在保存处理结果...", "INFO")
+            all_results.to_excel(original_file_path,
+                                 index=True, columns=all_results.columns[1:])
+            log_message(f"数据处理完成！结果已保存为 {original_file_path}", "SUCCESS")
+
+            progress_bar.grid_remove()
+            progress_label.grid_remove()
+
+        except PermissionError:
+            log_message("无法保存文件，可能是文件已被打开或没有写入权限", "ERROR")
+
+            # 为用户提供选择其他位置的选项
+            response = messagebox.askyesno("权限错误", "无法保存文件到当前位置。\n是否选择其他位置保存文件？")
+            if response:
+                log_message("用户选择保存到其他位置", "INFO")
+                save_path = filedialog.asksaveasfilename(
+                    defaultextension=".xlsx",
+                    filetypes=[("Excel files", "*.xlsx")],
+                    initialfile="LC_MAX.xlsx"
+                )
+
+                if save_path:
+                    try:
+                        all_results.to_excel(
+                            save_path, index=True, columns=all_results.columns[1:])
+                        log_message(f"数据处理完成！结果已保存为 {save_path}", "SUCCESS")
+                        messagebox.showinfo("保存成功", f"文件已成功保存到:\n{save_path}")
+                    except Exception as e:
+                        log_message(f"保存到新位置时出错: {str(e)}", "ERROR")
+                        messagebox.showerror("保存失败", f"保存文件时出错:\n{str(e)}")
+
+                    progress_bar.grid_remove()
+                    progress_label.grid_remove()
+                else:
+                    log_message("用户取消了文件保存操作", "WARNING")
+            else:
+                log_message("用户选择不保存到其他位置", "WARNING")
+                
+        except Exception as e:
+            log_message(f"保存文件时出错: {str(e)}", "ERROR")
+            messagebox.showerror("未知错误", f"保存文件时发生未知错误:\n{str(e)}")
+            progress_bar.grid_remove()
+            progress_label.grid_remove()
+
     else:
-        messagebox.showwarning("", "未选择任何文件。")
+        log_message("未选择任何文件", "WARNING")
 
 
 
