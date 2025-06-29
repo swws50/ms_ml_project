@@ -32,6 +32,24 @@ from joblib import dump, load
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+# 全局日志函数
+def log_message(message):
+    """全局日志记录函数，向信息框添加消息"""
+    global info_text, root
+    if info_text is not None:
+        info_text.insert(tkinter.END, message + "\n")
+        info_text.see(tkinter.END)  # 自动滚动到底部
+        if root is not None:
+            root.update()
+    else:
+        print(message)  # 如果GUI未初始化，则打印到控制台
+
+def clear_log():
+    """清空日志信息"""
+    global info_text
+    if info_text is not None:
+        info_text.delete(1.0, tkinter.END)
+
 
 # 函数：处理原始数据
 def process_file(file_name, X):
@@ -103,6 +121,7 @@ def select_and_process_files():
         title="选择要分析的文件", filetypes=(("Text files", "*.txt"), ("All files", "*.*")))
 
     if file_paths:
+        log_message("开始处理原始数据文件...")
         # 定义X列表
         X = ['class', 563.43, 887.77, 804.50, 811.54, 619.52, 647.56, 805.51, 591.47, 806.53, 579.38, 771.60, 797.60, 769.59, 655.39, 695.57, 731.54, 565.36, 929.75,
              759.48, 697.59, 807.55, 671.56, 673.57, 879.76, 931.77, 953.77, 641.50, 881.77, 901.73, 927.68, 799.59, 763.52, 903.77, 883.70, 979.80, 955.71,
@@ -130,6 +149,7 @@ def select_and_process_files():
             file_result.loc['class'] = [os.path.splitext(
                 os.path.basename(file_path))[0][:2]]
             all_results = pd.concat([all_results, file_result], axis=1)
+            log_message(f"已处理文件 {index}/{len(file_paths)}: {os.path.basename(file_path)}")
 
             # 更新进度条
             progress_bar['value'] = index
@@ -139,6 +159,7 @@ def select_and_process_files():
         # 保存结果
         all_results.to_excel('LC_MAX.xlsx', index=True,
                              columns=all_results.columns[1:])
+        log_message("数据处理完成，结果已保存为 LC_MAX.xlsx")
         messagebox.showinfo("处理完成", "结果已保存为 LC_MAX.xlsx")
         progress_bar.grid_remove()
         progress_label.grid_remove()
@@ -177,6 +198,7 @@ def open_excel_file(normalization_label, start_button, progress_bar):
     file_path = filedialog.askopenfilename(
         filetypes=[("Excel files", "*.xls *.xlsx")])
     if file_path:
+        log_message(f"正在加载文件: {os.path.basename(file_path)}")
         df = pd.read_excel(file_path, header=0)
         df = df.iloc[:, 1:]
         if df.empty:
@@ -305,13 +327,7 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     best_score = -1 # 用于跟踪最佳模型性能
 
     # 清空日志旧信息
-    info_text.delete(1.0, tkinter.END)
-    # 局部函数：用于文本框中的日志记录
-    def log_message(message):
-        info_text.insert(tkinter.END, message + "\n")
-        info_text.see(tkinter.END)  # 自动滚动到底部
-        root.update()
-    
+    clear_log()
     log_message("=> 开始模型训练...")
     
     #主训练循环500次
@@ -852,6 +868,7 @@ def create_gui():
         - 使用网格布局(grid)管理界面组件位置
         - 某些按钮初始状态为禁用，需要先完成前置操作才能启用
     """
+    global info_text 
     root.title('诊断分析')
     menu_bar = tkinter.Menu(root)
     # 设置窗口大小为屏幕大小
@@ -917,7 +934,8 @@ def create_gui():
     info_text = scrolledtext.ScrolledText(root, width=100, height=4, wrap=tkinter.WORD)
     info_text.grid(row=2, column=2, columnspan=2, padx=10, pady=5, sticky='nsew')
 
-    
+    # 初始化日志
+    log_message("系统已启动，等待用户操作...")
     
 
     # row 6 用来显示预测后的图像
@@ -943,6 +961,7 @@ def create_gui():
 # 全局变量初始化
 
 notebook = None # tkinter.ttk.Notebook对象，用于在GUI中显示选项卡式图表展示区
+info_text = None # 全局信息显示文本框
 
 # 定义支持的模型类型及其参数配置字典
 class_dict = {
