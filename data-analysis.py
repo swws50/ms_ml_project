@@ -249,54 +249,100 @@ def select_and_process_files():
 def open_excel_file(normalization_label, start_button, progress_bar):
     """
     打开并加载已处理的特征矩阵Excel文件，准备机器学习模型训练。
-    
+
     此函数打开文件选择对话框，允许用户选择一个Excel文件(通常是由select_and_process_files函数生成的)。
     加载数据后，提取特征矩阵和类别标签，并进行必要的预处理使其满足模型训练要求。
-    
+
     参数:
         normalization_label (tkinter.Label): 用于显示文件选择状态的标签
         start_button (tkinter.Button): 训练开始按钮，文件加载成功后启用
         progress_bar (ttk.Progressbar): 进度条组件，文件加载后重置
-        
+
     返回:
         无: 结果存储在全局变量中
-        
+
     全局变量修改:
         row: 设置为特征矩阵，形状为(n_samples, n_features)
         column: 设置为类别标签向量，形状为(n_samples,)
         df: 设置为原始加载的DataFrame
-        
+
     注意:
         - 期望Excel文件格式：第一行为类别标签(HC或LC)，随后各行为特征值
         - 类别标签会被映射为数值：HC=0, LC=1
         - 如果发现未知类别，将显示警告消息
     """
     global row, column, df
+    
     file_path = filedialog.askopenfilename(
         filetypes=[("Excel files", "*.xls *.xlsx")])
-    if file_path:
-        log_message(f"正在加载文件: {os.path.basename(file_path)}")
+    
+    if not file_path:
+        log_message("用户取消了文件选择")
+        return
+    
+    log_message(f"正在加载文件: {os.path.basename(file_path)}")
+    
+    try:
         df = pd.read_excel(file_path, header=0)
         df = df.iloc[:, 1:]
+
         if df.empty:
             normalization_label.config(text="文件未选择")
-        else:
-            normalization_label.config(text="已选择")
-            start_button.config(state='normal')
-            progress_bar['value'] = 0
+            log_message("错误：所选文件为空，请选择有效的数据文件")
+            return
+
+        # 检查文件是否具有预期的格式
+        if df.shape[0] < 2:  # 至少需要类别行和一个特征行
+            error_msg = "Excel文件格式不正确，至少需要类别行和特征行"
+            messagebox.showerror("格式错误", error_msg)
+            log_message(f"错误：{error_msg}")
+            return
+
+        # 文件加载成功，更新UI状态
+        normalization_label.config(text="已选择")
+        start_button.config(state='normal')
+        progress_bar['value'] = 0
+        log_message("数据文件已成功加载")
+
+        # 处理数据
         row = df.iloc[1:, :].values.T
         ylabels = df.iloc[0, :].values
         ylabels = pd.Series(ylabels)
-        #测试用，可以删除
-        print(ylabels.value_counts())
-        # 进行标签编码（可随需求更改）
+
+        log_message(f"数据形状: {row.shape}, 样本数: {row.shape[0]}, 特征数: {row.shape[1]}")
+        log_message(f"类别标签统计: {dict(ylabels.value_counts())}")
+
+        # 确保有足够的每类样本
+        if len(ylabels.value_counts()) < 2:
+            warning_msg = "数据中只有一种类别，需要至少两种类别才能训练模型"
+            messagebox.showwarning("警告", warning_msg)
+            log_message(f"警告：{warning_msg}")
+
+        # 进行标签编码
         class_mapping = {"HC": 0, "LC": 1}
         column = np.array([class_mapping.get(label, -1) for label in ylabels])
-        # 未知类别报错
+
+        # 检查未知类别
         if -1 in column:
             unknown_classes = set(ylabels[column == -1])
-            print(f"警告: 发现未知类别: {unknown_classes}")
-            messagebox.showwarning("警告", f"发现未知类别: {unknown_classes}\n请检查您的类别映射")
+            warning_msg = f"发现未知类别: {unknown_classes}，请检查您的类别映射"
+            log_message(f"警告：{warning_msg}")
+            messagebox.showwarning("警告", warning_msg)
+        else:
+            log_message("标签编码完成，数据预处理成功")
+
+    except FileNotFoundError:
+        error_msg = f"文件未找到: {file_path}"
+        messagebox.showerror("文件错误", error_msg)
+        log_message(f"错误：{error_msg}")
+    except pd.errors.EmptyDataError:
+        error_msg = "Excel文件为空或格式不正确"
+        messagebox.showerror("数据错误", error_msg)
+        log_message(f"错误：{error_msg}")
+    except Exception as e:
+        error_msg = f"加载Excel文件时出错: {str(e)}"
+        messagebox.showerror("未知错误", error_msg)
+        log_message(f"错误：{error_msg}")
         
         
 
