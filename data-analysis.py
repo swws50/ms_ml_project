@@ -396,7 +396,8 @@ def find_optimal_threshold(y_true, y_pred_proba):
     return thresholds[optimal_idx]
 
 # 主功能函数：监督训练 + 更新训练部分UI
-def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label):
+def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label, model_save_status_label):
+    """不再使用info_text参数，直接在函数内部处理日志显示和更新UI组件"""
     """
     执行机器学习模型的训练、评估和保存，并通过GUI界面显示训练进度和结果。
     
@@ -434,8 +435,56 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         - 对于PLSRegression模型，使用ROC曲线寻找最优分类阈值
         - 支持的评估指标包括：平衡准确率、混淆矩阵、精确率、召回率、F1分数和ROC曲线
     """
-    global row, column, df, fpr_list,tpr_list,thresholds_list,auc_list,best_model
+    global row, column, df, fpr_list, tpr_list, thresholds_list, auc_list, best_model
     
+    # 清空日志旧信息
+    clear_log()
+    log_message("=> 开始模型训练...")
+    
+    # 数据验证检查
+    try:
+        # 检查数据是否正确加载
+        if 'row' not in globals() or 'column' not in globals() or row is None or column is None:
+            log_message("错误: 数据未正确加载")
+            messagebox.showerror("数据错误", "未找到有效训练数据，请先选择Excel文件。")
+            return
+
+        # 检查样本数量
+        n_samples = row.shape[0] if hasattr(row, 'shape') else len(row)
+        log_message(f"加载的样本数量: {n_samples}")
+
+        if n_samples < 5:  # 设定一个最小样本数
+            error_msg = f"样本数量不足（当前只有{n_samples}个样本），训练机器学习模型需要足够的样本数量。"
+            log_message(f"错误: {error_msg}")
+            messagebox.showerror("样本数量不足", f"检测到只有{n_samples}个样本，无法进行训练。\n请确保您已正确加载包含多个样本的数据文件。")
+            progress_bar['value'] = 0
+            return
+
+        # 检查类别分布
+        unique_classes = np.unique(column)
+        log_message(f"检测到的类别: {unique_classes}")
+
+        if len(unique_classes) < 2:
+            error_msg = f"数据中只包含一种类别 ({unique_classes[0]})，分类模型需要至少两种不同的类别。"
+            log_message(f"错误: {error_msg}")
+            messagebox.showerror("类别不足", "数据中只包含一种类别，无法训练分类模型。\n请确保您的数据包含不同类别的样本（例如HC和LC）。")
+            progress_bar['value'] = 0
+            return
+
+        # 检查模型选择
+        if 'exact_selection' not in globals() or exact_selection is None:
+            log_message("错误: 未选择模型类型")
+            messagebox.showerror("模型选择错误", "请先选择一个机器学习模型类型。")
+            return
+
+        log_message(f"使用模型: {exact_selection}")
+        log_message("数据验证通过，开始训练...")
+
+    except Exception as e:
+        log_message(f"数据验证出错: {str(e)}")
+        messagebox.showerror("验证错误", f"数据验证时出现错误：{str(e)}")
+        return
+
     # 初始化数据结构
     balanced_accuracy_train = []  
     balanced_accuracy_test = []
@@ -449,113 +498,117 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
     confusion_matrixs = np.zeros((500, 4))
     best_score = -1 # 用于跟踪最佳模型性能
 
-    # 清空日志旧信息
-    clear_log()
-    log_message("=> 开始模型训练...")
-    
-    #主训练循环500次
-    for i in tqdm.tqdm(range(500)):
-        percentage = (i + 1) / 500 * 100
-        progress_label.config(text='分析进度: {0:.2f}%'.format(percentage))
-        progress_bar['value'] = percentage
-        root.update()
+    try:
+        # 主训练循环500次
+        log_message("开始500轮训练循环...")
+        for i in tqdm.tqdm(range(500)):
+            percentage = (i + 1) / 500 * 100
+            progress_label.config(text='分析进度: {0:.2f}%'.format(percentage))
+            progress_bar['value'] = percentage
+            root.update()
 
-        # 划分20%为训练集
-        train_X, test_X, train_y, test_y = train_test_split(
-            row, column, test_size=0.2, stratify=column) 
+            # 划分20%为测试集
+            train_X, test_X, train_y, test_y = train_test_split(
+                row, column, test_size=0.2, stratify=column) 
+            
+            # 模型初始化和训练
+            params = class_dict[exact_selection]
+            current_model = globals()[exact_selection](**params) 
+            current_model.fit(train_X, train_y)
+
+            # 模型预测处理
+            if isinstance(current_model, PLSRegression):
+                # 如果模型为PLSRegression，则需要对预测值进行ROC二值化处理    
+                train_pred_raw = current_model.predict(train_X).flatten()
+                test_pred_raw = current_model.predict(test_X).flatten()
         
-        # 模型初始化和训练 => 模型可以改成params里的不同类型
-        params = class_dict[exact_selection]
-        current_model = globals()[exact_selection](**params) 
-        current_model.fit(train_X, train_y)
+                # 使用训练集寻找最优阈值
+                optimal_threshold = find_optimal_threshold(train_y, train_pred_raw)
+                thresholds_used.append(optimal_threshold)
+                # 应用阈值进行二值化
+                train_y_pred = (train_pred_raw > optimal_threshold).astype(int)
+                text_y_pred = (test_pred_raw > optimal_threshold).astype(int)    
+            else: 
+                # 其他模型直接预测       
+                train_y_pred = current_model.predict(train_X)
+                text_y_pred = current_model.predict(test_X)
+            
+            # 性能评估
+            fpr, tpr, thresholds = roc_curve(test_y, text_y_pred)
+            fpr_list.append(fpr)
+            tpr_list.append(tpr)
+            thresholds_list.append(thresholds)
+            auc_score = auc(fpr, tpr)
+            auc_list.append(auc_score)
 
-        # 模型预测处理
-        if isinstance(current_model, PLSRegression):
-        # 如果模型为PLSRegression，则需要对预测值进行ROC二值化处理    
-            train_pred_raw = current_model.predict(train_X).flatten()  # 确保是一维数组
-            test_pred_raw = current_model.predict(test_X).flatten()    # 确保是一维数组
-    
-            # 使用训练集寻找最优阈值
-            optimal_threshold = find_optimal_threshold(train_y, train_pred_raw)
-            thresholds_used.append(optimal_threshold)
-            # 应用阈值进行二值化
-            train_y_pred = (train_pred_raw > optimal_threshold).astype(int)
-            text_y_pred = (test_pred_raw > optimal_threshold).astype(int)    
-        else: 
-        # 其他模型直接预测       
-            train_y_pred = current_model.predict(train_X)
-            text_y_pred = current_model.predict(test_X)
+            # 使用balanced_accuracy_score保持评估一致性
+            balanced_accuracy_train.append(balanced_accuracy_score(train_y, train_y_pred))
+            balanced_accuracy_test.append(balanced_accuracy_score(test_y, text_y_pred))
+
+            confusion_matrixs[i] = confusion_matrix(test_y, text_y_pred).flatten()
+            Fscore = metrics.classification_report(test_y, text_y_pred, labels=[0, 1], output_dict=True)
+
+            Fscores[i][0] = Fscore["weighted avg"]["precision"]
+            Fscores[i][1] = Fscore["weighted avg"]["recall"]
+            Fscores[i][2] = Fscore["weighted avg"]["f1-score"]
+
+            trained_models.append(current_model)
+
+            # 覆写保存最佳模型
+            if balanced_accuracy_test[i] > best_score:
+                best_score = balanced_accuracy_test[i]
+                best_model = current_model
+                log_message(f"发现更高分数：{best_score:.4f} (迭代{i+1})")
+
+        log_message(f"\n训练完成！最优模型分数：{best_score:.4f}")  
+              
+        # 循环结束后保存最终的最优模型
+        if best_model is not None:
+            dump(best_model, 'best_model.joblib')
+            log_message(f"最优模型已保存，测试集分数: {best_score:.4f}")
+            model_save_status_label.config(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', fg='green')
+        else:
+            log_message("警告：未训练出有效模型")
+            model_save_status_label.config(text='模型保存状态: 保存失败', fg='red')
+      
+        # 保存训练数据和指标
+        log_message("保存训练结果文件...")
+        np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
+        np.savetxt("Fscore_SVM.csv", Fscores, delimiter=",")
+        np.savetxt("2C_auc_SVM.csv", auc_list, delimiter=",")
+        np.save("fpr_values.npy", np.array(fpr_list, dtype=object))
+        np.save("tpr_values.npy", np.array(tpr_list, dtype=object))
+        np.save("thresholds_values.npy", np.array(thresholds_list, dtype=object))
         
+        # 如果使用了PLS回归，则额外保存阈值数据
+        if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:
+            np.savetxt("PLS_optimal_thresholds.csv", thresholds_used, delimiter=",")
+            mean_threshold = np.mean(thresholds_used)
+            log_message(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
+
+        # 显示平均性能指标
+        mean_balanced_accuracy_train = np.mean(balanced_accuracy_train)
+        mean_balanced_accuracy_test = np.mean(balanced_accuracy_test)
+        balanced_accuracy_train_label.config(text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
+        balanced_accuracy_test_label.config(text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
         
-        # 性能评估
-        fpr, tpr, thresholds = roc_curve(test_y, text_y_pred)
-        fpr_list.append(fpr)
-        tpr_list.append(tpr)
-        thresholds_list.append(thresholds)
-        auc_score = auc(fpr, tpr)
-        auc_list.append(auc_score)
+        log_message(f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
+        log_message(f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
+        log_message("开始生成可视化图表...")
+        
+        # 传参进行可视化
+        if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:
+            visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs, fpr_list, tpr_list, auc_list, thresholds_used)
+        else:
+            visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs, fpr_list=fpr_list, tpr_list=tpr_list, auc_list=auc_list)
+            
+        log_message("所有任务完成！")
 
-        # 之前代码用的是 current_model.score()，现在我们改用 balanced_accuracy_score() 来保持评估的一致性，特别是在处理 PLS 的情况下
-        balanced_accuracy_train.append(balanced_accuracy_score(train_y, train_y_pred))
-        balanced_accuracy_test.append(balanced_accuracy_score(test_y, text_y_pred))
-
-        confusion_matrixs[i] = confusion_matrix(test_y, text_y_pred).flatten()
-        Fscore = metrics.classification_report(
-            test_y, text_y_pred, labels=[0, 1], output_dict=True)
-
-        Fscores[i][0] = Fscore["weighted avg"]["precision"]
-        Fscores[i][1] = Fscore["weighted avg"]["recall"]
-        Fscores[i][2] = Fscore["weighted avg"]["f1-score"]
-
-        trained_models.append(current_model)
-
-
-        #覆写保存最佳模型
-        if balanced_accuracy_test[i] > best_score:
-            best_score = balanced_accuracy_test[i]
-            best_model = current_model
-            log_message(f"发现更高分数：{best_score:.4f} (迭代{i})")
-
-    log_message(f"\n训练完成！最优模型分数：{best_score:.4f}")  
-          
-    
-    # 循环结束后保存最终的最优模型（只保存一次）
-    if best_model is not None:
-        dump(best_model, 'best_model.joblib')
-        log_message(f"最优模型已保存，测试集分数: {best_score:.4f}")
-        model_save_status_label.config(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', fg='green')
-    else:
-        log_message("警告：未训练出有效模型")
-        model_save_status_label.config(text='模型保存状态: 保存失败', fg='red')
-  
-    # 保存训练数据和指标
-    np.savetxt("Con_matrix_SVM.csv", confusion_matrixs, delimiter=",")
-    np.savetxt("Fscore_SVM.csv", Fscores, delimiter=",")
-    np.savetxt("2C_auc_SVM.csv", auc_list, delimiter=",")
-    np.save("fpr_values.npy", np.array(fpr_list, dtype=object))
-    np.save("tpr_values.npy", np.array(tpr_list, dtype=object))
-    np.save("thresholds_values.npy", np.array(thresholds_list, dtype=object))
-    # 如果使用了PLS回归，则额外保存阈值数据
-    if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:
-        np.savetxt("PLS_optimal_thresholds.csv", thresholds_used, delimiter=",")
-        mean_threshold = np.mean(thresholds_used)
-        print(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
-
-    # 显示平均性能指标
-    mean_balanced_accuracy_train = np.mean(balanced_accuracy_train)
-    mean_balanced_accuracy_test = np.mean(balanced_accuracy_test)
-    balanced_accuracy_train_label.config(text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
-    balanced_accuracy_test_label.config(text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
-    print(np.mean(balanced_accuracy_train), np.mean(balanced_accuracy_test))
-
-    
-    # 传参进行可视化
-    if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:
-        visualize_performance(balanced_accuracy_train,
-                          balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list,tpr_list,auc_list,thresholds_used)
-    else:
-        visualize_performance(balanced_accuracy_train,
-                          balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list=fpr_list,tpr_list=tpr_list,auc_list=auc_list)
+    except Exception as e:
+        log_message(f"训练过程中出现错误: {str(e)}")
+        messagebox.showerror("训练错误", f"模型训练时出现错误：{str(e)}")
+        progress_bar['value'] = 0
+        model_save_status_label.config(text='模型保存状态: 训练失败', fg='red')
 
 
 
@@ -1026,7 +1079,7 @@ def create_gui():
     normalization_label.grid(row=1, column=1)
 
     start_button = tkinter.Button(root, text='开始分析', command=lambda: predict_by(
-        progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,info_text,model_save_status_label))
+        progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,model_save_status_label))
     start_button.grid(row=2, column=0)
     start_button.config(state='disabled')
 
