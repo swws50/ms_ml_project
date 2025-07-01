@@ -612,7 +612,7 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
 
 
 
-def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs,fpr_list, tpr_list,auc_list,thresholds_used=None):
+def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, confusion_matrixs, fpr_list, tpr_list, auc_list, thresholds_used=None):
     """
     可视化机器学习模型的多种性能指标并在GUI中显示结果。
     
@@ -633,157 +633,185 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
         
     注意:
         此函数依赖于全局变量root和notebook，需要在tkinter环境中运行
-        """
-    global root
-    global notebook
-
-    # Visualization of balanced accuracy
-    plt.figure(figsize=(6, 4))
-    plt.scatter(range(len(balanced_accuracy_train)), balanced_accuracy_train,
-                label='Training Balanced Accuracy', color='b',s=5)
-    plt.scatter(range(len(balanced_accuracy_test)),
-                balanced_accuracy_test, label='Test Balanced Accuracy', color='r',s=5)
-    plt.xlabel('Iteration')
-    plt.ylabel('Balanced Accuracy')
-    plt.legend()
-    plt.title('Training and Test Balanced Accuracy over Iterations')
-    plt.savefig('Training and Test Balanced Accuracy.png')
-    plt.close()
-
-    # Visualization of F1 scores
-    plt.figure(figsize=(6, 4))
-    plt.scatter(range(len(Fscores)),
-                Fscores[:, 0], label='Weighted Avg Precision',s=5)
-    plt.scatter(range(len(Fscores)),
-                Fscores[:, 1], label='Weighted Avg Recall',s=5)
-    plt.scatter(range(len(Fscores)),
-                Fscores[:, 2], label='Weighted Avg F1-score',s=5)
-    plt.xlabel('Iteration')
-    plt.ylabel('Score')
-    plt.legend()
-    plt.title('Weighted Average Precision, Recall, and F1-score over Iterations')
-    plt.savefig('Weighted Average Precision, Recall, and F1-score.png')
-    plt.close()
-
-    # Visualization of Confusion Matrix
-    reverse_class_mapping = {0: "HC", 1: "LC"}
-    plt.figure(figsize=(4, 4))
-    mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
-    plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
-    plt.colorbar(fraction=0.046, pad=0.04)
-    plt.xticks([0, 1], [reverse_class_mapping[0], reverse_class_mapping[1]])
-    plt.yticks([0, 1], [reverse_class_mapping[0], reverse_class_mapping[1]])
-    # 添加数值标签
-    for i in range(2):
-        for j in range(2):
-            plt.text(j, i, f"{mean_conf_matrix[i, j]:.1f}", 
-                    ha="center", va="center", color="black")
-    plt.xlabel('Predicted Class')
-    plt.ylabel('True Class')
-    plt.title('Mean Confusion Matrix')
-    plt.savefig('Mean Confusion Matrix.png')
-    plt.close()
-
-    # 计算ROC曲线的均值和标准差
-    plt.figure()
-    mean_fpr = np.linspace(0, 1, 100)
-    mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)], axis=0)
-    plt.plot(mean_fpr, mean_tpr, color='red', lw=3, label=f'Mean ROC (AUC={np.mean(auc_list):.2f})')
-    plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # 对角线
-    plt.xlabel('False Positive Rate')
-    plt.ylabel('True Positive Rate')
-    plt.title('Mean ROC Curve')
-    plt.savefig('Mean ROC Curve.png')
-    plt.close()
+    """
+    global root, notebook
     
-     # 如果有阈值数据，则添加阈值分布的可视化
-    if thresholds_used is not None and len(thresholds_used) > 0:
-        mean_threshold = np.mean(thresholds_used)
-        std_threshold = np.std(thresholds_used)
-        
-        plt.figure(figsize=(6, 4), dpi=100)
-        hist_data = plt.hist(thresholds_used, bins=20, color='skyblue', 
-                         edgecolor='black', alpha=0.7)
+    log_message("开始生成可视化图表...")
     
-        if isinstance(hist_data, tuple) and len(hist_data) > 0:
-            y_max = max(hist_data[0]) * 1.1  # 如果hist_data是元组且有值
-        else:
-            y_max = plt.ylim()[1] * 1.1
-        # 添加平均阈值和默认阈值的竖线
-        plt.axvline(x=mean_threshold, color='r', linestyle='--', 
-               label=f'Mean Threshold: {mean_threshold:.4f}')
-        plt.axvline(x=0.5, color='g', linestyle='--', 
-               label='Default Threshold: 0.5')
-        
-        plt.xlabel('Threshold Value', fontsize=12)
-        plt.ylabel('Frequency', fontsize=12)
-    # 修改图例位置和样式
-        plt.legend(loc='upper right', fontsize=10)
-        plt.title(f'PLS-DA Optimal Threshold Distribution (Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', 
-              fontsize=12)
-    # 调整Y轴范围确保显示完整
-        plt.ylim(0, y_max)
-    # 确保图形边缘有足够的空间显示标签
-        plt.tight_layout()
-        plt.savefig('PLS_optimal_thresholds.png', dpi=100, bbox_inches='tight')
+    try:
+        # 生成准确率图表
+        log_message("生成准确率对比图...")
+        plt.figure(figsize=(8, 6))  # 使用版本2的较大尺寸
+        plt.scatter(range(len(balanced_accuracy_train)), balanced_accuracy_train,
+                    label='Training Balanced Accuracy', color='b', s=5)
+        plt.scatter(range(len(balanced_accuracy_test)),
+                    balanced_accuracy_test, label='Test Balanced Accuracy', color='r', s=5)
+        plt.xlabel('Iteration')
+        plt.ylabel('Balanced Accuracy')
+        plt.legend()
+        plt.title('Training and Test Balanced Accuracy over Iterations')
+        plt.savefig('Training and Test Balanced Accuracy.png')
         plt.close()
+
+        # 生成F1分数等指标图表
+        log_message("生成精确率/召回率/F1分数图...")
+        plt.figure(figsize=(8, 6))
+        plt.scatter(range(len(Fscores)),
+                    Fscores[:, 0], label='Weighted Avg Precision', s=5)
+        plt.scatter(range(len(Fscores)),
+                    Fscores[:, 1], label='Weighted Avg Recall', s=5)
+        plt.scatter(range(len(Fscores)),
+                    Fscores[:, 2], label='Weighted Avg F1-score', s=5)
+        plt.xlabel('Iteration')
+        plt.ylabel('Score')
+        plt.legend()
+        plt.title('Weighted Average Precision, Recall, and F1-score over Iterations')
+        plt.savefig('Weighted Average Precision, Recall, and F1-score.png')
+        plt.close()
+
+        # 生成混淆矩阵图表
+        log_message("生成混淆矩阵图...")
+        reverse_class_mapping = {0: "HC", 1: "LC"}
+        plt.figure(figsize=(6, 6))  # 使用版本2的较大尺寸
+        mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
+        plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
+        plt.colorbar(fraction=0.046, pad=0.04)
+        plt.xticks([0, 1], [reverse_class_mapping[0], reverse_class_mapping[1]])
+        plt.yticks([0, 1], [reverse_class_mapping[0], reverse_class_mapping[1]])
+        # 添加数值标签
+        for i in range(2):
+            for j in range(2):
+                plt.text(j, i, f"{mean_conf_matrix[i, j]:.1f}", 
+                        ha="center", va="center", color="black")
+        plt.xlabel('Predicted Class')
+        plt.ylabel('True Class')
+        plt.title('Mean Confusion Matrix')
+        plt.savefig('Mean Confusion Matrix.png')
+        plt.close()
+
+        # 生成ROC曲线
+        log_message("生成ROC曲线图...")
+        plt.figure(figsize=(8, 6))
+        mean_fpr = np.linspace(0, 1, 100)
+        mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)], axis=0)
+        plt.plot(mean_fpr, mean_tpr, color='red', lw=3, label=f'Mean ROC (AUC={np.mean(auc_list):.2f})')
+        plt.plot([0, 1], [0, 1], color='gray', linestyle='--')  # 对角线
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Mean ROC Curve')
+        plt.legend()
+        plt.savefig('Mean ROC Curve.png')
+        plt.close()
+        
+        # 如果有阈值数据，则生成阈值分布图
+        threshold_file_exists = False
+        if thresholds_used is not None and len(thresholds_used) > 0:
+            log_message("生成PLS阈值分布图...")
+            mean_threshold = np.mean(thresholds_used)
+            std_threshold = np.std(thresholds_used)
+            
+            plt.figure(figsize=(8, 6), dpi=100)
+            hist_data = plt.hist(thresholds_used, bins=20, color='skyblue', 
+                             edgecolor='black', alpha=0.7)
+        
+            if isinstance(hist_data, tuple) and len(hist_data) > 0:
+                y_max = max(hist_data[0]) * 1.1
+            else:
+                y_max = plt.ylim()[1] * 1.1
+            # 添加平均阈值和默认阈值的竖线
+            plt.axvline(x=mean_threshold, color='r', linestyle='--', 
+                   label=f'Mean Threshold: {mean_threshold:.4f}')
+            plt.axvline(x=0.5, color='g', linestyle='--', 
+                   label='Default Threshold: 0.5')
+            
+            plt.xlabel('Threshold Value', fontsize=12)
+            plt.ylabel('Frequency', fontsize=12)
+            plt.legend(loc='upper right', fontsize=10)
+            plt.title(f'PLS-DA Optimal Threshold Distribution (Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', 
+                  fontsize=12)
+            plt.ylim(0, y_max)
+            plt.tight_layout()
+            plt.savefig('PLS_optimal_thresholds.png', dpi=100, bbox_inches='tight')
+            plt.close()
+            threshold_file_exists = True
+
+        log_message("所有图表生成完成，正在创建显示界面...")
+
+    except Exception as e:
+        log_message(f"生成图表时出错: {str(e)}")
+        messagebox.showerror("图表生成错误", f"生成可视化图表时出现错误：{str(e)}")
+        return
+
+    # 更新主窗口
     root.update()
 
-    # 创建选项卡控件
-    if notebook is not None:
+    # 创建选项卡控件（销毁旧的）
+    if 'notebook' in globals() and notebook is not None:
         try:
-            notebook.destroy()  # 尝试销毁旧的notebook
+            notebook.destroy()
         except:
             pass
-    notebook = ttk.Notebook(root)
-    notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
+    
+    try:
+        notebook = ttk.Notebook(root)
+        notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
         
-     # 第一个选项卡 - 准确率
-    tab1 = ttk.Frame(notebook)
-    notebook.add(tab1, text="准确率")
-    image_accuracy = Image.open('Training and Test Balanced Accuracy.png')
-    photo_accuracy = ImageTk.PhotoImage(image_accuracy)
-    label1 = tkinter.Label(tab1, image=photo_accuracy)
-    label1.image = photo_accuracy  # 保持引用
-    label1.pack(fill='both', expand=True)
+        # 图表文件列表和对应的标签页名称
+        chart_configs = [
+            ('Training and Test Balanced Accuracy.png', '准确率'),
+            ('Weighted Average Precision, Recall, and F1-score.png', '精确率/召回率/F1'),
+            ('Mean Confusion Matrix.png', '混淆矩阵'),
+            ('Mean ROC Curve.png', 'ROC曲线')
+        ]
         
-    # 第二个选项卡 - 精确率/召回率/F1
-    tab2 = ttk.Frame(notebook)
-    notebook.add(tab2, text="精确率/召回率/F1")
-    image_precision_recall_f1score = Image.open('Weighted Average Precision, Recall, and F1-score.png')
-    photo_precision_recall_f1score = ImageTk.PhotoImage(image_precision_recall_f1score)
-    label2 = tkinter.Label(tab2, image=photo_precision_recall_f1score)
-    label2.image = photo_precision_recall_f1score  # 保持引用
-    label2.pack(fill='both', expand=True)
+        # 如果有阈值数据，添加阈值分布图
+        if threshold_file_exists:
+            chart_configs.append(('PLS_optimal_thresholds.png', '阈值分布'))
         
-    # 第三个选项卡 - 混淆矩阵
-    tab_CM = ttk.Frame(notebook)
-    notebook.add(tab_CM, text="混淆矩阵")
-    image_Confusion_Matrix = Image.open('Mean Confusion Matrix.png')
-    photo_Confusion_Matrix = ImageTk.PhotoImage(image_Confusion_Matrix)
-    label3 = tkinter.Label(tab_CM, image=photo_Confusion_Matrix)
-    label3.image = photo_Confusion_Matrix  # 保持引用
-    label3.pack(fill='both', expand=True)
+        # 创建选项卡
+        for chart_file, tab_name in chart_configs:
+            if os.path.exists(chart_file):
+                try:
+                    # 创建选项卡框架
+                    tab = ttk.Frame(notebook)
+                    notebook.add(tab, text=tab_name)
+                    
+                    # 加载图像
+                    image = Image.open(chart_file)
+                    photo = ImageTk.PhotoImage(image)
+                    
+                    # 创建标签并显示图像（版本1的内存管理方式）
+                    label = tkinter.Label(tab, image=photo)
+                    label.image = photo  # 保持引用，防止被垃圾回收
+                    label.pack(fill='both', expand=True)
+                    
+                    log_message(f"已加载图表: {tab_name}")
+                    
+                except Exception as e:
+                    # 添加版本2的错误处理
+                    log_message(f"加载图表 {tab_name} 时出错: {str(e)}")
+                    # 创建错误显示的选项卡
+                    tab = ttk.Frame(notebook)
+                    notebook.add(tab, text=f"{tab_name}(错误)")
+                    error_label = tkinter.Label(tab, text=f"无法加载图表: {chart_file}\n错误: {str(e)}", 
+                                              fg="red", justify="center")
+                    error_label.pack(fill='both', expand=True)
+            else:
+                # 文件不存在的错误处理
+                log_message(f"警告: 图表文件不存在: {chart_file}")
+                tab = ttk.Frame(notebook)
+                notebook.add(tab, text=f"{tab_name}(缺失)")
+                missing_label = tkinter.Label(tab, text=f"图表文件未找到:\n{chart_file}", 
+                                            fg="orange", justify="center")
+                missing_label.pack(fill='both', expand=True)
         
-    # 如果有阈值数据, 添加第四个选项卡
-    if thresholds_used is not None and len(thresholds_used) > 0:
-        tab4 = ttk.Frame(notebook)
-        notebook.add(tab4, text="阈值分布")
-        image_threshold = Image.open('PLS_optimal_thresholds.png')
-        photo_threshold = ImageTk.PhotoImage(image_threshold)
-        label4 = tkinter.Label(tab4, image=photo_threshold)
-        label4.image = photo_threshold  # 保持引用
-        label4.pack(fill='both', expand=True)  
-
-    # 第五个选项卡 - ROC曲线
-    tab_roc = ttk.Frame(notebook)
-    notebook.add(tab_roc, text="ROC曲线")
-    image_roc = Image.open('Mean ROC Curve.png')  
-    photo_roc = ImageTk.PhotoImage(image_roc)
-    label_roc = tkinter.Label(tab_roc, image=photo_roc)
-    label_roc.image = photo_roc  
-    label_roc.pack(fill='both', expand=True)  
-    root.update()
+        log_message("可视化界面创建完成！")
+        root.update()
+        
+    except Exception as e:
+        log_message(f"创建可视化界面时出错: {str(e)}")
+        messagebox.showerror("界面创建错误", f"创建可视化界面时出现错误：{str(e)}")
+        return
 
 
 
