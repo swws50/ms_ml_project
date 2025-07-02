@@ -33,6 +33,286 @@ from joblib import dump, load
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
+from tkinter import ttk
+import json
+
+class HelpSystem:
+    """统一的帮助系统类 - 完整功能实现"""
+    
+    def __init__(self, root, config_file="help_config.json"):
+        self.root = root
+        self.config_file = config_file
+        self.active_tooltips = {}  # 跟踪活动的提示窗口
+        
+        # 当前步骤跟踪
+        self.current_step = "select_file"
+        self.show_wizard_on_startup = True
+        
+        # 为你的程序定制的帮助文本
+        self.help_texts = {
+            # 数据预处理相关
+            "select_files": "选择原始的txt格式质谱数据文件\n系统将自动提取47个m/z值的峰值强度",
+            
+            # 训练相关
+            "select_excel": "选择已预处理的Excel数据文件\n第一行应为HC/LC标签",
+            "model_selection": "选择机器学习算法\n• RandomForest: 适合大数据集\n• LogisticRegression: 适合小数据集\n• PLS: 适合高维数据",
+            "start_analysis": "开始训练模型\n• 训练时间：约1-3分钟\n• 将进行500轮交叉验证\n• 训练过程中请勿关闭程序",
+            
+            # 预测相关
+            "select_predict_file": "选择要预测的txt格式样本文件\n需要先完成模型训练",
+            "model_info": "查看当前训练模型的详细信息\n包括参数、特征重要性等",
+            
+            # 状态显示
+            "progress": "显示当前任务进度\n训练时会实时更新百分比",
+            "results": "显示模型训练结果\n包括准确率、混淆矩阵等指标",
+            "log_info": "显示系统运行日志\n记录所有操作和错误信息"
+        }
+        
+        # 加载用户配置
+        self.load_config()
+        
+        # UI组件引用
+        self.wizard_window = None
+    
+    def load_config(self):
+        """加载用户配置"""
+        try:
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    self.show_wizard_on_startup = config.get('show_wizard_on_startup', True)
+        except Exception:
+            pass  # 使用默认配置
+    
+    def save_config(self):
+        """保存用户配置"""
+        try:
+            config = {
+                'show_wizard_on_startup': self.show_wizard_on_startup
+            }
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+    
+    def add_hover_tip(self, widget, key_or_text, custom_style=None):
+        """
+        为控件添加悬停提示
+        
+        参数:
+            widget: tkinter控件
+            key_or_text: 配置键名或直接的提示文本
+            custom_style: 自定义样式字典
+        """
+        # 获取提示文本
+        if key_or_text in self.help_texts:
+            tip_text = self.help_texts[key_or_text]
+        else:
+            tip_text = key_or_text
+        
+        # 默认样式
+        default_style = {
+            "background": "#FFFFDD",
+            "foreground": "black",
+            "font": ("Arial", 9),
+            "relief": "solid",
+            "borderwidth": 1,
+            "padx": 8,
+            "pady": 5
+        }
+        
+        # 应用自定义样式
+        if custom_style:
+            default_style.update(custom_style)
+        
+        def show_tip(event):
+            """显示提示"""
+            # 清理可能存在的旧提示
+            self.hide_tip(widget)
+            
+            # 计算提示窗口位置
+            x = widget.winfo_rootx() + 20
+            y = widget.winfo_rooty() + widget.winfo_height() + 5
+            
+            # 创建提示窗口
+            tip_window = tkinter.Toplevel(widget)
+            tip_window.wm_overrideredirect(True)
+            tip_window.wm_geometry(f"+{x}+{y}")
+            
+            # 创建提示标签
+            tip_label = tkinter.Label(tip_window, text=tip_text, **default_style)
+            tip_label.pack()
+            
+            # 保存引用
+            self.active_tooltips[widget] = tip_window
+        
+        def hide_tip_event(event):
+            """
+            事件适配 — tkinter的事件绑定会传递一个event参数
+            调用实际隐藏函数 转发给hide_tip()方法
+            为什么需要这个包装：因为widget.bind("<Leave>", hide_tip_event)需要一个接受event参数的函数
+            """
+            self.hide_tip(widget)
+        
+        # 绑定事件
+        widget.bind("<Enter>", show_tip)
+        widget.bind("<Leave>", hide_tip_event)
+        
+        return self  # 支持链式调用
+    
+    def hide_tip(self, widget):
+        """隐藏指定控件的提示"""
+        if widget in self.active_tooltips:
+            try:
+                self.active_tooltips[widget].destroy()
+                del self.active_tooltips[widget]
+            except Exception:
+                pass
+    
+    def hide_all_tips(self):
+        """隐藏所有提示"""
+        for widget in list(self.active_tooltips.keys()):
+            self.hide_tip(widget)
+    
+    def show_wizard(self):
+        """显示欢迎向导，指导用户使用程序的基本步骤"""
+        if self.wizard_window and self.wizard_window.winfo_exists():
+            self.wizard_window.lift()
+            return
+            
+        self.wizard_window = tkinter.Toplevel(self.root)
+        self.wizard_window.title("使用向导")
+        self.wizard_window.geometry("600x450")
+        self.wizard_window.resizable(False, False)
+
+        # 创建笔记本控件来显示多个步骤
+        wizard_tabs = ttk.Notebook(self.wizard_window)
+        wizard_tabs.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # 第1步：程序介绍
+        step1 = ttk.Frame(wizard_tabs)
+        wizard_tabs.add(step1, text="1. 介绍")
+        ttk.Label(step1, text="诊断分析工具", font=(
+            'Helvetica', 14, 'bold')).pack(pady=10)
+        ttk.Label(step1, text="本工具用于分析质谱数据并构建机器学习模型，以区分HC与LC样本。",
+                  wraplength=550).pack(pady=5)
+        ttk.Label(step1, text="使用流程包括：数据预处理、模型训练与评估、新样本预测。",
+                  wraplength=550).pack(pady=5)
+
+        # 第2步：数据预处理
+        step2 = ttk.Frame(wizard_tabs)
+        wizard_tabs.add(step2, text="2. 数据预处理")
+        ttk.Label(step2, text="数据预处理步骤", font=(
+            'Helvetica', 12, 'bold')).pack(pady=10)
+        ttk.Label(step2, text="1. 点击菜单 '数据预处理' -> '选择处理文件'",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step2, text="2. 选择原始的txt格式质谱数据文件",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step2, text="3. 等待处理完成，生成LC_MAX.xlsx文件",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+
+        # 第3步：模型训练
+        step3 = ttk.Frame(wizard_tabs)
+        wizard_tabs.add(step3, text="3. 模型训练")
+        ttk.Label(step3, text="模型训练与评估", font=(
+            'Helvetica', 12, 'bold')).pack(pady=10)
+        ttk.Label(step3, text="1. 点击 '选择归一化excel文件' 按钮，选择LC_MAX.xlsx",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step3, text="2. 从菜单 '模型选择' 中选择合适的机器学习模型",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step3, text="3. 点击 '开始分析' 按钮开始训练过程",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step3, text="4. 训练完成后，查看生成的评估图表",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+
+        # 第4步：样本预测
+        step4 = ttk.Frame(wizard_tabs)
+        wizard_tabs.add(step4, text="4. 样本预测")
+        ttk.Label(step4, text="新样本预测", font=(
+            'Helvetica', 12, 'bold')).pack(pady=10)
+        ttk.Label(step4, text="1. 模型训练完成后，点击 '选择要检测的txt文件' 按钮",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step4, text="2. 选择要分析的未知样本txt文件",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step4, text="3. 查看预测结果（HC或LC）及概率",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ttk.Label(step4, text="4. 可点击 '查看模型详情' 了解模型参数",
+                  wraplength=550).pack(anchor='w', padx=20, pady=2)
+
+        # 底部按钮
+        button_frame = ttk.Frame(self.wizard_window)
+        button_frame.pack(fill='x', padx=10, pady=10)
+
+        # 创建"不再显示"复选框
+        show_again_var = tkinter.BooleanVar(value=self.show_wizard_on_startup)
+        ttk.Checkbutton(button_frame, text="启动时显示此向导",
+                        variable=show_again_var).pack(side='left')
+
+        # 创建关闭按钮
+        def close_wizard():
+            self.show_wizard_on_startup = show_again_var.get()
+            self.save_config()
+            self.wizard_window.destroy()
+            self.wizard_window = None
+
+        ttk.Button(button_frame, text="开始使用",
+                   command=close_wizard).pack(side='right')
+    
+    def show_about(self):
+        """显示关于信息"""
+        about_window = tkinter.Toplevel(self.root)
+        about_window.title("关于诊断分析工具")
+        about_window.geometry("400x300")
+        about_window.resizable(False, False)
+
+        ttk.Label(about_window, text="诊断分析工具", font=(
+            'Helvetica', 14, 'bold')).pack(pady=10)
+        ttk.Label(about_window, text="版本: 1.0",
+                  font=('Helvetica', 10)).pack(pady=5)
+        ttk.Label(about_window, text="本工具用于质谱数据分析和疾病诊断模型构建。",
+                  wraplength=350).pack(pady=10)
+        ttk.Label(about_window, text="支持多种机器学习模型，包括逻辑回归、随机森林、神经网络、PLS回归等。",
+                  wraplength=350).pack(pady=5)
+
+        ttk.Button(about_window, text="确定",
+                   command=about_window.destroy).pack(pady=20)
+    
+    def create_workflow_diagram(self, parent):
+        """创建简单的工作流程图"""
+        canvas = tkinter.Canvas(parent, width=700, height=80, bg='white')
+        canvas.pack(padx=10, pady=5)
+
+        # 绘制三个步骤框
+        canvas.create_rectangle(50, 20, 200, 60, fill='lightblue', outline='blue')
+        canvas.create_rectangle(250, 20, 400, 60, fill='lightgreen', outline='green')
+        canvas.create_rectangle(450, 20, 600, 60, fill='lightyellow', outline='orange')
+
+        # 添加文字
+        canvas.create_text(125, 40, text="1. 数据预处理",
+                           font=('Helvetica', 10, 'bold'))
+        canvas.create_text(325, 40, text="2. 模型训练与评估",
+                           font=('Helvetica', 10, 'bold'))
+        canvas.create_text(525, 40, text="3. 样本预测", font=('Helvetica', 10, 'bold'))
+
+        # 绘制箭头
+        canvas.create_line(200, 40, 250, 40, arrow=tkinter.LAST,
+                           width=2, fill='blue')
+        canvas.create_line(400, 40, 450, 40, arrow=tkinter.LAST,
+                           width=2, fill='green')
+    
+    def update_progress(self, step_key):
+        """更新当前步骤"""
+        self.current_step = step_key
+        # 可以在这里添加进度指示器的更新逻辑
+        pass
+    
+    def setup_all_tooltips(self):
+        """为主程序的所有控件设置悬停提示的便捷方法"""
+        # 这个方法可以在create_gui中调用，统一设置所有提示
+        # 由于控件是在create_gui中创建的，这里只提供接口
+        pass
+
 # 全局日志函数
 def log_message(message, level="INFO"):
     """增强的日志函数，支持不同级别"""
@@ -1074,6 +1354,10 @@ def create_gui():
     """
     global info_text 
     root.title('诊断分析')
+
+    # === 创建帮助系统 ===
+    help_system = HelpSystem(root)
+
     menu_bar = tkinter.Menu(root)
     # 设置窗口大小为屏幕大小
     width = root.winfo_screenwidth()
@@ -1097,10 +1381,18 @@ def create_gui():
                                     value=item, command=lambda: on_selcted(var_selection, display_label))
     menu_bar.add_cascade(label="模型选择", menu=option_menu)
 
+    # === 添加帮助菜单 ===
+    help_menu = tkinter.Menu(menu_bar, tearoff=0)
+    menu_bar.add_cascade(label="帮助", menu=help_menu)
+    help_menu.add_command(label="使用向导", command=help_system.show_wizard)
+    help_menu.add_command(label="关于", command=help_system.show_about)
+
     # 训练部分控件
     open_button = tkinter.Button(
         root, text="选择归一化excel文件", command=lambda: open_excel_file(normalization_label, start_button, progress_bar))
     open_button.grid(row=1, column=0)
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(open_button, "select_excel")
 
     normalization_label_text = "文件未选择"
     normalization_label = tkinter.Label(root, text=normalization_label_text)
@@ -1110,21 +1402,31 @@ def create_gui():
         progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,model_save_status_label))
     start_button.grid(row=2, column=0)
     start_button.config(state='disabled')
+     # === 添加悬停提示 ===
+    help_system.add_hover_tip(start_button, "start_analysis")
 
     display_label = tkinter.Label(
         root, text='默认使用'+exact_selection)
     display_label.grid(row=2, column=1)
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(display_label, "model_selection")
 
     progress_label = tkinter.Label(root, text='分析进度: 0%')
     progress_label.grid(row=3, column=0)
     progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
     progress_bar.grid(row=3, column=1, sticky='ew')
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(progress_bar, "progress")
 
     balanced_accuracy_train_label = tkinter.Label(root, text='平均训练集平衡精度: ')
     balanced_accuracy_train_label.grid(row=5, column=0)
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(balanced_accuracy_train_label, "results")
 
     balanced_accuracy_test_label = tkinter.Label(root, text='平均测试集平衡精度: ')
     balanced_accuracy_test_label.grid(row=5, column=1)
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(balanced_accuracy_test_label, "results")
 
     model_save_status_label = tkinter.Label(root, text='模型保存状态: 未保存')
     model_save_status_label.grid(row=5, column=2) 
@@ -1137,6 +1439,8 @@ def create_gui():
     # 使用ScrolledText替代普通Text（带滚动条）
     info_text = scrolledtext.ScrolledText(root, width=100, height=4, wrap=tkinter.WORD)
     info_text.grid(row=2, column=2, columnspan=2, padx=10, pady=5, sticky='nsew')
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(info_text, "log_info")
 
     # 初始化日志
     log_message("系统已启动，等待用户操作...")
@@ -1152,12 +1456,20 @@ def create_gui():
         root, text="选择要检测的txt文件", 
         command=lambda: open_file_dialog(prediction_result_label))
     file_button.grid(row=7, column=0)
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(file_button, "select_predict_file")
 
     
     model_info_button = tkinter.Button(
     root, text="查看模型详情", 
     command=lambda: show_model_info(load('best_model.joblib')) if os.path.exists('best_model.joblib') else messagebox.showerror("错误", "未找到模型文件"))
     model_info_button.grid(row=7, column=3)
+    # === 添加悬停提示 ===
+    help_system.add_hover_tip(model_info_button, "model_info")
+
+     # === 如果是首次运行，显示向导 ===
+    if help_system.show_wizard_on_startup:
+        root.after(500, help_system.show_wizard)  # 延迟500ms显示，确保主窗口已完全加载
 
     root.config(menu=menu_bar)
     root.mainloop()
