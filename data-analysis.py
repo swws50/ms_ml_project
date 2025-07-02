@@ -1517,18 +1517,17 @@ def show_model_info(loaded_model):
                 for i, coef in enumerate(class_coef):
                     info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
 
-# === 添加一个重置进度的功能 ===
+#重置进度
 def reset_analysis():
     """重置分析进度，开始新的分析流程"""
     global help_system
     
     if 'help_system' in globals() and help_system:
         help_system.reset_progress()
-        log_message("分析进度已重置，可以开始新的分析流程")
+        log_message("分析进度已重置，可以开始新的分析流程","INFO")
 
 
-# === 需要添加的辅助函数，用于在其他地方更新步骤进度 ===
-
+#更新进度
 def update_step_progress(step_id):
     """更新步骤进度的便捷函数"""
     global help_system
@@ -1738,18 +1737,8 @@ def create_gui():
     root.mainloop()
 
 
-# === 重置分析功能的实现 ===
-def reset_analysis():
-    """重置分析进度，开始新的分析流程"""
-    global help_system
-    
-    if 'help_system' in globals() and help_system:
-        help_system.reset_progress()
-        log_message("分析进度已重置，可以开始新的分析流程", "INFO")
-
 
 # 全局变量初始化
-
 notebook = None # tkinter.ttk.Notebook对象，用于在GUI中显示选项卡式图表展示区
 info_text = None # 全局信息显示文本框
 
