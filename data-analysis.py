@@ -45,10 +45,23 @@ class HelpSystem:
         self.config_file = config_file
         self.active_tooltips = {}  # 跟踪活动的提示窗口
         
-        # 当前步骤跟踪
-        self.current_step = "select_file"
-        self.show_wizard_on_startup = True
+        # === 步骤进度跟踪 ===
+        self.steps = [
+            {"id": "select_data", "name": "选择数据文件", "completed": False},
+            {"id": "select_model", "name": "选择模型", "completed": False},
+            {"id": "train_model", "name": "训练模型", "completed": False},
+            {"id": "view_results", "name": "查看结果", "completed": False},
+            {"id": "predict_sample", "name": "预测样本", "completed": False}
+        ]
+        self.current_step_index = 0
         
+        # UI组件引用
+        self.progress_frame = None
+        self.progress_labels = []
+        self.progress_indicator = None
+        
+        self.show_wizard_on_startup = True
+
         # 为你的程序定制的帮助文本
         self.help_texts = {
             # 数据预处理相关
@@ -69,6 +82,15 @@ class HelpSystem:
             "log_info": "显示系统运行日志\n记录所有操作和错误信息"
         }
         
+        # 步骤相关的提示信息
+        self.step_hints = {
+            "select_data": "💡 下一步：请点击 '选择归一化excel文件' 按钮选择数据文件",
+            "select_model": "💡 下一步：从菜单栏 '模型选择' 中选择合适的机器学习算法",
+            "train_model": "💡 下一步：点击 '开始分析' 按钮开始训练模型",
+            "view_results": "💡 训练完成！您可以查看生成的评估图表",
+            "predict_sample": "💡 模型已就绪！可以选择新样本进行预测"
+        }
+
         # 加载用户配置
         self.load_config()
         
@@ -95,6 +117,151 @@ class HelpSystem:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
+
+    def create_progress_indicator(self, parent_frame, row=0, column=0, columnspan=4):
+        """
+        创建步骤进度指示器
+        
+        参数:
+            parent_frame: 父容器
+            row, column, columnspan: grid布局参数
+        """
+        # 创建进度指示器框架
+        self.progress_frame = tkinter.Frame(parent_frame, bg='#f0f0f0', relief='raised', bd=1)
+        self.progress_frame.grid(row=row, column=column, columnspan=columnspan, sticky='ew', padx=5, pady=2)
+        
+        # 标题
+        title_label = tkinter.Label(self.progress_frame, text="操作进度:", 
+                                   font=('Arial', 9, 'bold'), bg='#f0f0f0')
+        title_label.pack(side='left', padx=5)
+        
+        # 步骤指示器容器
+        steps_frame = tkinter.Frame(self.progress_frame, bg='#f0f0f0')
+        steps_frame.pack(side='left', padx=10)
+        
+        # 创建步骤标签
+        self.progress_labels = []
+        for i, step in enumerate(self.steps):
+            # 步骤圆圈
+            step_circle = tkinter.Label(steps_frame, text=str(i+1), 
+                                       width=3, height=1,
+                                       font=('Arial', 8, 'bold'),
+                                       relief='solid', bd=1)
+            step_circle.pack(side='left', padx=2)
+            
+            # 步骤名称
+            step_name = tkinter.Label(steps_frame, text=step['name'], 
+                                     font=('Arial', 8), bg='#f0f0f0')
+            step_name.pack(side='left', padx=(0, 10))
+            
+            # 箭头（除了最后一个步骤）
+            if i < len(self.steps) - 1:
+                arrow = tkinter.Label(steps_frame, text="→", 
+                                     font=('Arial', 8), bg='#f0f0f0')
+                arrow.pack(side='left', padx=2)
+            
+            self.progress_labels.append((step_circle, step_name))
+        
+        # 当前步骤提示
+        self.progress_indicator = tkinter.Label(self.progress_frame, 
+                                               text=self.step_hints.get(self.steps[0]['id'], ""),
+                                               font=('Arial', 8), bg='#f0f0f0', fg='blue')
+        self.progress_indicator.pack(side='right', padx=10)
+        
+        # 初始化显示
+        self.update_progress_display()
+    
+    def update_progress_display(self):
+        """更新进度显示"""
+        if not self.progress_labels:
+            return
+            
+        for i, (circle, name) in enumerate(self.progress_labels):
+            if i < self.current_step_index:
+                # 已完成的步骤 - 绿色
+                circle.config(bg='#90EE90', fg='black')
+                name.config(fg='green', font=('Arial', 8, 'normal'))
+            elif i == self.current_step_index:
+                # 当前步骤 - 蓝色高亮
+                circle.config(bg='#87CEEB', fg='black')
+                name.config(fg='blue', font=('Arial', 8, 'bold'))
+            else:
+                # 未完成的步骤 - 灰色
+                circle.config(bg='#D3D3D3', fg='gray')
+                name.config(fg='gray', font=('Arial', 8, 'normal'))
+        
+        # 更新提示信息
+        if self.current_step_index < len(self.steps):
+            current_step_id = self.steps[self.current_step_index]['id']
+            hint_text = self.step_hints.get(current_step_id, "")
+            if self.progress_indicator:
+                self.progress_indicator.config(text=hint_text)
+    
+    def advance_step(self, step_id):
+        """
+        推进到指定步骤
+        
+        参数:
+            step_id: 步骤ID
+        """
+        # 找到步骤索引
+        step_index = None
+        for i, step in enumerate(self.steps):
+            if step['id'] == step_id:
+                step_index = i
+                break
+        
+        if step_index is not None and step_index >= self.current_step_index:
+            # 标记之前的步骤为已完成
+            for i in range(step_index):
+                self.steps[i]['completed'] = True
+            
+            # 更新当前步骤
+            self.current_step_index = step_index
+            self.update_progress_display()
+            
+            # 记录日志
+            step_name = self.steps[step_index]['name']
+            if hasattr(self.root, 'log_message'):
+                try:
+                    # 尝试调用全局log_message函数
+                    import __main__
+                    if hasattr(__main__, 'log_message'):
+                        __main__.log_message(f"步骤进度: {step_name}", "INFO")
+                except:
+                    pass
+    
+    def complete_step(self, step_id):
+        """
+        完成指定步骤并自动推进到下一步
+        
+        参数:
+            step_id: 要完成的步骤ID
+        """
+        # 找到并完成指定步骤
+        for i, step in enumerate(self.steps):
+            if step['id'] == step_id:
+                step['completed'] = True
+                break
+        
+        # 自动推进到下一步
+        next_index = self.current_step_index + 1
+        if next_index < len(self.steps):
+            self.current_step_index = next_index
+            self.update_progress_display()
+    
+    def reset_progress(self):
+        """重置进度"""
+        for step in self.steps:
+            step['completed'] = False
+        self.current_step_index = 0
+        self.update_progress_display()
+    
+    def get_current_step(self):
+        """获取当前步骤信息"""
+        if self.current_step_index < len(self.steps):
+            return self.steps[self.current_step_index]
+        return None    
     
     def add_hover_tip(self, widget, key_or_text, custom_style=None):
         """
@@ -551,7 +718,7 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         - 类别标签会被映射为数值：HC=0, LC=1
         - 如果发现未知类别，将显示警告消息
     """
-    global row, column, df
+    global row, column, df, help_system
     
     file_path = filedialog.askopenfilename(
         filetypes=[("Excel files", "*.xls *.xlsx")])
@@ -583,6 +750,10 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         start_button.config(state='normal')
         progress_bar['value'] = 0
         log_message("数据文件已成功加载")
+
+        # === 新增：推进步骤到"选择模型" ===
+        if 'help_system' in globals() and help_system:
+            help_system.advance_step("select_model")
 
         # 处理数据
         row = df.iloc[1:, :].values.T
@@ -643,9 +814,13 @@ def on_selcted(var_selection, display_label):
     全局变量修改:
         exact_selection: 设置为当前选择的模型名称
     """
-    global exact_selection
+    global exact_selection, help_system
     exact_selection = var_selection.get()
     display_label.config(text='您选择了: '+exact_selection)
+
+    # === 新增：推进步骤到"训练模型" ===
+    if 'help_system' in globals() and help_system:
+        help_system.advance_step("train_model")
 
 
 
@@ -715,7 +890,7 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
         - 对于PLSRegression模型，使用ROC曲线寻找最优分类阈值
         - 支持的评估指标包括：平衡准确率、混淆矩阵、精确率、召回率、F1分数和ROC曲线
     """
-    global row, column, df, fpr_list, tpr_list, thresholds_list, auc_list, best_model
+    global row, column, df, fpr_list, tpr_list, thresholds_list, auc_list, best_model, help_system
     
     # 清空日志旧信息
     clear_log()
@@ -847,6 +1022,11 @@ def predict_by(progress_label, progress_bar, balanced_accuracy_train_label, bala
             dump(best_model, 'best_model.joblib')
             log_message(f"最优模型已保存，测试集分数: {best_score:.4f}")
             model_save_status_label.config(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', fg='green')
+            
+            # === 新增：推进步骤到"查看结果" ===
+            if 'help_system' in globals() and help_system:
+                help_system.advance_step("view_results")
+
         else:
             log_message("警告：未训练出有效模型")
             model_save_status_label.config(text='模型保存状态: 保存失败', fg='red')
@@ -914,7 +1094,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     注意:
         此函数依赖于全局变量root和notebook，需要在tkinter环境中运行
     """
-    global root, notebook
+    global root, notebook, help_system
     
     log_message("开始生成可视化图表...")
     
@@ -1033,9 +1213,23 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
             pass
     
     try:
-        notebook = ttk.Notebook(root)
-        notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
-        
+        # === 新的notebook创建方式 ===
+        # 检查是否有可视化容器
+        if hasattr(root, 'visualization_container') and hasattr(root, 'visualization_placeholder'):
+            # 先销毁占位标签
+            try:
+                root.visualization_placeholder.destroy()
+            except:
+                pass
+            
+            # 在可视化容器中创建notebook
+            notebook = ttk.Notebook(root.visualization_container)
+            notebook.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+        else:
+            # 如果没有找到可视化容器，使用原来的方式（兼容性）
+            notebook = ttk.Notebook(root)
+            notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
+
         # 图表文件列表和对应的标签页名称
         chart_configs = [
             ('Training and Test Balanced Accuracy.png', '准确率'),
@@ -1060,7 +1254,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
                     image = Image.open(chart_file)
                     photo = ImageTk.PhotoImage(image)
                     
-                    # 创建标签并显示图像（版本1的内存管理方式）
+                    # 创建标签并显示图像
                     label = tkinter.Label(tab, image=photo)
                     label.image = photo  # 保持引用，防止被垃圾回收
                     label.pack(fill='both', expand=True)
@@ -1068,9 +1262,8 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
                     log_message(f"已加载图表: {tab_name}")
                     
                 except Exception as e:
-                    # 添加版本2的错误处理
+                    # 错误处理
                     log_message(f"加载图表 {tab_name} 时出错: {str(e)}")
-                    # 创建错误显示的选项卡
                     tab = ttk.Frame(notebook)
                     notebook.add(tab, text=f"{tab_name}(错误)")
                     error_label = tkinter.Label(tab, text=f"无法加载图表: {chart_file}\n错误: {str(e)}", 
@@ -1087,7 +1280,11 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
         
         log_message("可视化界面创建完成！")
         root.update()
-        
+
+         # === 新增：完成"查看结果"步骤，解锁预测功能 ===
+        if 'help_system' in globals() and help_system:
+            help_system.complete_step("view_results")
+
     except Exception as e:
         log_message(f"创建可视化界面时出错: {str(e)}")
         messagebox.showerror("界面创建错误", f"创建可视化界面时出现错误：{str(e)}")
@@ -1096,6 +1293,7 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
 
 
 def predict_unknown_sample(file_path,prediction_result_label):
+    global help_system
     """支持多种类型的sklearn模型，包括:
     - 带predict_proba方法的分类器(如RandomForest, LogisticRegression)
     - 带decision_function方法的分类器(如默认SVM)
@@ -1204,6 +1402,10 @@ def predict_unknown_sample(file_path,prediction_result_label):
         
         prediction_result_label.config(text=result_text, fg='red' if predicted_class == "LC" else 'green', font=('Helvetica', 12, 'bold'))
         
+        # === 新增：完成"预测样本"步骤 ===
+        if 'help_system' in globals() and help_system:
+            help_system.complete_step("predict_sample")
+
         return predicted_class, probabilities
         
     except Exception as e:
@@ -1315,164 +1517,236 @@ def show_model_info(loaded_model):
                 for i, coef in enumerate(class_coef):
                     info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
 
+# === 添加一个重置进度的功能 ===
+def reset_analysis():
+    """重置分析进度，开始新的分析流程"""
+    global help_system
+    
+    if 'help_system' in globals() and help_system:
+        help_system.reset_progress()
+        log_message("分析进度已重置，可以开始新的分析流程")
+
+
+# === 需要添加的辅助函数，用于在其他地方更新步骤进度 ===
+
+def update_step_progress(step_id):
+    """更新步骤进度的便捷函数"""
+    global help_system
+    if 'help_system' in globals() and help_system:
+        help_system.advance_step(step_id)
+
+def complete_step_progress(step_id):
+    """完成步骤的便捷函数"""
+    global help_system
+    if 'help_system' in globals() and help_system:
+        help_system.complete_step(step_id)
+
 def create_gui():
     """ 
-    创建并配置应用程序的主图形用户界面。
-    
-    构建完整的应用程序GUI，包括菜单栏、文件选择按钮、进度显示、
-    模型选择、训练控制、结果展示等所有界面元素。设置窗口尺寸为
-    全屏并处理各组件的布局和初始状态。
-    
-    参数:
-        None
-        
-    返回:
-        None: 启动主GUI循环
-        
-    全局变量依赖:
-        root: tkinter主窗口对象
-        class_dict: 包含可用模型类型及其参数配置的字典
-        exact_selection: 当前选择的模型类型名称
-        
-    界面组件:
-        - 菜单栏: 提供数据预处理和模型选择功能
-        - 文件操作区: 用于选择训练数据和预测样本
-        - 训练控制区: 包含开始分析按钮和进度显示
-        - 结果展示区: 显示训练精度和预测结果
-        - 信息面板: 展示运行日志和状态信息
-        
-    功能入口点:
-        - 数据预处理: select_and_process_files
-        - 模型训练: predict_by
-        - 样本预测: predict_unknown_sample
-        - 模型信息查看: show_model_info
-        
-    注意:
-        - 窗口使用zoomed状态实现全屏显示，保留Windows任务栏
-        - 使用网格布局(grid)管理界面组件位置
-        - 某些按钮初始状态为禁用，需要先完成前置操作才能启用
+    创建并配置应用程序的主图形用户界面 - 重新组织的布局
     """
-    global info_text 
+    global info_text, help_system, main_container
     root.title('诊断分析')
-
+    
     # === 创建帮助系统 ===
     help_system = HelpSystem(root)
-
-    menu_bar = tkinter.Menu(root)
-    # 设置窗口大小为屏幕大小
+    
+    # 设置窗口大小和状态
     width = root.winfo_screenwidth()
     height = root.winfo_screenheight()
     root.geometry(f"{width}x{height}+0+0")
-    
-    # 让窗口最大化，这在Windows上能保留任务栏
     root.state('zoomed')
 
-    # 菜单栏数据预处理显示
-    command_menu = tkinter.Menu(menu_bar, tearoff=0)
-    menu_bar.add_cascade(label="数据预处理", menu=command_menu)
-    command_menu.add_command(label="选择处理文件", command=select_and_process_files)
-
-    # 菜单栏模型选择显示
-    option_menu = tkinter.Menu(menu_bar, tearoff=0)
+    # === 创建菜单栏 ===
+    menu_bar = tkinter.Menu(root)
+    
+    # 数据预处理菜单
+    data_menu = tkinter.Menu(menu_bar, tearoff=0)
+    menu_bar.add_cascade(label="数据预处理", menu=data_menu)
+    data_menu.add_command(label="选择处理文件", command=select_and_process_files)
+    
+    # 模型选择菜单
+    model_menu = tkinter.Menu(menu_bar, tearoff=0)
     var_selection = tkinter.StringVar()
     var_selection.set(exact_selection)
     for item in class_dict.keys():
-        option_menu.add_radiobutton(label=item, variable=var_selection,
-                                    value=item, command=lambda: on_selcted(var_selection, display_label))
-    menu_bar.add_cascade(label="模型选择", menu=option_menu)
+        model_menu.add_radiobutton(label=item, variable=var_selection,
+                                  value=item, command=lambda: on_selcted(var_selection, display_label))
+    menu_bar.add_cascade(label="模型选择", menu=model_menu)
+    
+    # 项目管理菜单
+    project_menu = tkinter.Menu(menu_bar, tearoff=0)
+    menu_bar.add_cascade(label="项目管理", menu=project_menu)
+    project_menu.add_command(label="重置进度", command=reset_analysis)
+    project_menu.add_separator()
+    project_menu.add_command(label="新建项目", command=lambda: messagebox.showinfo("提示", "新建项目功能开发中"))
 
-    # === 添加帮助菜单 ===
+    # 帮助菜单
     help_menu = tkinter.Menu(menu_bar, tearoff=0)
     menu_bar.add_cascade(label="帮助", menu=help_menu)
     help_menu.add_command(label="使用向导", command=help_system.show_wizard)
     help_menu.add_command(label="关于", command=help_system.show_about)
 
-    # 训练部分控件
-    open_button = tkinter.Button(
-        root, text="选择归一化excel文件", command=lambda: open_excel_file(normalization_label, start_button, progress_bar))
-    open_button.grid(row=1, column=0)
-    # === 添加悬停提示 ===
+    # === 1. 创建步骤进度指示器（最顶部）===
+    help_system.create_progress_indicator(root, row=0, column=0, columnspan=3)
+
+    # === 2. 创建主要布局容器 ===
+    
+    # 配置根窗口的网格权重
+    root.grid_rowconfigure(2, weight=1)  # 让下半部分可以扩展
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_columnconfigure(1, weight=1)
+    root.grid_columnconfigure(2, weight=1)
+
+    # === 3. 第一行：操作控制、训练结果、样本预测 ===
+    
+    # Frame1: 操作控制面板（左）
+    control_frame = tkinter.Frame(root, relief='groove', bd=1)
+    control_frame.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+    
+    # 操作控制标题
+    control_title = tkinter.Label(control_frame, text="操作控制", font=('Arial', 10, 'bold'))
+    control_title.grid(row=0, column=0, columnspan=2, pady=5)
+
+    # 文件选择
+    open_button = tkinter.Button(control_frame, text="选择归一化excel文件", 
+        command=lambda: [open_excel_file(normalization_label, start_button, progress_bar), 
+                        help_system.advance_step("select_model")])
+    open_button.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
     help_system.add_hover_tip(open_button, "select_excel")
 
-    normalization_label_text = "文件未选择"
-    normalization_label = tkinter.Label(root, text=normalization_label_text)
-    normalization_label.grid(row=1, column=1)
+    normalization_label = tkinter.Label(control_frame, text="文件未选择")
+    normalization_label.grid(row=1, column=1, padx=5, pady=2, sticky='w')
 
-    start_button = tkinter.Button(root, text='开始分析', command=lambda: predict_by(
-        progress_label, progress_bar, balanced_accuracy_train_label, balanced_accuracy_test_label,model_save_status_label))
-    start_button.grid(row=2, column=0)
+    # 训练控制
+    start_button = tkinter.Button(control_frame, text='开始分析', 
+        command=lambda: [predict_by(progress_label, progress_bar, balanced_accuracy_train_label, 
+                                   balanced_accuracy_test_label, model_save_status_label),
+                        help_system.advance_step("view_results")])
+    start_button.grid(row=2, column=0, padx=5, pady=2, sticky='ew')
     start_button.config(state='disabled')
-     # === 添加悬停提示 ===
     help_system.add_hover_tip(start_button, "start_analysis")
 
-    display_label = tkinter.Label(
-        root, text='默认使用'+exact_selection)
-    display_label.grid(row=2, column=1)
-    # === 添加悬停提示 ===
+    display_label = tkinter.Label(control_frame, text='默认使用'+exact_selection)
+    display_label.grid(row=2, column=1, padx=5, pady=2, sticky='w')
     help_system.add_hover_tip(display_label, "model_selection")
 
-    progress_label = tkinter.Label(root, text='分析进度: 0%')
-    progress_label.grid(row=3, column=0)
-    progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
-    progress_bar.grid(row=3, column=1, sticky='ew')
-    # === 添加悬停提示 ===
+    # 进度显示
+    progress_label = tkinter.Label(control_frame, text='分析进度: 0%')
+    progress_label.grid(row=3, column=0, padx=5, pady=2, sticky='w')
+    
+    progress_bar = ttk.Progressbar(control_frame, length=150, mode='determinate')
+    progress_bar.grid(row=3, column=1, padx=5, pady=2, sticky='ew')
     help_system.add_hover_tip(progress_bar, "progress")
 
-    balanced_accuracy_train_label = tkinter.Label(root, text='平均训练集平衡精度: ')
-    balanced_accuracy_train_label.grid(row=5, column=0)
-    # === 添加悬停提示 ===
+    # 配置操作控制框架的列权重
+    control_frame.grid_columnconfigure(1, weight=1)
+
+    # Frame2: 训练结果面板（中）
+    result_frame = tkinter.Frame(root, relief='groove', bd=1)
+    result_frame.grid(row=1, column=1, sticky='nsew', padx=5, pady=5)
+    
+    # 训练结果标题
+    result_title = tkinter.Label(result_frame, text="训练结果", font=('Arial', 10, 'bold'))
+    result_title.grid(row=0, column=0, pady=5)
+
+    balanced_accuracy_train_label = tkinter.Label(result_frame, text='平均训练集平衡精度: --')
+    balanced_accuracy_train_label.grid(row=1, column=0, padx=5, pady=2, sticky='w')
     help_system.add_hover_tip(balanced_accuracy_train_label, "results")
 
-    balanced_accuracy_test_label = tkinter.Label(root, text='平均测试集平衡精度: ')
-    balanced_accuracy_test_label.grid(row=5, column=1)
-    # === 添加悬停提示 ===
+    balanced_accuracy_test_label = tkinter.Label(result_frame, text='平均测试集平衡精度: --')
+    balanced_accuracy_test_label.grid(row=2, column=0, padx=5, pady=2, sticky='w')
     help_system.add_hover_tip(balanced_accuracy_test_label, "results")
 
-    model_save_status_label = tkinter.Label(root, text='模型保存状态: 未保存')
-    model_save_status_label.grid(row=5, column=2) 
+    model_save_status_label = tkinter.Label(result_frame, text='模型保存状态: 未保存')
+    model_save_status_label.grid(row=3, column=0, padx=5, pady=2, sticky='w')
 
-    # 新增：信息显示区域（放在 row 1）
-    info_label = tkinter.Label(root, text="运行信息：")
-    info_label.grid(row=1, column=2, sticky='w')
+    # Frame3: 样本预测面板（右）
+    predict_frame = tkinter.Frame(root, relief='groove', bd=1)
+    predict_frame.grid(row=1, column=2, sticky='nsew', padx=5, pady=5)
     
+    # 预测功能标题
+    predict_title = tkinter.Label(predict_frame, text="样本预测", font=('Arial', 10, 'bold'))
+    predict_title.grid(row=0, column=0, pady=5)
 
-    # 使用ScrolledText替代普通Text（带滚动条）
-    info_text = scrolledtext.ScrolledText(root, width=100, height=4, wrap=tkinter.WORD)
-    info_text.grid(row=2, column=2, columnspan=2, padx=10, pady=5, sticky='nsew')
-    # === 添加悬停提示 ===
+    file_button = tkinter.Button(predict_frame, text="选择要检测的txt文件", 
+        command=lambda: [open_file_dialog(prediction_result_label),
+                        help_system.advance_step("predict_sample")])
+    file_button.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
+    help_system.add_hover_tip(file_button, "select_predict_file")
+
+    prediction_result_label = tkinter.Label(predict_frame, text='状态：等待选择文件')
+    prediction_result_label.grid(row=2, column=0, padx=5, pady=2, sticky='w')
+
+    model_info_button = tkinter.Button(predict_frame, text="查看模型详情", 
+        command=lambda: show_model_info(load('best_model.joblib')) if os.path.exists('best_model.joblib') else messagebox.showerror("错误", "未找到模型文件"))
+    model_info_button.grid(row=3, column=0, padx=5, pady=2, sticky='ew')
+    help_system.add_hover_tip(model_info_button, "model_info")
+
+    # === 4. 第二行：可视化显示、运行日志 ===
+    
+    # Frame4: 可视化显示面板（左，占大部分空间）
+    visualization_frame = tkinter.Frame(root, relief='groove', bd=1)
+    visualization_frame.grid(row=2, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
+    
+    # 配置可视化框架的网格权重
+    visualization_frame.grid_rowconfigure(1, weight=1)
+    visualization_frame.grid_columnconfigure(0, weight=1)
+    
+    # 可视化标题
+    viz_title = tkinter.Label(visualization_frame, text="模型评估结果", font=('Arial', 10, 'bold'))
+    viz_title.grid(row=0, column=0, pady=5)
+    
+    # 可视化占位区域
+    visualization_placeholder = tkinter.Frame(visualization_frame)
+    visualization_placeholder.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+    
+    placeholder_label = tkinter.Label(visualization_placeholder, 
+                                     text="训练完成后，模型评估图表将在此显示", 
+                                     font=('Arial', 11))
+    placeholder_label.pack(expand=True)
+    
+    # Frame5: 运行信息面板（右）
+    info_frame = tkinter.Frame(root, relief='groove', bd=1)
+    info_frame.grid(row=2, column=2, sticky='nsew', padx=5, pady=5)
+    
+    # 配置信息框架的网格权重
+    info_frame.grid_rowconfigure(1, weight=1)
+    info_frame.grid_columnconfigure(0, weight=1)
+    
+    # 信息显示标题
+    info_title = tkinter.Label(info_frame, text="运行信息", font=('Arial', 10, 'bold'))
+    info_title.grid(row=0, column=0, pady=5)
+
+    # 日志文本框
+    info_text = scrolledtext.ScrolledText(info_frame, width=40, height=20, wrap=tkinter.WORD)
+    info_text.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
     help_system.add_hover_tip(info_text, "log_info")
+
+    # 保存容器引用供visualize_performance使用
+    root.visualization_container = visualization_frame
+    root.visualization_placeholder = visualization_placeholder
 
     # 初始化日志
     log_message("系统已启动，等待用户操作...")
-    
 
-    # row 6 用来显示预测后的图像
-
-    # 预测结果显示区域
-    prediction_result_label = tkinter.Label(root,text='状态：等待选择文件')
-    prediction_result_label.grid(row=7, column=1) 
-    # 选择文件按钮
-    file_button = tkinter.Button(
-        root, text="选择要检测的txt文件", 
-        command=lambda: open_file_dialog(prediction_result_label))
-    file_button.grid(row=7, column=0)
-    # === 添加悬停提示 ===
-    help_system.add_hover_tip(file_button, "select_predict_file")
-
-    
-    model_info_button = tkinter.Button(
-    root, text="查看模型详情", 
-    command=lambda: show_model_info(load('best_model.joblib')) if os.path.exists('best_model.joblib') else messagebox.showerror("错误", "未找到模型文件"))
-    model_info_button.grid(row=7, column=3)
-    # === 添加悬停提示 ===
-    help_system.add_hover_tip(model_info_button, "model_info")
-
-     # === 如果是首次运行，显示向导 ===
+    # === 如果是首次运行，显示向导 ===
     if help_system.show_wizard_on_startup:
-        root.after(500, help_system.show_wizard)  # 延迟500ms显示，确保主窗口已完全加载
+        root.after(500, help_system.show_wizard)
 
     root.config(menu=menu_bar)
     root.mainloop()
+
+
+# === 重置分析功能的实现 ===
+def reset_analysis():
+    """重置分析进度，开始新的分析流程"""
+    global help_system
+    
+    if 'help_system' in globals() and help_system:
+        help_system.reset_progress()
+        log_message("分析进度已重置，可以开始新的分析流程", "INFO")
+
 
 # 全局变量初始化
 
