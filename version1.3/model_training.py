@@ -13,8 +13,8 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 from sklearn.svm import LinearSVC
 from joblib import dump, load
-from tkinter import messagebox, filedialog, scrolledtext
-import tkinter
+from tkinter import messagebox, filedialog
+import customtkinter as ctk
 
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
                    REVERSE_CLASS_MAPPING, DEFAULT_MZ_VALUES)
@@ -92,8 +92,11 @@ def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_lab
         log_message(f"开始{TRAINING_ITERATIONS}轮训练循环...")
         for i in tqdm.tqdm(range(TRAINING_ITERATIONS)):
             percentage = (i + 1) / TRAINING_ITERATIONS * 100
-            progress_label.config(text='分析进度: {0:.2f}%'.format(percentage))
-            progress_bar['value'] = percentage
+
+            # === CustomTkinter 控件更新 ===
+            progress_label.configure(text='分析进度: {0:.2f}%'.format(percentage))
+            progress_bar.set(percentage / 100)  # 转换为 0-1 范围
+            root.update_idletasks()
             root.update()
 
             # 划分训练测试集
@@ -162,10 +165,10 @@ def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_lab
         # 更新UI显示
         mean_balanced_accuracy_train = np.mean(balanced_accuracy_train)
         mean_balanced_accuracy_test = np.mean(balanced_accuracy_test)
-        balanced_accuracy_train_label.config(text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
-        balanced_accuracy_test_label.config(text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
+        balanced_accuracy_train_label.configure(text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
+        balanced_accuracy_test_label.configure(text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
         
-        model_save_status_label.config(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', fg='green')
+        model_save_status_label.configure(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', text_color='green')
         
         log_message(f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
         log_message(f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
@@ -189,7 +192,7 @@ def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_lab
         log_message(f"训练过程中出现错误: {str(e)}", "ERROR")
         messagebox.showerror("训练错误", f"模型训练时出现错误：{str(e)}")
         progress_bar['value'] = 0
-        model_save_status_label.config(text='模型保存状态: 训练失败', fg='red')
+        model_save_status_label.configure(text='模型保存状态: 训练失败', text_color='red')
 
 def save_training_results(confusion_matrixs, Fscores, auc_list, fpr_list, 
                          tpr_list, thresholds_list, thresholds_used, best_model, best_score):
@@ -281,7 +284,7 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
         # 如果data_store中没有模型，尝试从文件加载
         if loaded_model is None:
             if not os.path.exists(OUTPUT_FILES['best_model']):
-                prediction_result_label.config(text="错误，未找到保存的模型文件", fg='red', font=('Helvetica', 12, 'bold'))
+                prediction_result_label.configure(text="错误，未找到保存的模型文件", text_color='red', font=('Helvetica', 12, 'bold'))
                 return None, None
             loaded_model = load(OUTPUT_FILES['best_model'])
             log_message("从文件加载模型", "INFO")
@@ -304,10 +307,12 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
         result_text += f"\n预测样本: {os.path.basename(file_path)}"
         result_text += f"\n模型信息: {loaded_model.__class__.__name__}"
         
-        prediction_result_label.config(text=result_text, 
-                                     fg='red' if predicted_class == "LC" else 'green', 
-                                     font=('Helvetica', 12, 'bold'))
-        
+        # === CustomTkinter 标签更新 ===
+        prediction_result_label.configure(text=result_text, 
+                                         text_color='red' if predicted_class == "LC" else 'green', 
+                                         font=ctk.CTkFont(size=12, weight="bold"))
+        log_message(f"预测结果: {predicted_class}, 概率: {probabilities}", "INFO")
+
         # 完成"预测样本"步骤
         if help_system:
             help_system.complete_step("predict_sample")
@@ -317,7 +322,7 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
         
     except Exception as e:
         error_message = f"预测过程中发生错误：{str(e)}"
-        prediction_result_label.config(text=error_message, fg='red', font=('Helvetica', 12, 'bold'))
+        prediction_result_label.configure(text=error_message, text_color='red', font=('Helvetica', 12, 'bold'))
         log_message(error_message, "ERROR")
         return None, None
 
@@ -350,58 +355,84 @@ def show_model_info():
                 return
             loaded_model = load(OUTPUT_FILES['best_model'])
         
-        info_window = tkinter.Toplevel()
+        # === 使用 CustomTkinter 创建信息窗口 ===
+        info_window = ctk.CTkToplevel()
         info_window.title(f"模型信息: {type(loaded_model).__name__}")
         info_window.geometry("600x400")
         
-        # 使用文本框显示模型信息
-        info_text = scrolledtext.ScrolledText(info_window, width=70, height=20)
+        # === 添加强力的窗口置顶方案 ===
+        # 1. 设置为置顶窗口
+        info_window.attributes('-topmost', True)
+        
+        # 2. 获取焦点
+        info_window.focus_force()
+        
+        # 3. 抬升窗口
+        info_window.lift()
+        info_window.tkraise()
+        
+        # 4. 设置为模态窗口
+        info_window.grab_set()  # 模态窗口，必须先处理这个窗口
+        
+        # 5. 延迟取消置顶（保持用户友好）
+        info_window.after(1000, lambda: info_window.attributes('-topmost', False))
+        
+        # 6. 窗口关闭时恢复主窗口焦点
+        def on_closing():
+            info_window.grab_release()  # 释放模态
+            info_window.destroy()
+            # 这里可以添加恢复主窗口焦点的代码，但通常不需要
+        
+        info_window.protocol("WM_DELETE_WINDOW", on_closing)
+        
+        # 使用 CustomTkinter 文本框显示模型信息
+        info_text = ctk.CTkTextbox(info_window, width=580, height=360)
         info_text.pack(fill='both', expand=True, padx=10, pady=10)
         
         # 获取模型信息
-        info_text.insert(tkinter.END, f"模型类型: {type(loaded_model).__name__}\n\n")
+        info_text.insert("end", f"模型类型: {type(loaded_model).__name__}\n\n")
         
         # 获取模型参数
-        info_text.insert(tkinter.END, "模型参数:\n")
+        info_text.insert("end", "模型参数:\n")
         for param_name, param_value in loaded_model.get_params().items():
-            info_text.insert(tkinter.END, f"- {param_name}: {param_value}\n")
-        
+            info_text.insert("end", f"- {param_name}: {param_value}\n")
+
         # 特殊模型信息
         if hasattr(loaded_model, 'feature_importances_'):
-            info_text.insert(tkinter.END, "\n特征重要性:\n")
+            info_text.insert("end", "\n特征重要性:\n")
             importances = loaded_model.feature_importances_
             for i, imp in enumerate(importances):
-                info_text.insert(tkinter.END, f"- 特征 {i+1}: {imp:.4f}\n")
+                info_text.insert("end", f"- 特征 {i+1}: {imp:.4f}\n")
         
         elif hasattr(loaded_model, 'coef_'):
-            info_text.insert(tkinter.END, "\n特征系数:\n")
+            info_text.insert("end", "\n特征系数:\n")
             coefs = loaded_model.coef_
             if coefs.ndim == 1:
                 for i, coef in enumerate(coefs):
-                    info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
+                    info_text.insert("end", f"- 特征 {i+1}: {coef:.4f}\n")
             
             elif isinstance(loaded_model, PLSRegression):
-                info_text.insert(tkinter.END, "\nPLS回归特有信息:\n")
-                info_text.insert(tkinter.END, f"- 组件数: {loaded_model.n_components}\n")
+                info_text.insert("end", "\nPLS回归特有信息:\n")
+                info_text.insert("end", f"- 组件数: {loaded_model.n_components}\n")
                 
                 if hasattr(loaded_model, 'x_weights_'):
-                    info_text.insert(tkinter.END, "\nX权重 (前5个特征的前3个组件):\n")
+                    info_text.insert("end", "\nX权重 (前5个特征的前3个组件):\n")
                     weights = loaded_model.x_weights_
                     for i in range(min(5, weights.shape[0])):
                         weight_str = ", ".join([f"{w:.4f}" for w in weights[i, :min(3, weights.shape[1])]])
-                        info_text.insert(tkinter.END, f"- 特征 {i+1}: {weight_str}\n")
+                        info_text.insert("end", f"- 特征 {i+1}: {weight_str}\n")
                 
                 if hasattr(loaded_model, 'x_loadings_'):
-                    info_text.insert(tkinter.END, "\nX载荷 (前5个特征的前3个组件):\n")
+                    info_text.insert("end", "\nX载荷 (前5个特征的前3个组件):\n")
                     loadings = loaded_model.x_loadings_
                     for i in range(min(5, loadings.shape[0])):
                         loading_str = ", ".join([f"{l:.4f}" for l in loadings[i, :min(3, loadings.shape[1])]])
-                        info_text.insert(tkinter.END, f"- 特征 {i+1}: {loading_str}\n")
+                        info_text.insert("end", f"- 特征 {i+1}: {loading_str}\n")
             else:
                 for class_idx, class_coef in enumerate(coefs):
-                    info_text.insert(tkinter.END, f"\n类别 {class_idx} 的系数:\n")
+                    info_text.insert("end", f"\n类别 {class_idx} 的系数:\n")
                     for i, coef in enumerate(class_coef):
-                        info_text.insert(tkinter.END, f"- 特征 {i+1}: {coef:.4f}\n")
+                        info_text.insert("end", f"- 特征 {i+1}: {coef:.4f}\n")
                         
     except Exception as e:
         messagebox.showerror("错误", f"显示模型信息时出错: {str(e)}")

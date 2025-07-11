@@ -2,8 +2,9 @@
 
 # 基础数据处理
 import os
-import tkinter
-from tkinter import ttk, messagebox, scrolledtext
+
+import customtkinter as ctk
+
 
 # 导入其他模块
 from config import MODEL_CONFIGS, DEFAULT_MODEL
@@ -20,17 +21,15 @@ info_text = None
 help_system = None
 exact_selection = DEFAULT_MODEL
 
-def on_selected(var_selection, display_label):
-    """
-    处理模型选择变化的回调函数，更新全局模型选择和显示标签。
-    """
+def on_selected_ctk(choice):
+    """CustomTkinter下拉菜单的回调函数"""
     global exact_selection, help_system
-    exact_selection = var_selection.get()
-    display_label.config(text='您选择了: '+exact_selection)
-
-    # 推进步骤到"训练模型"
+    exact_selection = choice
+    log_message(f"已选择模型: {exact_selection}")
+    
     if help_system:
         help_system.advance_step("train_model")
+
 
 def open_excel_file_wrapper(normalization_label, start_button, progress_bar):
     """包装函数，处理文件加载并推进步骤"""
@@ -56,7 +55,11 @@ def create_gui():
     """
     global info_text, help_system, exact_selection
     
-    root = tkinter.Tk()
+    # 设置 Customctk 主题
+    ctk.set_appearance_mode("light")
+    ctk.set_default_color_theme("blue")
+
+    root = ctk.CTk()
     root.title('诊断分析')
     
     # 创建帮助系统
@@ -66,161 +69,173 @@ def create_gui():
     width = root.winfo_screenwidth()
     height = root.winfo_screenheight()
     root.geometry(f"{width}x{height}+0+0")
-    root.state('zoomed')
-
-    # 创建菜单栏
-    menu_bar = tkinter.Menu(root)
+    try:
+        root.state('zoomed')  # Windows
+    except:
+        root.attributes('-zoomed', True)  # Linux
+   
+   # === 创建现代化顶部菜单栏 ===
+    menu_frame = ctk.CTkFrame(root, height=60, corner_radius=0)
+    menu_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=0, pady=0)
     
-    # 数据预处理菜单
-    data_menu = tkinter.Menu(menu_bar, tearoff=0)
-    menu_bar.add_cascade(label="数据预处理", menu=data_menu)
-    data_menu.add_command(label="选择处理文件", command=lambda: select_and_process_files(root))
+    # 菜单按钮容器
+    menu_container = ctk.CTkFrame(menu_frame, fg_color="transparent")
+    menu_container.pack(side="left", padx=20, pady=15)
     
-    # 模型选择菜单
-    model_menu = tkinter.Menu(menu_bar, tearoff=0)
-    var_selection = tkinter.StringVar()
-    var_selection.set(exact_selection)
-    for item in MODEL_CONFIGS.keys():
-        model_menu.add_radiobutton(label=item, variable=var_selection,
-                                  value=item, command=lambda: on_selected(var_selection, display_label))
-    menu_bar.add_cascade(label="模型选择", menu=model_menu)
+    # 数据预处理按钮
+    data_btn = ctk.CTkButton(menu_container, text="数据预处理", width=120, height=35,
+                            command=lambda: select_and_process_files(root))
+    data_btn.pack(side="left", padx=5)
     
-    # 项目管理菜单
-    project_menu = tkinter.Menu(menu_bar, tearoff=0)
-    menu_bar.add_cascade(label="项目管理", menu=project_menu)
-    project_menu.add_command(label="重置进度", command=lambda: reset_analysis(help_system))
-    project_menu.add_separator()
-    project_menu.add_command(label="新建项目", command=lambda: [data_store.clear_data(), 
-                                                            messagebox.showinfo("提示", "项目数据已清空")])
+    # 模型选择下拉菜单
+    model_label = ctk.CTkLabel(menu_container, text="模型选择:", 
+                              font=ctk.CTkFont(size=12, weight="bold"))
+    model_label.pack(side="left", padx=(15, 5))
+    
+    
+    model_menu = ctk.CTkOptionMenu(menu_container, values=list(MODEL_CONFIGS.keys()),
+                                  command=lambda choice: on_selected_ctk(choice))
+    model_menu.set(exact_selection)
+    model_menu.pack(side="left", padx=5)
+    
+    # 项目管理按钮
+    project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
+                               command=lambda: reset_analysis(help_system))
+    project_btn.pack(side="left", padx=5)
+    
+    # 帮助按钮
+    help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
+                            command=help_system.show_wizard)
+    help_btn.pack(side="left", padx=5)
 
-    # 帮助菜单
-    help_menu = tkinter.Menu(menu_bar, tearoff=0)
-    menu_bar.add_cascade(label="帮助", menu=help_menu)
-    help_menu.add_command(label="使用向导", command=help_system.show_wizard)
-    help_menu.add_command(label="关于", command=help_system.show_about)
-
-    # 创建步骤进度指示器（最顶部）
-    help_system.create_progress_indicator(root, row=0, column=0, columnspan=3)
+     # 创建步骤进度指示器
+    help_system.create_progress_indicator(root, row=1, column=0, columnspan=3)
 
     # 配置根窗口的网格权重
-    root.grid_rowconfigure(2, weight=1)
+    root.grid_rowconfigure(3, weight=1)
     root.grid_columnconfigure(0, weight=1)
     root.grid_columnconfigure(1, weight=1)
     root.grid_columnconfigure(2, weight=1)
 
-    # Frame1: 操作控制面板（左）
-    control_frame = tkinter.Frame(root, relief='groove', bd=1)
-    control_frame.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+   # Frame1: 操作控制面板（左）
+    control_frame = ctk.CTkFrame(root, corner_radius=10)
+    control_frame.grid(row=2, column=0, sticky='nsew', padx=5, pady=5)
     
-    control_title = tkinter.Label(control_frame, text="操作控制", font=('Arial', 10, 'bold'))
-    control_title.grid(row=0, column=0, columnspan=2, pady=5)
+    control_title = ctk.CTkLabel(control_frame, text="操作控制", 
+                                font=ctk.CTkFont(size=14, weight="bold"))
+    control_title.grid(row=0, column=0, columnspan=2, pady=10)
 
-    # 文件选择
-    open_button = tkinter.Button(control_frame, text="选择归一化excel文件", 
+   # 文件选择
+    open_button = ctk.CTkButton(control_frame, text="选择归一化excel文件", width=180, height=35,
         command=lambda: open_excel_file_wrapper(normalization_label, start_button, progress_bar))
-    open_button.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
+    open_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
     help_system.add_hover_tip(open_button, "select_excel")
 
-    normalization_label = tkinter.Label(control_frame, text="文件未选择")
-    normalization_label.grid(row=1, column=1, padx=5, pady=2, sticky='w')
+    normalization_label = ctk.CTkLabel(control_frame, text="文件未选择")
+    normalization_label.grid(row=1, column=1, padx=10, pady=5, sticky='w')
 
     # 训练控制
-    start_button = tkinter.Button(control_frame, text='开始分析', 
+    start_button = ctk.CTkButton(control_frame, text='开始分析', width=180, height=35,
         command=lambda: predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_label, 
                                    balanced_accuracy_test_label, model_save_status_label, 
                                    exact_selection, help_system, root))
-    start_button.grid(row=2, column=0, padx=5, pady=2, sticky='ew')
-    start_button.config(state='disabled')
+    start_button.grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+    start_button.configure(state='disabled')
     help_system.add_hover_tip(start_button, "start_analysis")
 
-    display_label = tkinter.Label(control_frame, text='默认使用'+exact_selection)
-    display_label.grid(row=2, column=1, padx=5, pady=2, sticky='w')
+    display_label = ctk.CTkLabel(control_frame, text='默认使用'+exact_selection)
+    display_label.grid(row=2, column=1, padx=10, pady=5, sticky='w')
     help_system.add_hover_tip(display_label, "model_selection")
 
     # 进度显示
-    progress_label = tkinter.Label(control_frame, text='分析进度: 0%')
-    progress_label.grid(row=3, column=0, padx=5, pady=2, sticky='w')
+    progress_label = ctk.CTkLabel(control_frame, text='分析进度: 0%')
+    progress_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
     
-    progress_bar = ttk.Progressbar(control_frame, length=150, mode='determinate')
-    progress_bar.grid(row=3, column=1, padx=5, pady=2, sticky='ew')
+    progress_bar = ctk.CTkProgressBar(control_frame, width=200)
+    progress_bar.grid(row=3, column=1, padx=10, pady=5, sticky='ew')
+    progress_bar.set(0)
     help_system.add_hover_tip(progress_bar, "progress")
 
     control_frame.grid_columnconfigure(1, weight=1)
 
     # Frame2: 训练结果面板（中）
-    result_frame = tkinter.Frame(root, relief='groove', bd=1)
-    result_frame.grid(row=1, column=1, sticky='nsew', padx=5, pady=5)
+    result_frame = ctk.CTkFrame(root, corner_radius=10)
+    result_frame.grid(row=2, column=1, sticky='nsew', padx=5, pady=5)
     
-    result_title = tkinter.Label(result_frame, text="训练结果", font=('Arial', 10, 'bold'))
-    result_title.grid(row=0, column=0, pady=5)
+    result_title = ctk.CTkLabel(result_frame, text="训练结果", 
+                               font=ctk.CTkFont(size=14, weight="bold"))
+    result_title.grid(row=0, column=0, pady=10)
 
-    balanced_accuracy_train_label = tkinter.Label(result_frame, text='平均训练集平衡精度: --')
-    balanced_accuracy_train_label.grid(row=1, column=0, padx=5, pady=2, sticky='w')
+    balanced_accuracy_train_label = ctk.CTkLabel(result_frame, text='平均训练集平衡精度: --')
+    balanced_accuracy_train_label.grid(row=1, column=0, padx=10, pady=5, sticky='w')
     help_system.add_hover_tip(balanced_accuracy_train_label, "results")
 
-    balanced_accuracy_test_label = tkinter.Label(result_frame, text='平均测试集平衡精度: --')
-    balanced_accuracy_test_label.grid(row=2, column=0, padx=5, pady=2, sticky='w')
+    balanced_accuracy_test_label = ctk.CTkLabel(result_frame, text='平均测试集平衡精度: --')
+    balanced_accuracy_test_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
     help_system.add_hover_tip(balanced_accuracy_test_label, "results")
 
-    model_save_status_label = tkinter.Label(result_frame, text='模型保存状态: 未保存')
-    model_save_status_label.grid(row=3, column=0, padx=5, pady=2, sticky='w')
+    model_save_status_label = ctk.CTkLabel(result_frame, text='模型保存状态: 未保存')
+    model_save_status_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
 
     # Frame3: 样本预测面板（右）
-    predict_frame = tkinter.Frame(root, relief='groove', bd=1)
-    predict_frame.grid(row=1, column=2, sticky='nsew', padx=5, pady=5)
+    predict_frame = ctk.CTkFrame(root, corner_radius=10)
+    predict_frame.grid(row=2, column=2, sticky='nsew', padx=5, pady=5)
     
-    predict_title = tkinter.Label(predict_frame, text="样本预测", font=('Arial', 10, 'bold'))
-    predict_title.grid(row=0, column=0, pady=5)
+    predict_title = ctk.CTkLabel(predict_frame, text="样本预测", 
+                                font=ctk.CTkFont(size=14, weight="bold"))
+    predict_title.grid(row=0, column=0, pady=10)
 
-    file_button = tkinter.Button(predict_frame, text="选择要检测的txt文件", 
+    file_button = ctk.CTkButton(predict_frame, text="选择要检测的txt文件", width=180, height=35,
         command=lambda: open_file_dialog(prediction_result_label, help_system))
-    file_button.grid(row=1, column=0, padx=5, pady=2, sticky='ew')
+    file_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
     help_system.add_hover_tip(file_button, "select_predict_file")
 
-    prediction_result_label = tkinter.Label(predict_frame, text='状态：等待选择文件')
-    prediction_result_label.grid(row=2, column=0, padx=5, pady=2, sticky='w')
+    prediction_result_label = ctk.CTkLabel(predict_frame, text='状态：等待选择文件')
+    prediction_result_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
 
-    model_info_button = tkinter.Button(predict_frame, text="查看模型详情", 
+    model_info_button = ctk.CTkButton(predict_frame, text="查看模型详情", width=180, height=35,
         command=lambda: show_model_info())
-    model_info_button.grid(row=3, column=0, padx=5, pady=2, sticky='ew')
+    model_info_button.grid(row=3, column=0, padx=10, pady=5, sticky='ew')
     help_system.add_hover_tip(model_info_button, "model_info")
 
     # Frame4: 可视化显示面板（左，占大部分空间）
-    visualization_frame = tkinter.Frame(root, relief='groove', bd=1)
-    visualization_frame.grid(row=2, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
+    visualization_frame = ctk.CTkFrame(root, corner_radius=10)
+    visualization_frame.grid(row=3, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
     
-    # 配置可视化框架的网格权重
+   # 配置可视化框架的网格权重
     visualization_frame.grid_rowconfigure(1, weight=1)
     visualization_frame.grid_columnconfigure(0, weight=1)
     
     # 可视化标题
-    viz_title = tkinter.Label(visualization_frame, text="模型评估结果", font=('Arial', 10, 'bold'))
-    viz_title.grid(row=0, column=0, pady=5)
+    viz_title = ctk.CTkLabel(visualization_frame, text="模型评估结果", 
+                            font=ctk.CTkFont(size=14, weight="bold"))
+    viz_title.grid(row=0, column=0, pady=10)
     
     # 可视化占位区域
-    visualization_placeholder = tkinter.Frame(visualization_frame)
-    visualization_placeholder.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+    visualization_placeholder = ctk.CTkFrame(visualization_frame)
+    visualization_placeholder.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
     
-    placeholder_label = tkinter.Label(visualization_placeholder, 
-                                     text="训练完成后，模型评估图表将在此显示", 
-                                     font=('Arial', 11))
+    placeholder_label = ctk.CTkLabel(visualization_placeholder, 
+                                    text="训练完成后，模型评估图表将在此显示", 
+                                    font=ctk.CTkFont(size=12))
     placeholder_label.pack(expand=True)
     
     # Frame5: 运行信息面板（右）
-    info_frame = tkinter.Frame(root, relief='groove', bd=1)
-    info_frame.grid(row=2, column=2, sticky='nsew', padx=5, pady=5)
+    info_frame = ctk.CTkFrame(root, corner_radius=10)
+    info_frame.grid(row=3, column=2, sticky='nsew', padx=5, pady=5)
     
     # 配置信息框架的网格权重
     info_frame.grid_rowconfigure(1, weight=1)
     info_frame.grid_columnconfigure(0, weight=1)
     
     # 信息显示标题
-    info_title = tkinter.Label(info_frame, text="运行信息", font=('Arial', 10, 'bold'))
-    info_title.grid(row=0, column=0, pady=5)
+    info_title = ctk.CTkLabel(info_frame, text="运行信息", 
+                             font=ctk.CTkFont(size=14, weight="bold"))
+    info_title.grid(row=0, column=0, pady=10)
 
     # 日志文本框
-    info_text = scrolledtext.ScrolledText(info_frame, width=40, height=20, wrap=tkinter.WORD)
-    info_text.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
+    info_text = ctk.CTkTextbox(info_frame, width=300, height=250)
+    info_text.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
     help_system.add_hover_tip(info_text, "log_info")
 
     # 保存容器引用供visualize_performance使用
@@ -238,8 +253,8 @@ def create_gui():
     if help_system.show_wizard_on_startup:
         root.after(500, help_system.show_wizard)
 
-    root.config(menu=menu_bar)
     return root
+
 
 if __name__ == "__main__":
     root = create_gui()

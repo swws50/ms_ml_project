@@ -1,6 +1,5 @@
 # utils.py - 工具函数和日志系统
-
-import tkinter
+import customtkinter as ctk
 import os
 import datetime
 
@@ -26,12 +25,13 @@ def log_message(message, level="INFO"):
         elif level == "SUCCESS":
             formatted_message = f"√ 成功: {message}"
         elif level == "INFO":
-            formatted_message = f"• 信息: {message}"
+            formatted_message = f"i 信息: {message}"
         else:
             formatted_message = message
-            
-        info_text.insert(tkinter.END, formatted_message + "\n")
-        info_text.see(tkinter.END)
+
+        # CustomTkinter 的文本框使用 "end" 而不是 tkinter.END    
+        info_text.insert("end", formatted_message + "\n")
+        info_text.see("end")  # 滚动到最后
         if root is not None:
             root.update()
     else:
@@ -41,7 +41,8 @@ def clear_log():
     """清空日志信息"""
     global info_text
     if info_text is not None:
-        info_text.delete(1.0, tkinter.END)
+        # CustomTkinter 使用不同的删除方法
+        info_text.delete("1.0", "end")
 
 def create_backup_filename(original_path):
     """创建备份文件名"""

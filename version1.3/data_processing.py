@@ -1,10 +1,11 @@
 # data_processing.py - 数据处理模块
 
 import os
+import time
 import pandas as pd
 import numpy as np
 from tkinter import filedialog, messagebox, ttk
-import tkinter
+import customtkinter as ctk
 
 from config import DEFAULT_MZ_VALUES, CLASS_MAPPING, OUTPUT_FILES, NORMALIZATION_FACTOR, MZ_TOLERANCE
 from utils import log_message, create_backup_filename
@@ -58,14 +59,15 @@ def select_and_process_files(root):
     X_series = pd.Series(data=X, index=X)
     all_results = pd.DataFrame(X_series, columns=['m/z'])
 
-    # 创建进度条
-    progress_label = tkinter.Label(root, text="进度: 0%")
-    progress_label.grid(row=8, column=0, columnspan=2, sticky='ew')
-    progress_bar = ttk.Progressbar(root, length=200, mode='determinate')
-    progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew')
+    # === 创建 CustomTkinter 进度条 ===
+    progress_label = ctk.CTkLabel(root, text="进度: 0%")
+    progress_label.grid(row=8, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
+    
+    progress_bar = ctk.CTkProgressBar(root, width=300)
+    progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
+    progress_bar.set(0)  # CustomTkinter 使用 0-1 范围
 
-    progress_label.config(text="正在处理文件...")
-    progress_bar['maximum'] = len(file_paths)
+    progress_label.configure(text="正在处理文件...")
 
     # 处理每个文件
     for index, file_path in enumerate(file_paths, 1):
@@ -78,8 +80,9 @@ def select_and_process_files(root):
         log_message(f"已处理文件 {index}/{len(file_paths)}: {os.path.basename(file_path)}")
 
         # 更新进度条
-        progress_bar['value'] = index
-        progress_label.config(text=f"正在处理: {index}/{len(file_paths)}")
+        progress_value = index / len(file_paths)
+        progress_bar.set(progress_value)
+        progress_label.configure(text=f"正在处理: {index}/{len(file_paths)} ({progress_value:.0%})")
         root.update()
 
     # 保存结果
@@ -101,7 +104,7 @@ def select_and_process_files(root):
             if save_path:
                 try:
                     all_results.to_excel(save_path, index=True, columns=all_results.columns[1:])
-                    log_message(f"数据处理完成！结果已保存为 {save_path}", "SUCCESS")
+                    log_message(f"数据处理完成！结果已保存为 {os.path.abspath(file_path)}", "SUCCESS")
                     messagebox.showinfo("保存成功", f"文件已成功保存到:\n{save_path}")
                 except Exception as e:
                     log_message(f"保存到新位置时出错: {str(e)}", "ERROR")
@@ -117,14 +120,14 @@ def safe_file_save(data, file_path):
             
             try:
                 os.rename(file_path, backup_path)
-                log_message(f"备份完成: {backup_path}", "SUCCESS")
+                log_message(f"备份完成: {os.path.abspath(backup_path)}", "SUCCESS")
             except Exception as e:
                 log_message(f"无法重命名已有文件: {str(e)}，将尝试直接保存新文件", "WARNING")
 
         # 保存新文件
         log_message("正在保存处理结果...", "INFO")
         data.to_excel(file_path, index=True, columns=data.columns[1:])
-        log_message(f"数据处理完成！结果已保存为 {file_path}", "SUCCESS")
+        log_message(f"数据处理完成！结果已保存为 {os.path.abspath(file_path)}", "SUCCESS")
         return True
 
     except PermissionError:
@@ -159,7 +162,7 @@ def open_excel_file(normalization_label, start_button, progress_bar):
         df = df.iloc[:, 1:]
 
         if df.empty:
-            normalization_label.config(text="文件未选择")
+            normalization_label.configure(text="文件未选择")
             log_message("错误：所选文件为空，请选择有效的数据文件")
             return None, None, None
 
@@ -170,10 +173,10 @@ def open_excel_file(normalization_label, start_button, progress_bar):
             log_message(f"错误：{error_msg}")
             return None, None, None
 
-        # 更新UI状态
-        normalization_label.config(text="已选择")
-        start_button.config(state='normal')
-        progress_bar['value'] = 0
+        # === 更新 CustomTkinter 控件状态 ===
+        normalization_label.configure(text="已选择")
+        start_button.configure(state='normal')
+        progress_bar.set(0)  # CustomTkinter 进度条重置
         log_message("数据文件已成功加载")
 
         # 处理数据

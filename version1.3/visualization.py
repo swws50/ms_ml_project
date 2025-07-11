@@ -3,9 +3,9 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image, ImageTk
-import tkinter
-from tkinter import ttk, messagebox
+from PIL import Image
+import customtkinter as ctk
+from tkinter import messagebox
 
 from config import REVERSE_CLASS_MAPPING
 from utils import log_message
@@ -160,13 +160,14 @@ def create_visualization_tabs(root, generated_charts):
         except:
             pass
         
-        # 在可视化容器中创建notebook
-        notebook = ttk.Notebook(root.visualization_container)
+        # === 创建更大的选项卡视图 ===
+        notebook = ctk.CTkTabview(root.visualization_container, width=800, height=500)
         notebook.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
     else:
         # 如果没有找到可视化容器，使用原来的方式（兼容性）
-        notebook = ttk.Notebook(root)
+        notebook = ctk.CTkTabview(root, width=800, height=500)
         notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
+
 
     # 图表文件列表和对应的标签页名称
     chart_configs = [
@@ -184,36 +185,54 @@ def create_visualization_tabs(root, generated_charts):
     for chart_file, tab_name in chart_configs:
         if os.path.exists(chart_file):
             try:
-                # 创建选项卡框架
-                tab = ttk.Frame(notebook)
-                notebook.add(tab, text=tab_name)
+                # 创建选项卡
+                tab = notebook.add(tab_name)
+                 
+                # === 创建图像显示框架 ===
+                image_frame = ctk.CTkFrame(tab, fg_color="transparent")
+                image_frame.pack(fill='both', expand=True, padx=10, pady=10)
                 
-                # 加载图像
+                # 加载原始图像
                 image = Image.open(chart_file)
-                photo = ImageTk.PhotoImage(image)
+                img_width, img_height = image.size
                 
-                # 创建标签并显示图像
-                label = tkinter.Label(tab, image=photo)
-                label.image = photo  # 保持引用，防止被垃圾回收
-                label.pack(fill='both', expand=True)
+               # === 计算最佳显示尺寸 ===
+                # 可用的显示区域尺寸（考虑选项卡的标题栏和边距）
+                available_width = 760   # 800 - 40 (左右边距)
+                available_height = 440  # 500 - 60 (上下边距 + 选项卡标题)
+                
+                # 计算缩放比例，保持图片宽高比
+                scale_width = available_width / img_width
+                scale_height = available_height / img_height
+                scale = min(scale_width, scale_height)  # 取较小的比例，确保图片完全显示
+                
+                # 计算最终尺寸
+                final_width = int(img_width * scale)
+                final_height = int(img_height * scale)
+                
+                # 调整图像大小并创建CTkImage
+                resized_image = image.resize((final_width, final_height), Image.Resampling.LANCZOS)
+                ctk_image = ctk.CTkImage(light_image=resized_image, size=(final_width, final_height))
+
+                # === 居中显示图像 ===
+                label = ctk.CTkLabel(image_frame, image=ctk_image, text="")
+                label.place(relx=0.5, rely=0.5, anchor='center')  # 精确居中
                 
                 log_message(f"已加载图表: {tab_name}")
-                
+
             except Exception as e:
                 # 错误处理
                 log_message(f"加载图表 {tab_name} 时出错: {str(e)}")
-                tab = ttk.Frame(notebook)
-                notebook.add(tab, text=f"{tab_name}(错误)")
-                error_label = tkinter.Label(tab, text=f"无法加载图表: {chart_file}\n错误: {str(e)}", 
-                                          fg="red", justify="center")
+                tab = notebook.add(f"{tab_name}(错误)")
+                error_label = ctk.CTkLabel(tab, text=f"无法加载图表: {chart_file}\n错误: {str(e)}", 
+                                          text_color="red")
                 error_label.pack(fill='both', expand=True)
         else:
             # 文件不存在的错误处理
             log_message(f"警告: 图表文件不存在: {chart_file}")
-            tab = ttk.Frame(notebook)
-            notebook.add(tab, text=f"{tab_name}(缺失)")
-            missing_label = tkinter.Label(tab, text=f"图表文件未找到:\n{chart_file}", 
-                                        fg="orange", justify="center")
+            tab = notebook.add(f"{tab_name}(缺失)")
+            missing_label = ctk.CTkLabel(tab, text=f"图表文件未找到:\n{chart_file}", 
+                                        text_color="orange")
             missing_label.pack(fill='both', expand=True)
     
     log_message("可视化界面创建完成！")
