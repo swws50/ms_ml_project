@@ -4,3 +4,6 @@
 *.xlsx
 *.joblib
 *.json
+主题测试.py
+*.pyc
+data-analysis.py
