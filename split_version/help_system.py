@@ -52,7 +52,7 @@ class HelpSystem:
         
         # 步骤相关的提示信息
         self.step_hints = {
-            "select_data": "💡 下一步：请点击 '选择归一化excel文件' 按钮选择数据文件",
+            "select_data": "💡 下一步：请点击 '选择归一化.csv文件' 按钮选择数据文件",
             "select_model": "💡 下一步：从菜单栏 '模型选择' 中选择合适的机器学习算法",
             "train_model": "💡 下一步：点击 '开始分析' 按钮开始训练模型",
             "view_results": "💡 训练完成！您可以查看生成的评估图表",
@@ -433,7 +433,7 @@ class HelpSystem:
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估", 
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step3, text="1. 点击 '选择归一化excel文件' 按钮，选择LC_MAX.xlsx",
+        ctk.CTkLabel(step3, text="1. 点击 '选择归一化.csv文件' 按钮，选择LC_MAX.xlsx",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step3, text="2. 从菜单 '模型选择' 中选择合适的机器学习模型",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)

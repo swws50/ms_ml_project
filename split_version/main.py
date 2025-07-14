@@ -126,7 +126,7 @@ def create_gui():
     control_title.grid(row=0, column=0, columnspan=2, pady=10)
 
    # 文件选择
-    open_button = ctk.CTkButton(control_frame, text="选择归一化excel文件", width=180, height=35,
+    open_button = ctk.CTkButton(control_frame, text="选择归一化.csv文件", width=180, height=35,
         command=lambda: open_data_file_wrapper(normalization_label, start_button, progress_bar))
     open_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
     help_system.add_hover_tip(open_button, "select_excel")
