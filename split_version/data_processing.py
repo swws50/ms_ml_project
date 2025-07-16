@@ -10,6 +10,159 @@ import customtkinter as ctk
 from config import DEFAULT_MZ_VALUES, CLASS_MAPPING, OUTPUT_FILES, NORMALIZATION_FACTOR, MZ_TOLERANCE
 from utils import log_message, create_backup_filename
 
+
+
+def select_and_process_files_intelligent(root):
+    """
+    智能峰发现和特征提取的主函数
+    """
+    file_paths = filedialog.askopenfilenames(
+        title="选择要分析的文件 (智能峰发现模式)", 
+        filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
+    )
+
+    if not file_paths:
+        log_message("未选择任何文件", "WARNING")
+        return
+
+    try:
+        log_message("🔬 开始智能峰发现处理...")
+        
+        # === 创建进度条 ===
+        progress_label = ctk.CTkLabel(root, text="智能峰发现进度: 0%")
+        progress_label.grid(row=8, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
+        
+        progress_bar = ctk.CTkProgressBar(root, width=300)
+        progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
+        progress_bar.set(0)
+
+        # === 阶段1：峰发现 ===
+        progress_label.configure(text="阶段1: 峰发现中...")
+        log_message("=== 阶段1：从所有文件中发现峰 ===")
+        
+        all_peaks_data = []
+        for index, file_path in enumerate(file_paths):
+            # 调用峰发现函数
+            peaks_df = discover_peaks_from_file(file_path)
+            if not peaks_df.empty:
+                all_peaks_data.append(peaks_df)
+                log_message(f"文件 {os.path.basename(file_path)}: 发现 {len(peaks_df)} 个峰")
+            
+            # 更新进度 (0-33%)
+            progress = (index + 1) / len(file_paths) * 0.33
+            progress_bar.set(progress)
+            progress_label.configure(text=f"峰发现: {index+1}/{len(file_paths)} ({progress:.0%})")
+            root.update()
+
+        if not all_peaks_data:
+            raise ValueError("未从任何文件中发现有效峰")
+
+        # === 阶段2：共识峰发现 ===
+        progress_label.configure(text="阶段2: 特征选择中...")
+        log_message("=== 阶段2：识别共识特征峰 ===")
+        
+        # 合并所有峰数据
+        all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
+        log_message(f"总计发现 {len(all_peaks_df)} 个峰候选")
+        
+        # 发现共识峰
+        consensus_peaks = find_consensus_peaks(all_peaks_df)
+        log_message(f"识别出 {len(consensus_peaks)} 个共识特征峰")
+        
+        # 更新进度到66%
+        progress_bar.set(0.66)
+        progress_label.configure(text="阶段2: 特征选择完成 (66%)")
+        root.update()
+
+        # === 阶段3：特征矩阵构建 ===
+        progress_label.configure(text="阶段3: 构建特征矩阵...")
+        log_message("=== 阶段3：构建最终特征矩阵 ===")
+        
+        # 构建特征矩阵
+        all_results = build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_label, root)
+        
+        # === 复用现有的保存函数 ===
+        success = safe_file_save(all_results, OUTPUT_FILES['processed_data'])
+        
+        # 清理进度条
+        progress_bar.grid_remove()
+        progress_label.grid_remove()
+
+        if success:
+            log_message("🎉 智能峰发现处理完成！", "SUCCESS")
+            messagebox.showinfo("处理完成", 
+                              f"智能峰发现完成！\n"
+                              f"• 发现 {len(consensus_peaks)} 个特征峰\n"
+                              f"• 处理 {len(file_paths)} 个样本\n"
+                              f"• 结果已保存为 {OUTPUT_FILES['processed_data']}")
+        else:
+            response = messagebox.askyesno("权限错误", "无法保存文件到当前位置。\n是否选择其他位置保存文件？")
+            if response:
+                save_path = filedialog.asksaveasfilename(
+                    defaultextension=".csv",
+                    filetypes=[("CSV files", "*.csv")],
+                    initialfile=OUTPUT_FILES['processed_data']
+                )
+                if save_path:
+                    try:
+                        all_results.iloc[:, 1:].to_csv(save_path, index=True, float_format='%.8f')
+                        log_message(f"数据处理完成！结果已保存为 {os.path.abspath(save_path)}", "SUCCESS")
+                        messagebox.showinfo("保存成功", f"文件已成功保存到:\n{save_path}")
+                    except Exception as e:
+                        log_message(f"保存到新位置时出错: {str(e)}", "ERROR")
+                        messagebox.showerror("保存失败", f"保存文件时出错:\n{str(e)}")
+            
+    except Exception as e:
+        log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
+        messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
+        # 清理进度条
+        try:
+            progress_bar.grid_remove()
+            progress_label.grid_remove()
+        except:
+            pass
+
+def discover_peaks_from_file(file_path):
+    """
+    从单个文件中发现峰（占位符函数）
+    
+    TODO: 实现pyOpenMS峰发现逻辑
+    """
+    # 临时实现：返回空DataFrame
+    log_message(f"TODO: 实现 {os.path.basename(file_path)} 的峰发现", "WARNING")
+    return pd.DataFrame()
+
+def find_consensus_peaks(all_peaks_df):
+    """
+    从所有峰中找到共识峰（占位符函数）
+    
+    TODO: 实现共识峰发现算法
+    """
+    log_message("TODO: 实现共识峰发现算法", "WARNING")
+    return pd.DataFrame()
+
+def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_label, root):
+    """
+    构建最终特征矩阵（占位符函数）
+    
+    TODO: 实现特征矩阵构建
+    """
+    log_message("TODO: 实现特征矩阵构建", "WARNING")
+    
+    # 临时：构建一个基本的DataFrame结构
+    feature_matrix = pd.DataFrame({
+        'class': ['HC', 'LC'] * (len(file_paths) // 2),
+        'sample_id': [os.path.splitext(os.path.basename(f))[0] for f in file_paths]
+    })
+    
+    # 完成进度
+    progress_bar.set(1.0)
+    progress_label.configure(text="特征矩阵构建完成 (100%)")
+    root.update()
+    
+    return feature_matrix
+
+
 def process_file(file_name, X):
     """
     处理原始光谱数据文件，提取指定m/z值附近的最大信号强度。
