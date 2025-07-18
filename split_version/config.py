@@ -2,7 +2,7 @@
 
 from sklearn.model_selection import StratifiedKFold
 
-# 默认的47个m/z特征值列表
+# 默认的48个m/z特征值列表
 DEFAULT_MZ_VALUES = [
     563.43, 887.77, 804.50, 811.54, 619.52, 647.56, 805.51, 591.47, 806.53, 579.38, 
     771.60, 797.60, 769.59, 655.39, 695.57, 731.54, 565.36, 929.75, 759.48, 697.59, 
@@ -10,6 +10,22 @@ DEFAULT_MZ_VALUES = [
     799.59, 763.52, 903.77, 883.70, 979.80, 955.71, 675.59, 669.52, 905.77, 643.53, 
     825.70, 639.41, 971.65, 981.84, 869.71, 925.73, 907.77, 507.27
 ]
+NORMALIZATION_FACTOR = 871.7725  # 全局归一化因子
+
+# ========== 智能峰发现参数 ==========
+# 特征选择参数
+MAX_FEATURES = 50                # 最大特征数量
+MIN_OCCURRENCE_RATE = 0.2        # 最小出现频率（20%的文件中出现）
+MIN_FOLD_CHANGE = 1.3            # 最小倍数变化（30%强度差异）
+
+# pyOpenMS峰拾取参数
+SIGNAL_TO_NOISE = 1.0            # 信噪比阈值
+SPACING_DIFFERENCE = 1.5         # 峰间距要求
+
+# 备用策略参数（当严格条件找不到特征时）
+ENABLE_FALLBACK = True           # 是否启用备用策略
+FALLBACK_OCCURRENCE_RATE = 0.1   # 备用模式的出现频率
+FALLBACK_FOLD_CHANGE = 1.2       # 备用模式的倍数变化
 
 # 支持的模型类型及其参数配置
 MODEL_CONFIGS = {

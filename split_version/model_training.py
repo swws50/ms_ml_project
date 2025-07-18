@@ -22,7 +22,9 @@ from utils import log_message, validate_data, clear_log
 from data_processing import process_file
 from visualization import visualize_performance
 import data_store  # 导入数据存储模块
-
+from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
+                   REVERSE_CLASS_MAPPING, DEFAULT_MZ_VALUES, MZ_TOLERANCE, NORMALIZATION_FACTOR)
+import pandas as pd
 def find_optimal_threshold(y_true, y_pred_proba):
     """
     基于ROC曲线分析寻找最优分类阈值。
@@ -267,62 +269,56 @@ def get_prediction_probability(model, features):
 
 def predict_unknown_sample(file_path, prediction_result_label, help_system=None):
     """
-    预测未知样本的类别
-    
-    参数:
-        file_path: 样本文件路径
-        prediction_result_label: 显示结果的标签
-        help_system: 帮助系统实例
-        
-    返回:
-        tuple: (预测类别, 概率数组)
+    智能预测函数 - 自动检测特征和归一化因子
     """
     try:
-        # 首先尝试从data_store获取模型
+        # 加载模型
         loaded_model = data_store.get_best_model()
-        
-        # 如果data_store中没有模型，尝试从文件加载
         if loaded_model is None:
             if not os.path.exists(OUTPUT_FILES['best_model']):
-                prediction_result_label.configure(text="错误，未找到保存的模型文件", text_color='red', font=('Helvetica', 12, 'bold'))
+                prediction_result_label.configure(text="错误，未找到保存的模型文件", text_color='red')
                 return None, None
             loaded_model = load(OUTPUT_FILES['best_model'])
             log_message("从文件加载模型", "INFO")
         else:
             log_message("从数据存储模块获取模型", "INFO")
         
-        # 处理样本数据
-        sample_data = process_file(file_path, DEFAULT_MZ_VALUES)
-        sample_features = sample_data['Max_Value'].values.reshape(1, -1)
-
-        # 获取预测结果
-        prediction, probabilities = get_prediction_probability(loaded_model, sample_features)
+        # 自动检测训练数据的特征
+        training_features, normalization_factor = detect_training_features()
         
-        # 映射到类别名称
+        if training_features is None:
+            raise ValueError("无法检测训练特征，请确保训练数据文件存在")
+        
+        log_message(f"检测到 {len(training_features)} 个训练特征")
+        log_message(f"使用归一化因子: {normalization_factor:.2f}")
+        
+        # 使用检测到的特征和归一化因子处理样本
+        sample_features = process_prediction_sample(file_path, training_features, normalization_factor)
+        
+        # 预测
+        prediction, probabilities = get_prediction_probability(loaded_model, sample_features)
         predicted_class = REVERSE_CLASS_MAPPING.get(prediction, "未知")
         
-        # 显示预测结果和概率
+        # 显示结果
         confidence_text = f"类别概率: HC={probabilities[0]:.4f}, LC={probabilities[1]:.4f}"
         result_text = f"预测结果: {predicted_class}\n{confidence_text}"
         result_text += f"\n预测样本: {os.path.basename(file_path)}"
-        result_text += f"\n模型信息: {loaded_model.__class__.__name__}"
+        result_text += f"\n特征数量: {len(training_features)}"
+        result_text += f"\n归一化因子: {normalization_factor:.1f}"
         
-        # === CustomTkinter 标签更新 ===
         prediction_result_label.configure(text=result_text, 
                                          text_color='red' if predicted_class == "LC" else 'green', 
                                          font=ctk.CTkFont(size=12, weight="bold"))
-        log_message(f"预测结果: {predicted_class}, 概率: {probabilities}", "INFO")
-
-        # 完成"预测样本"步骤
+        
         if help_system:
             help_system.complete_step("predict_sample")
-
+        
         log_message(f"预测完成 - 样本: {os.path.basename(file_path)}, 结果: {predicted_class}", "SUCCESS")
         return predicted_class, probabilities
         
     except Exception as e:
         error_message = f"预测过程中发生错误：{str(e)}"
-        prediction_result_label.configure(text=error_message, text_color='red', font=('Helvetica', 12, 'bold'))
+        prediction_result_label.configure(text=error_message, text_color='red')
         log_message(error_message, "ERROR")
         return None, None
 
@@ -341,6 +337,110 @@ def open_file_dialog(prediction_result_label, help_system=None):
     )
     if file_path:
         predict_unknown_sample(file_path, prediction_result_label, help_system)
+
+def detect_training_features():
+    """
+    从训练数据中检测特征和归一化因子
+    
+    返回:
+        tuple: (特征列表, 归一化因子)
+    """
+    try:
+        # 1. 从CSV文件读取特征
+        data_file = OUTPUT_FILES['processed_data']
+        if not os.path.exists(data_file):
+            log_message("训练数据文件不存在", "ERROR")
+            return None, None
+        
+        df = pd.read_csv(data_file, index_col=0)
+        feature_names = df.index.tolist()[1:]  # 跳过'class'行
+        # 2. 检测归一化因子
+        normalization_factor = detect_normalization_factor(df)
+        
+        # 3. 转换特征名为数值
+        training_mz_values = []
+        for feature_name in feature_names:
+            try:
+                mz_value = float(feature_name)
+                training_mz_values.append(mz_value)
+            except ValueError:
+                log_message(f"无法解析特征名: {feature_name}，跳过", "WARNING")
+        
+        if len(training_mz_values) == 48:
+            # 可能是传统方法，特征名不是数值
+            log_message("检测到传统方法特征格式")
+            return training_mz_values, NORMALIZATION_FACTOR
+        
+        else:
+            log_message(f"检测到智能方法，{len(training_mz_values)} 个特征")
+            return training_mz_values, normalization_factor
+        
+    except Exception as e:
+        log_message(f"检测训练特征失败: {str(e)}", "ERROR")
+        return None, None
+
+
+def detect_normalization_factor(df):
+    """
+    检测归一化因子
+    """
+    # 方法1: 尝试读取保存的归一化因子文件
+    normalization_file = 'intelligent_normalization_factor.txt'
+    if os.path.exists(normalization_file):
+        try:
+            with open(normalization_file, 'r') as f:
+                factor = float(f.read().strip())
+            log_message(f"从文件读取归一化因子: {factor:.2f}", "SUCCESS")
+            return factor
+        except Exception as e:
+            log_message(f"读取归一化因子文件失败: {str(e)}", "WARNING")
+    
+    # 方法2: 从训练数据推断
+    try:
+        # 获取训练数据的最大值
+        max_training_value = df.iloc[1:, :].max().max()  # 跳过class行
+        
+        if 0.8 <= max_training_value <= 1.2:
+            # 训练数据已归一化，推断原始最大值
+            log_message("训练数据已归一化，使用估算因子", "INFO")
+            return 1000000  # 估算的典型质谱最大值
+        else:
+            # 训练数据可能未归一化
+            log_message("使用训练数据最大值作为归一化因子", "INFO")
+            return max_training_value
+            
+    except Exception as e:
+        log_message(f"推断归一化因子失败: {str(e)}", "WARNING")
+    
+    # 方法3: 使用默认值
+    log_message("使用默认归一化因子", "INFO")
+    return NORMALIZATION_FACTOR
+
+
+def process_prediction_sample(file_path, training_mz_values, normalization_factor):
+    """
+    使用检测到的特征和归一化因子处理预测样本
+    """
+    # 读取原始数据
+    raw_data = pd.read_csv(file_path, sep=r'\s+', header=None)
+    results = []
+    
+    # 对每个训练特征提取强度
+    for target_mz in training_mz_values:
+        lower_bound = target_mz - MZ_TOLERANCE
+        upper_bound = target_mz + MZ_TOLERANCE
+        
+        filtered_df = raw_data[(raw_data[0] >= lower_bound) & (raw_data[0] <= upper_bound)]
+        
+        if not filtered_df.empty:
+            max_intensity = filtered_df[1].max()
+            normalized_intensity = max_intensity / normalization_factor
+        else:
+            normalized_intensity = 0.0
+        
+        results.append(normalized_intensity)
+    
+    return np.array(results).reshape(1, -1)
 
 def show_model_info():
     """显示加载模型的详细信息窗口"""

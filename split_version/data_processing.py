@@ -6,8 +6,11 @@ import pandas as pd
 import numpy as np
 from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
-
+import pyopenms as oms
 from config import DEFAULT_MZ_VALUES, CLASS_MAPPING, OUTPUT_FILES, NORMALIZATION_FACTOR, MZ_TOLERANCE
+from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE, 
+                   ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, FALLBACK_FOLD_CHANGE,
+                   MZ_TOLERANCE)
 from utils import log_message, create_backup_filename
 
 
@@ -124,48 +127,287 @@ def select_and_process_files_intelligent(root):
 
 def discover_peaks_from_file(file_path):
     """
-    从单个文件中发现峰（占位符函数）
-    
-    TODO: 实现pyOpenMS峰发现逻辑
+    最基础的峰发现版本 - 专注于确保能发现峰
     """
-    # 临时实现：返回空DataFrame
-    log_message(f"TODO: 实现 {os.path.basename(file_path)} 的峰发现", "WARNING")
-    return pd.DataFrame()
+    try:
+        log_message(f"处理文件: {os.path.basename(file_path)}")
+        
+        # 1. 读取数据
+        raw_data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['mz', 'intensity'])
+        log_message(f"读取数据点数: {len(raw_data)}")
+        
+        if raw_data.empty:
+            return pd.DataFrame()
+        
+        # 2. 基本清理
+        raw_data = raw_data[raw_data['intensity'] > 0]
+        raw_data = raw_data.sort_values('mz').reset_index(drop=True)
+        log_message(f"清理后数据点数: {len(raw_data)}")
+        
+        # 3. pyOpenMS最简单的峰拾取
+        spectrum = oms.MSSpectrum()
+        mz_array = raw_data['mz'].values.astype(float)
+        intensity_array = raw_data['intensity'].values.astype(float)
+        spectrum.set_peaks([mz_array, intensity_array])
+        spectrum.sortByPosition()
+        
+        # 4. 使用最宽松的峰拾取参数
+        picker = oms.PeakPickerHiRes()
+        picker_param = picker.getDefaults()
+        picker_param.setValue("signal_to_noise", 1.0)  # 很低的信噪比
+        picker.setParameters(picker_param)
+        
+        picked_spectrum = oms.MSSpectrum()
+        picker.pick(spectrum, picked_spectrum)
+        
+        log_message(f"峰拾取结果: {picked_spectrum.size()} 个峰")
+        
+        if picked_spectrum.size() == 0:
+            log_message("未发现峰", "WARNING")
+            return pd.DataFrame()
+        
+        # 5. 提取峰信息
+        peak_mz, peak_intensity = picked_spectrum.get_peaks()
+        
+        # 6. 构建结果 - 最简单的格式
+        file_id = os.path.splitext(os.path.basename(file_path))[0]
+        file_class = file_id[:2]
+        
+        results = pd.DataFrame({
+            'mz': peak_mz,
+            'intensity': peak_intensity,
+            'file_id': file_id,
+            'class': file_class
+        })
+        
+        log_message(f"最终结果: {len(results)} 个峰")
+        return results
+        
+    except Exception as e:
+        log_message(f"处理失败: {str(e)}", "ERROR")
+        return pd.DataFrame()
 
-def find_consensus_peaks(all_peaks_df):
+def find_consensus_peaks(all_peaks_df, max_features=50):
     """
-    从所有峰中找到共识峰（占位符函数）
+    专门为机器学习设计的共识峰发现
     
-    TODO: 实现共识峰发现算法
+    核心思想：
+    1. 找到在HC和LC两类中都存在的峰（共同特征）
+    2. 但这些峰在两类间有显著的强度差异（区分性）
+    3. 使用0.2 Da的m/z容差进行匹配
+    
+    参数:
+        all_peaks_df: 所有文件峰的汇总DataFrame
+        max_features: 最大特征数量
+        
+    返回:
+        pd.DataFrame: 适合ML的共识峰
     """
-    log_message("TODO: 实现共识峰发现算法", "WARNING")
-    return pd.DataFrame()
+    if all_peaks_df.empty:
+        log_message("输入峰数据为空", "ERROR")
+        return pd.DataFrame()
+    
+    log_message(f"开始ML导向的共识峰发现，输入 {len(all_peaks_df)} 个峰")
+    log_message(f"配置参数: 最大特征={MAX_FEATURES}, 覆盖率≥{MIN_OCCURRENCE_RATE:.1%}, 倍数变化≥{MIN_FOLD_CHANGE:.1f}")
+    
+    # 统计信息
+    hc_files = all_peaks_df[all_peaks_df['class'] == 'HC']['file_id'].nunique()
+    lc_files = all_peaks_df[all_peaks_df['class'] == 'LC']['file_id'].nunique()
+    total_files = all_peaks_df['file_id'].nunique()
+    
+    log_message(f"数据统计: HC文件 {hc_files} 个, LC文件 {lc_files} 个, 总计 {total_files} 个")
+    
+    # 1. 按0.2 Da精度分组m/z值
+    all_peaks_df = all_peaks_df.copy()
+    all_peaks_df['mz_group'] = np.round(all_peaks_df['mz'] / 0.2) * 0.2
+    
+    consensus_peaks = []
+    
+    # 2. 对每个m/z组分析
+    for mz_group in all_peaks_df['mz_group'].unique():
+        group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
+        
+        # 分别统计HC和LC类别的情况
+        hc_data = group_data[group_data['class'] == 'HC']
+        lc_data = group_data[group_data['class'] == 'LC']
+        
+        # === 关键条件：两类都必须存在这个峰 ===
+        hc_file_count = hc_data['file_id'].nunique() if len(hc_data) > 0 else 0
+        lc_file_count = lc_data['file_id'].nunique() if len(lc_data) > 0 else 0
+        
+        # 两类都至少要有一定比例的文件包含这个峰
+        hc_occurrence_rate = hc_file_count / hc_files if hc_files > 0 else 0
+        lc_occurrence_rate = lc_file_count / lc_files if lc_files > 0 else 0
+        
+        # 过滤条件：两类都至少在20%的文件中出现
+        min_occurrence_rate = 0.2
+        if hc_occurrence_rate < min_occurrence_rate or lc_occurrence_rate < min_occurrence_rate:
+            continue
+        
+        # 确保两类都有足够的数据点进行统计分析
+        if len(hc_data) < 2 or len(lc_data) < 2:
+            continue
+        
+        # 3. 计算统计指标
+        # 计算统计指标
+        consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
+        hc_intensity_mean = hc_data['intensity'].mean()
+        lc_intensity_mean = lc_data['intensity'].mean()
+        
+        # 计算区分性
+        fold_change = max(hc_intensity_mean, lc_intensity_mean) / (min(hc_intensity_mean, lc_intensity_mean) + 1e-6)
+        
+        # 使用config中的区分性要求
+        if fold_change >= MIN_FOLD_CHANGE:
+            # 计算ML友好性评分
+            coverage_score = (hc_occurrence_rate + lc_occurrence_rate) / 2
+            ml_score = fold_change * coverage_score
+           
+            consensus_peaks.append({
+                'consensus_mz': consensus_mz,
+                'peak_id': f'Peak_{len(consensus_peaks):03d}',
+                'hc_occurrence_rate': hc_occurrence_rate,
+                'lc_occurrence_rate': lc_occurrence_rate,
+                'hc_mean': hc_intensity_mean,
+                'lc_mean': lc_intensity_mean,
+                'fold_change': fold_change,
+                'ml_score': ml_score
+            })
 
+    consensus_df = pd.DataFrame(consensus_peaks)
+    
+    if not consensus_df.empty:
+        # 按ML友好性得分排序
+        consensus_df = consensus_df.sort_values('ml_score', ascending=False)
+        
+       # 使用config中的特征数量限制
+        if len(consensus_df) > MAX_FEATURES:
+            original_count = len(consensus_df)
+            consensus_df = consensus_df.head(MAX_FEATURES)
+            log_message(f"从 {original_count} 个候选中选择了top {MAX_FEATURES} 个特征")
+        
+        log_message(f"发现 {len(consensus_df)} 个ML共识峰")
+        log_message(f"倍数变化范围: {consensus_df['fold_change'].min():.2f} - {consensus_df['fold_change'].max():.2f}")
+        log_message(f"平均覆盖率: HC {consensus_df['hc_occurrence_rate'].mean():.1%}, LC {consensus_df['lc_occurrence_rate'].mean():.1%}")
+    else:
+        log_message("未发现符合条件的ML共识峰，建议调整config.py的参数", "WARNING")
+    return consensus_df
+
+# 更新匹配容差
 def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_label, root):
     """
-    构建最终特征矩阵（占位符函数）
+    使用动态归一化的特征矩阵构建
     
-    TODO: 实现特征矩阵构建
+    步骤：
+    1. 第一轮：扫描所有文件，找到全局最大强度值
+    2. 第二轮：使用全局最大值进行归一化处理
     """
-    log_message("TODO: 实现特征矩阵构建", "WARNING")
+    if consensus_peaks.empty:
+        log_message("共识峰为空", "ERROR")
+        return pd.DataFrame()
     
-    # 临时：构建一个基本的DataFrame结构
-    feature_matrix = pd.DataFrame({
-        'class': ['HC', 'LC'] * (len(file_paths) // 2),
-        'sample_id': [os.path.splitext(os.path.basename(f))[0] for f in file_paths]
-    })
+    log_message(f"构建动态归一化特征矩阵: {len(file_paths)} 文件 × {len(consensus_peaks)} 特征")
+    log_message(f"使用容差: {MZ_TOLERANCE} Da")
     
-    # 完成进度
-    progress_bar.set(1.0)
-    progress_label.configure(text="特征矩阵构建完成 (100%)")
-    root.update()
+    # === 第一轮：扫描所有数据，找到全局最大强度值 ===
+    log_message("第一轮：扫描全局最大强度值...")
+    global_max_intensity = 0.0
+    all_file_peaks = {}  # 缓存每个文件的峰数据，避免重复计算
     
-    return feature_matrix
+    for i, file_path in enumerate(file_paths):
+        peaks_df = discover_peaks_from_file(file_path)
+        file_id = os.path.splitext(os.path.basename(file_path))[0]
+        # 缓存峰数据
+        all_file_peaks[file_id] = peaks_df
+        
+        if not peaks_df.empty:
+            file_max = peaks_df['intensity'].max()
+            global_max_intensity = max(global_max_intensity, file_max)
+        
+        # 更新进度 (第一轮占33%)
+        progress = 0.66 + (i + 1) / len(file_paths) * 0.17  # 66% - 83%
+        progress_bar.set(progress)
+        progress_label.configure(text=f"扫描最大值: {i+1}/{len(file_paths)} ({progress:.0%})")
+        root.update()
+    
+    if global_max_intensity == 0:
+        log_message("警告：未找到任何有效强度值", "WARNING")
+        global_max_intensity = 1.0  # 避免除零错误
+    
+    log_message(f"全局最大强度值: {global_max_intensity:.2f}")
+    log_message(f"将使用此值作为归一化因子")
+    # 保存归一化因子到文件
+    normalization_file = 'intelligent_normalization_factor.txt'
+    try:
+        with open(normalization_file, 'w') as f:
+            f.write(str(global_max_intensity))
+        log_message(f"归一化因子已保存到 {normalization_file}", "SUCCESS")
+    except Exception as e:
+        log_message(f"保存归一化因子失败: {str(e)}", "WARNING")
 
+    # === 构建基础矩阵结构 ===
+    feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" for _, peak in consensus_peaks.iterrows()]
+    feature_series = pd.Series(data=feature_names, index=feature_names)
+    all_results = pd.DataFrame(feature_series, columns=['m/z'])
+    
+    # === 第二轮：使用全局最大值进行归一化处理 ===
+    log_message("第二轮：构建归一化特征矩阵...")
+    
+    for i, file_path in enumerate(file_paths):
+        file_id = os.path.splitext(os.path.basename(file_path))[0]
+        file_class = file_id[:2]
+        # 使用缓存的峰数据
+        peaks_df = all_file_peaks[file_id]
+        
+        # 创建文件结果列
+        file_results = []
+        
+        # 第一行：类别标签
+        file_results.append(file_class)
+        
+        # 后续行：对每个共识峰提取并归一化特征值
+        for _, consensus_peak in consensus_peaks.iterrows():
+            target_mz = consensus_peak['consensus_mz']
+            
+            if peaks_df.empty:
+                normalized_intensity = 0.0
+            else:
+                # 在0.2 Da容差范围内搜索
+                mz_diff = np.abs(peaks_df['mz'] - target_mz)
+                matches = peaks_df[mz_diff <= MZ_TOLERANCE]
+                
+                if not matches.empty:
+                    # 选择最接近的峰
+                    best_match_idx = mz_diff[mz_diff <= MZ_TOLERANCE].idxmin()
+                    raw_intensity = peaks_df.loc[best_match_idx, 'intensity']
+                    
+                    # === 关键：使用全局最大值进行归一化 ===
+                    normalized_intensity = raw_intensity / global_max_intensity
+                else:
+                    normalized_intensity = 0.0
+            
+            file_results.append(normalized_intensity)
+        
+        # 将结果添加到总矩阵中
+        file_series = pd.Series(file_results, index=feature_names)
+        file_df = pd.DataFrame(file_series, columns=[file_id])
+        all_results = pd.concat([all_results, file_df], axis=1)
+        
+        # 更新进度 (第二轮占17%)
+        progress = 0.83 + (i + 1) / len(file_paths) * 0.17  # 83% - 100%
+        progress_bar.set(progress)
+        progress_label.configure(text=f"归一化处理: {i+1}/{len(file_paths)} ({progress:.0%})")
+        root.update()
+    
+    log_message(f"动态归一化特征矩阵完成: {all_results.shape}")
+    log_message(f"归一化因子: {global_max_intensity:.2f}")
+    log_message(f"归一化后数值范围: 0.0 - 1.0")
+    
+    return all_results
 
 def process_file(file_name, X):
     """
-    处理原始光谱数据文件，提取指定m/z值附近的最大信号强度。
+    处理原始质谱数据文件，提取指定m/z值附近的最大信号强度。
     
     对每个指定的m/z值，在其±0.2的范围内查找最大信号强度，并进行归一化处理。
     
