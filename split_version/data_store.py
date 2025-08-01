@@ -6,10 +6,25 @@
 """
 
 # 全局数据变量
+file_classification = {
+    'class_0_name': '0类',
+    'class_1_name': '1类', 
+    'class_0_files': [],  # 存储完整文件路径
+    'class_1_files': []
+}
 row = None           # 特征数据
 column = None        # 标签数据  
 df = None           # 原始DataFrame
 best_model = None   # 最佳模型
+
+def set_file_classification(classification_data):
+    """设置文件分类信息"""
+    global file_classification
+    file_classification = classification_data
+
+def get_file_classification():
+    """获取文件分类信息"""
+    return file_classification
 
 def set_training_data(new_row, new_column, new_df):
     """设置训练数据"""
@@ -33,7 +48,13 @@ def clear_data():
     column = None
     df = None
     best_model = None
-
+    file_classification = {
+        'class_0_name': '0类',
+        'class_1_name': '1类', 
+        'class_0_files': [],
+        'class_1_files': []
+    }
+    
 def set_best_model(model):
     """设置最佳模型"""
     global best_model

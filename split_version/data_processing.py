@@ -13,18 +13,34 @@ from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE,
                    MZ_TOLERANCE)
 from utils import log_message, create_backup_filename
 
-
+def get_file_classification(file_path):
+    """根据文件路径获取分类"""
+    import data_store  # 在函数内导入避免循环导入
+    
+    classification = data_store.get_file_classification()
+    
+    if file_path in classification['class_0_files']:
+        return classification['class_0_name']
+    elif file_path in classification['class_1_files']:
+        return classification['class_1_name']
+    else:
+        return None
 
 def select_and_process_files_intelligent(root):
     """
     智能峰发现和特征提取的主函数
     """
-    file_paths = filedialog.askopenfilenames(
-        title="选择要分析的文件 (智能峰发现模式)", 
-        filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
-    )
-
+    import data_store
+    classification = data_store.get_file_classification()
+    file_paths = classification['class_0_files'] + classification['class_1_files']
+    
     if not file_paths:
+        log_message("未找到已分类的文件", "WARNING")
+        messagebox.showerror("错误", "未找到已分类的文件，请先进行文件分类")
+        return
+    
+    log_message(f"从分类结果获取到 {len(file_paths)} 个文件")
+    if not file_paths:  
         log_message("未选择任何文件", "WARNING")
         return
 
@@ -169,15 +185,20 @@ def discover_peaks_from_file(file_path):
         # 5. 提取峰信息
         peak_mz, peak_intensity = picked_spectrum.get_peaks()
         
-        # 6. 构建结果 - 最简单的格式
+        # 6. 构建结果 - 使用新的分类方式
         file_id = os.path.splitext(os.path.basename(file_path))[0]
-        file_class = file_id[:2]
+        file_class_name = get_file_classification(file_path)
+        file_class = get_file_classification(file_path)
+        if file_class is None:
+            file_class = "UNKNOWN"
+        else:
+            file_class = file_class_name
         
         results = pd.DataFrame({
             'mz': peak_mz,
             'intensity': peak_intensity,
             'file_id': file_id,
-            'class': file_class
+            'class': file_class  # 使用新的分类方式
         })
         
         log_message(f"最终结果: {len(results)} 个峰")
@@ -190,32 +211,27 @@ def discover_peaks_from_file(file_path):
 def find_consensus_peaks(all_peaks_df, max_features=50):
     """
     专门为机器学习设计的共识峰发现
-    
-    核心思想：
-    1. 找到在HC和LC两类中都存在的峰（共同特征）
-    2. 但这些峰在两类间有显著的强度差异（区分性）
-    3. 使用0.2 Da的m/z容差进行匹配
-    
-    参数:
-        all_peaks_df: 所有文件峰的汇总DataFrame
-        max_features: 最大特征数量
-        
-    返回:
-        pd.DataFrame: 适合ML的共识峰
     """
     if all_peaks_df.empty:
         log_message("输入峰数据为空", "ERROR")
         return pd.DataFrame()
     
+    # === 动态获取类别名称 ===
+    import data_store
+    classification = data_store.get_file_classification()
+    class_0_name = classification['class_0_name']
+    class_1_name = classification['class_1_name']
+    
     log_message(f"开始ML导向的共识峰发现，输入 {len(all_peaks_df)} 个峰")
+    log_message(f"使用类别: {class_0_name}, {class_1_name}")
     log_message(f"配置参数: 最大特征={MAX_FEATURES}, 覆盖率≥{MIN_OCCURRENCE_RATE:.1%}, 倍数变化≥{MIN_FOLD_CHANGE:.1f}")
     
-    # 统计信息
-    hc_files = all_peaks_df[all_peaks_df['class'] == 'HC']['file_id'].nunique()
-    lc_files = all_peaks_df[all_peaks_df['class'] == 'LC']['file_id'].nunique()
+    # === 使用动态类别名称 ===
+    class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
+    class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
     total_files = all_peaks_df['file_id'].nunique()
     
-    log_message(f"数据统计: HC文件 {hc_files} 个, LC文件 {lc_files} 个, 总计 {total_files} 个")
+    log_message(f"数据统计: {class_0_name}文件 {class_0_files} 个, {class_1_name}文件 {class_1_files} 个, 总计 {total_files} 个")
     
     # 1. 按0.2 Da精度分组m/z值
     all_peaks_df = all_peaks_df.copy()
@@ -227,49 +243,48 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
     for mz_group in all_peaks_df['mz_group'].unique():
         group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
         
-        # 分别统计HC和LC类别的情况
-        hc_data = group_data[group_data['class'] == 'HC']
-        lc_data = group_data[group_data['class'] == 'LC']
+        # === 使用动态类别名称 ===
+        class_0_data = group_data[group_data['class'] == class_0_name]
+        class_1_data = group_data[group_data['class'] == class_1_name]
         
         # === 关键条件：两类都必须存在这个峰 ===
-        hc_file_count = hc_data['file_id'].nunique() if len(hc_data) > 0 else 0
-        lc_file_count = lc_data['file_id'].nunique() if len(lc_data) > 0 else 0
+        class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
+        class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
         
         # 两类都至少要有一定比例的文件包含这个峰
-        hc_occurrence_rate = hc_file_count / hc_files if hc_files > 0 else 0
-        lc_occurrence_rate = lc_file_count / lc_files if lc_files > 0 else 0
+        class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
+        class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
         
         # 过滤条件：两类都至少在20%的文件中出现
         min_occurrence_rate = 0.2
-        if hc_occurrence_rate < min_occurrence_rate or lc_occurrence_rate < min_occurrence_rate:
+        if class_0_occurrence_rate < min_occurrence_rate or class_1_occurrence_rate < min_occurrence_rate:
             continue
         
         # 确保两类都有足够的数据点进行统计分析
-        if len(hc_data) < 2 or len(lc_data) < 2:
+        if len(class_0_data) < 2 or len(class_1_data) < 2:
             continue
         
         # 3. 计算统计指标
-        # 计算统计指标
         consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
-        hc_intensity_mean = hc_data['intensity'].mean()
-        lc_intensity_mean = lc_data['intensity'].mean()
+        class_0_intensity_mean = class_0_data['intensity'].mean()
+        class_1_intensity_mean = class_1_data['intensity'].mean()
         
         # 计算区分性
-        fold_change = max(hc_intensity_mean, lc_intensity_mean) / (min(hc_intensity_mean, lc_intensity_mean) + 1e-6)
+        fold_change = max(class_0_intensity_mean, class_1_intensity_mean) / (min(class_0_intensity_mean, class_1_intensity_mean) + 1e-6)
         
         # 使用config中的区分性要求
         if fold_change >= MIN_FOLD_CHANGE:
             # 计算ML友好性评分
-            coverage_score = (hc_occurrence_rate + lc_occurrence_rate) / 2
+            coverage_score = (class_0_occurrence_rate + class_1_occurrence_rate) / 2
             ml_score = fold_change * coverage_score
            
             consensus_peaks.append({
                 'consensus_mz': consensus_mz,
                 'peak_id': f'Peak_{len(consensus_peaks):03d}',
-                'hc_occurrence_rate': hc_occurrence_rate,
-                'lc_occurrence_rate': lc_occurrence_rate,
-                'hc_mean': hc_intensity_mean,
-                'lc_mean': lc_intensity_mean,
+                'class_0_occurrence_rate': class_0_occurrence_rate,
+                'class_1_occurrence_rate': class_1_occurrence_rate,
+                'class_0_mean': class_0_intensity_mean,
+                'class_1_mean': class_1_intensity_mean,
                 'fold_change': fold_change,
                 'ml_score': ml_score
             })
@@ -280,7 +295,7 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
         # 按ML友好性得分排序
         consensus_df = consensus_df.sort_values('ml_score', ascending=False)
         
-       # 使用config中的特征数量限制
+        # 使用config中的特征数量限制
         if len(consensus_df) > MAX_FEATURES:
             original_count = len(consensus_df)
             consensus_df = consensus_df.head(MAX_FEATURES)
@@ -288,9 +303,10 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
         
         log_message(f"发现 {len(consensus_df)} 个ML共识峰")
         log_message(f"倍数变化范围: {consensus_df['fold_change'].min():.2f} - {consensus_df['fold_change'].max():.2f}")
-        log_message(f"平均覆盖率: HC {consensus_df['hc_occurrence_rate'].mean():.1%}, LC {consensus_df['lc_occurrence_rate'].mean():.1%}")
+        log_message(f"平均覆盖率: {class_0_name} {consensus_df['class_0_occurrence_rate'].mean():.1%}, {class_1_name} {consensus_df['class_1_occurrence_rate'].mean():.1%}")
     else:
         log_message("未发现符合条件的ML共识峰，建议调整config.py的参数", "WARNING")
+    
     return consensus_df
 
 # 更新匹配容差
@@ -355,7 +371,11 @@ def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_lab
     
     for i, file_path in enumerate(file_paths):
         file_id = os.path.splitext(os.path.basename(file_path))[0]
-        file_class = file_id[:2]
+        
+        file_class = get_file_classification(file_path)
+        if file_class is None:
+            file_class = "UNKNOWN"
+            
         # 使用缓存的峰数据
         peaks_df = all_file_peaks[file_id]
         
@@ -438,10 +458,10 @@ def select_and_process_files(root):
     参数:
         root: tkinter根窗口对象
     """
-    file_paths = filedialog.askopenfilenames(
-        title="选择要分析的文件", 
-        filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
-    )
+    import data_store
+    classification = data_store.get_file_classification()
+    file_paths = classification['class_0_files'] + classification['class_1_files']
+    
 
     if not file_paths:
         log_message("未选择任何文件", "WARNING")
@@ -469,7 +489,9 @@ def select_and_process_files(root):
         file_result = process_file(file_path, [x for x in X if x != 'class'])
         file_result.set_index('m/z', inplace=True) 
         file_result.columns = [os.path.splitext(os.path.basename(file_path))[0]]
-        file_result.loc['class'] = [os.path.splitext(os.path.basename(file_path))[0][:2]]
+        file_class = get_file_classification(file_path)
+        file_result.loc['class'] = [file_class if file_class else "UNKNOWN"]
+        
         all_results = pd.concat([all_results, file_result], axis=1)
         
         log_message(f"已处理文件 {index}/{len(file_paths)}: {os.path.basename(file_path)}")
@@ -587,8 +609,24 @@ def open_data_file(normalization_label, start_button, progress_bar):
             warning_msg = "数据中只有一种类别，需要至少两种类别才能训练模型"
             messagebox.showwarning("警告", warning_msg)
             log_message(f"警告：{warning_msg}")
-
+            
         # 标签编码
+        try:
+            # 尝试从data_store获取用户设置的类别映射
+            import data_store
+            classification = data_store.get_file_classification()
+            
+            # 动态构建映射
+            CLASS_MAPPING = {
+                classification['class_0_name']: 0,
+                classification['class_1_name']: 1
+            }
+            log_message(f"使用动态类别映射: {CLASS_MAPPING}")
+        except:
+            # 如果失败，使用原来的默认映射
+            from config import CLASS_MAPPING
+            log_message("使用默认类别映射")
+        
         column = np.array([CLASS_MAPPING.get(label, -1) for label in ylabels])
 
         # 检查未知类别
