@@ -33,10 +33,10 @@ class HelpSystem:
         # 为你的程序定制的帮助文本
         self.help_texts = {
             # 数据预处理相关
-            "select_files": "选择原始的txt格式质谱数据文件\n系统将自动提取47个m/z值的峰值强度",
+            "select_files": "智能提峰：自动识别峰值预设提取50个共同峰\n预设值提峰：选择原始的txt格式质谱数据文件\n系统将自动提取47个m/z值的峰值强度",
             
             # 训练相关
-            "select_excel": "选择已预处理的Excel数据文件\n第一行应为HC/LC标签",
+            "select_excel": "选择已预处理的Excel数据文件\n第一行应为类别标签标签",
             "model_selection": "选择机器学习算法\n• RandomForest: 适合大数据集\n• LogisticRegression: 适合小数据集\n• PLS: 适合高维数据",
             "start_analysis": "开始训练模型\n• 训练时间：约1-3分钟\n• 将进行500轮交叉验证\n• 训练过程中请勿关闭程序",
             
@@ -52,7 +52,7 @@ class HelpSystem:
         
         # 步骤相关的提示信息
         self.step_hints = {
-            "select_data": "💡 下一步：请点击 '选择归一化.csv文件' 按钮选择数据文件",
+            "select_data": "💡 下一步：请先点击 '数据预处理' 处理原始txt文件，或直接选择已归一化的CSV文件",
             "select_model": "💡 下一步：从菜单栏 '模型选择' 中选择合适的机器学习算法",
             "train_model": "💡 下一步：点击 '开始分析' 按钮开始训练模型",
             "view_results": "💡 训练完成！您可以查看生成的评估图表",
@@ -413,7 +413,7 @@ class HelpSystem:
         step1 = wizard_tabs.add("1. 介绍")
         ctk.CTkLabel(step1, text="诊断分析工具", 
                     font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step1, text="本工具用于分析质谱数据并构建机器学习模型，以区分HC与LC样本。",
+        ctk.CTkLabel(step1, text="本工具用于分析质谱数据并构建机器学习模型，以区分健康与患病样本。",
                     wraplength=550).pack(pady=5)
         ctk.CTkLabel(step1, text="使用流程包括：数据预处理、模型训练与评估、新样本预测。",
                     wraplength=550).pack(pady=5)
@@ -422,18 +422,19 @@ class HelpSystem:
         step2 = wizard_tabs.add("2. 数据预处理")
         ctk.CTkLabel(step2, text="数据预处理步骤", 
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step2, text="1. 点击菜单 '数据预处理' -> '选择处理文件'",
+        ctk.CTkLabel(step2, text="2. 选择处理模式：传统方式 或 智能峰发现",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step2, text="2. 选择原始的txt格式质谱数据文件",
+        ctk.CTkLabel(step2, text="3. 在弹出窗口中自定义两个类别的名称",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step2, text="3. 等待处理完成，生成LC_MAX.xlsx文件",
+        ctk.CTkLabel(step2, text="4. 分别选择包含两类样本的文件夹",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-
+        ctk.CTkLabel(step2, text="5. 确认预览信息，开始处理生成CSV文件",
+                    wraplength=550).pack(anchor='w', padx=20, pady=2)
         # 第3步：模型训练
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估", 
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step3, text="1. 点击 '选择归一化.csv文件' 按钮，选择LC_MAX.xlsx",
+        ctk.CTkLabel(step3, text="1. 点击 '选择归一化.csv文件' 按钮，选择选择生成的normalized_ms_data.csv文件",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step3, text="2. 从菜单 '模型选择' 中选择合适的机器学习模型",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
@@ -450,7 +451,7 @@ class HelpSystem:
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="2. 选择要分析的未知样本txt文件",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step4, text="3. 查看预测结果（HC或LC）及概率",
+        ctk.CTkLabel(step4, text="3. 查看预测结果及自定义类别的概率分布",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="4. 可点击 '查看模型详情' 了解模型参数",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)

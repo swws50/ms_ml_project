@@ -321,7 +321,16 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
     # 创建新窗口
     classification_window = ctk.CTkToplevel(root)
     classification_window.title("数据文件分类设置")
-    classification_window.geometry("700x750")
+      # === 计算居中位置 ===
+    window_width = 700
+    window_height = 750
+    # 获取屏幕尺寸，计算居中位置
+    screen_width = classification_window.winfo_screenwidth()
+    screen_height = classification_window.winfo_screenheight()
+    center_x = int(screen_width/2 - window_width/2)
+    center_y = int(screen_height/2 - window_height/2)  
+    # 设置窗口位置和大小
+    classification_window.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
     classification_window.resizable(True, True)
     
     # 窗口置顶和焦点设置

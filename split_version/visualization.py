@@ -32,6 +32,14 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
     log_message("开始生成可视化图表...")
     generated_charts = {}
     
+    # 获取动态类别映射
+    try:
+        import data_store
+        classification = data_store.get_file_classification()
+        REVERSE_CLASS_MAPPING = {0: classification['class_0_name'], 1: classification['class_1_name']}
+    except:
+        from config import REVERSE_CLASS_MAPPING
+
     try:
         # 1. 生成准确率图表
         log_message("生成准确率对比图...")
@@ -70,8 +78,8 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
         plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
         plt.colorbar(fraction=0.046, pad=0.04)
-        plt.xticks([0, 1], [REVERSE_CLASS_MAPPING[0], REVERSE_CLASS_MAPPING[1]])
-        plt.yticks([0, 1], [REVERSE_CLASS_MAPPING[0], REVERSE_CLASS_MAPPING[1]])
+        plt.xticks([0, 1], ["class 0"],["class 1"])
+        plt.yticks([0, 1], ["class 0"],["class 1"])
         
         # 添加数值标签
         for i in range(2):

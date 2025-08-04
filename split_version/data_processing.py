@@ -615,17 +615,28 @@ def open_data_file(normalization_label, start_button, progress_bar):
             # 尝试从data_store获取用户设置的类别映射
             import data_store
             classification = data_store.get_file_classification()
-            
-            # 动态构建映射
-            CLASS_MAPPING = {
-                classification['class_0_name']: 0,
-                classification['class_1_name']: 1
-            }
-            log_message(f"使用动态类别映射: {CLASS_MAPPING}")
-        except:
+            if classification['class_0_files'] or classification['class_1_files']:
+                # 用户已进行过文件分类，使用用户设置的映射
+                CLASS_MAPPING = {
+                    classification['class_0_name']: 0,
+                    classification['class_1_name']: 1
+                }
+                log_message(f"使用用户自定义类别映射: {CLASS_MAPPING}")
+            else:
+                # 2. 如果没有用户分类，从CSV数据中自动检测类别
+                unique_labels = ylabels.unique()
+                if len(unique_labels) >= 2:
+                    CLASS_MAPPING = {unique_labels[0]: 0, unique_labels[1]: 1}
+                    log_message(f"从CSV自动检测类别映射: {CLASS_MAPPING}")
+                else:
+                    # 3. 若文件分类标签小于2则回退到默认映射
+                    from config import CLASS_MAPPING
+                    log_message("使用默认类别映射: HC/LC")
+
+        except Exception as e:
             # 如果失败，使用原来的默认映射
             from config import CLASS_MAPPING
-            log_message("使用默认类别映射")
+            log_message(f"映射检测失败，使用默认类别映射: {e}")
         
         column = np.array([CLASS_MAPPING.get(label, -1) for label in ylabels])
 

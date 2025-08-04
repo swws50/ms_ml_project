@@ -271,6 +271,15 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
     """
     智能预测函数 - 自动检测特征和归一化因子
     """
+
+    # 获取动态类别映射
+    try:
+        import data_store
+        classification = data_store.get_file_classification()
+        REVERSE_CLASS_MAPPING = {0: classification['class_0_name'], 1: classification['class_1_name']}
+    except:
+        from config import REVERSE_CLASS_MAPPING
+
     try:
         # 加载模型
         loaded_model = data_store.get_best_model()
@@ -300,16 +309,25 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
         predicted_class = REVERSE_CLASS_MAPPING.get(prediction, "未知")
         
         # 显示结果
-        confidence_text = f"类别概率: HC={probabilities[0]:.4f}, LC={probabilities[1]:.4f}"
+        confidence_text = f"类别概率: {REVERSE_CLASS_MAPPING[0]}={probabilities[0]:.4f}, {REVERSE_CLASS_MAPPING[1]}={probabilities[1]:.4f}"
         result_text = f"预测结果: {predicted_class}\n{confidence_text}"
         result_text += f"\n预测样本: {os.path.basename(file_path)}"
         result_text += f"\n特征数量: {len(training_features)}"
         result_text += f"\n归一化因子: {normalization_factor:.1f}"
         
+       # 使用预测置信度来决定颜色，而不是固定的类别名称
+        max_probability = max(probabilities)
+        if max_probability >= 0.7:
+            text_color = 'green'  # 高置信度 - 绿色
+        elif max_probability >= 0.5:
+            text_color = 'blue'   # 中等置信度 - 蓝色  
+        else:
+            text_color = 'orange' # 低置信度 - 橙色
+
         prediction_result_label.configure(text=result_text, 
-                                         text_color='red' if predicted_class == "LC" else 'green', 
-                                         font=ctk.CTkFont(size=12, weight="bold"))
-        
+                                        text_color=text_color, 
+                                        font=ctk.CTkFont(size=12, weight="bold"))
+
         if help_system:
             help_system.complete_step("predict_sample")
         
