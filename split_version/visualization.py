@@ -78,8 +78,8 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
         plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
         plt.colorbar(fraction=0.046, pad=0.04)
-        plt.xticks([0, 1], ["class 0"],["class 1"])
-        plt.yticks([0, 1], ["class 0"],["class 1"])
+        plt.xticks([0, 1], ["class 0","class 1"])
+        plt.yticks([0, 1], ["class 0","class 1"])
         
         # 添加数值标签
         for i in range(2):
