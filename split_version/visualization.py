@@ -43,7 +43,7 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
     try:
         # 1. 生成准确率图表
         log_message("生成准确率对比图...")
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(6, 4))
         plt.scatter(range(len(balanced_accuracy_train)), balanced_accuracy_train,
                     label='Training Balanced Accuracy', color='b', s=5)
         plt.scatter(range(len(balanced_accuracy_test)), balanced_accuracy_test, 
@@ -53,13 +53,13 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.legend()
         plt.title('Training and Test Balanced Accuracy over Iterations')
         chart_path = 'Training and Test Balanced Accuracy.png'
-        plt.savefig(chart_path)
+        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['accuracy'] = chart_path
 
         # 2. 生成F1分数等指标图表
         log_message("生成精确率/召回率/F1分数图...")
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(6, 4))
         plt.scatter(range(len(Fscores)), Fscores[:, 0], label='Weighted Avg Precision', s=5)
         plt.scatter(range(len(Fscores)), Fscores[:, 1], label='Weighted Avg Recall', s=5)
         plt.scatter(range(len(Fscores)), Fscores[:, 2], label='Weighted Avg F1-score', s=5)
@@ -68,13 +68,13 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.legend()
         plt.title('Weighted Average Precision, Recall, and F1-score over Iterations')
         chart_path = 'Weighted Average Precision, Recall, and F1-score.png'
-        plt.savefig(chart_path)
+        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['metrics'] = chart_path
 
         # 3. 生成混淆矩阵图表
         log_message("生成混淆矩阵图...")
-        plt.figure(figsize=(6, 6))
+        plt.figure(figsize=(5, 5))
         mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
         plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
         plt.colorbar(fraction=0.046, pad=0.04)
@@ -91,13 +91,13 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.ylabel('True Class')
         plt.title('Mean Confusion Matrix')
         chart_path = 'Mean Confusion Matrix.png'
-        plt.savefig(chart_path)
+        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['confusion'] = chart_path
 
         # 4. 生成ROC曲线
         log_message("生成ROC曲线图...")
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(6, 4))
         mean_fpr = np.linspace(0, 1, 100)
         mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)], axis=0)
         plt.plot(mean_fpr, mean_tpr, color='red', lw=3, 
@@ -108,7 +108,7 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.title('Mean ROC Curve')
         plt.legend()
         chart_path = 'Mean ROC Curve.png'
-        plt.savefig(chart_path)
+        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['roc'] = chart_path
         
@@ -118,7 +118,7 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
             mean_threshold = np.mean(thresholds_used)
             std_threshold = np.std(thresholds_used)
             
-            plt.figure(figsize=(8, 6))
+            plt.figure(figsize=(6, 4))
             hist_data = plt.hist(thresholds_used, bins=20, color='skyblue', 
                                edgecolor='black', alpha=0.7)
             
