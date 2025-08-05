@@ -7,7 +7,7 @@ import numpy as np
 from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 import pyopenms as oms
-from config import DEFAULT_MZ_VALUES, CLASS_MAPPING, OUTPUT_FILES, NORMALIZATION_FACTOR, MZ_TOLERANCE
+from config import CLASS_MAPPING, OUTPUT_FILES, NORMALIZATION_FACTOR, MZ_TOLERANCE
 from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE, 
                    ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, FALLBACK_FOLD_CHANGE,
                    MZ_TOLERANCE)
@@ -424,108 +424,6 @@ def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_lab
     log_message(f"归一化后数值范围: 0.0 - 1.0")
     
     return all_results
-
-def process_file(file_name, X):
-    """
-    处理原始质谱数据文件，提取指定m/z值附近的最大信号强度。
-    
-    对每个指定的m/z值，在其±0.2的范围内查找最大信号强度，并进行归一化处理。
-    
-    参数:
-        file_name (str): 原始数据文件路径
-        X (list): 待提取的m/z值列表
-        
-    返回:
-        pd.DataFrame: 包含m/z值和对应最大归一化信号强度的DataFrame
-    """
-    raw_data = pd.read_csv(file_name, sep=r'\s+', header=None)
-    results = []
-    
-    for x in X:
-        lower_bound = x - MZ_TOLERANCE
-        upper_bound = x + MZ_TOLERANCE
-
-        filtered_df = raw_data[(raw_data[0] >= lower_bound) & (raw_data[0] <= upper_bound)]
-        max_value = filtered_df[1].div(NORMALIZATION_FACTOR).max() if not filtered_df.empty else None
-        results.append([x, max_value])
-    
-    return pd.DataFrame(results, columns=['m/z', 'Max_Value'])
-
-def select_and_process_files(root):
-    """
-    选择并处理多个原始光谱数据文件，生成用于机器学习的特征矩阵。
-    
-    参数:
-        root: tkinter根窗口对象
-    """
-    import data_store
-    classification = data_store.get_file_classification()
-    file_paths = classification['class_0_files'] + classification['class_1_files']
-    
-
-    if not file_paths:
-        log_message("未选择任何文件", "WARNING")
-        return
-
-    log_message("开始处理原始数据文件...")
-    
-    # 定义特征列表
-    X = ['class'] + DEFAULT_MZ_VALUES
-    X_series = pd.Series(data=X, index=X)
-    all_results = pd.DataFrame(X_series, columns=['m/z'])
-
-    # === 创建 CustomTkinter 进度条 ===
-    progress_label = ctk.CTkLabel(root, text="进度: 0%")
-    progress_label.grid(row=8, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
-    
-    progress_bar = ctk.CTkProgressBar(root, width=300)
-    progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
-    progress_bar.set(0)  # CustomTkinter 使用 0-1 范围
-
-    progress_label.configure(text="正在处理文件...")
-
-    # 处理每个文件
-    for index, file_path in enumerate(file_paths, 1):
-        file_result = process_file(file_path, [x for x in X if x != 'class'])
-        file_result.set_index('m/z', inplace=True) 
-        file_result.columns = [os.path.splitext(os.path.basename(file_path))[0]]
-        file_class = get_file_classification(file_path)
-        file_result.loc['class'] = [file_class if file_class else "UNKNOWN"]
-        
-        all_results = pd.concat([all_results, file_result], axis=1)
-        
-        log_message(f"已处理文件 {index}/{len(file_paths)}: {os.path.basename(file_path)}")
-
-        # 更新进度条
-        progress_value = index / len(file_paths)
-        progress_bar.set(progress_value)
-        progress_label.configure(text=f"正在处理: {index}/{len(file_paths)} ({progress_value:.0%})")
-        root.update()
-
-    # 保存结果
-    success = safe_file_save(all_results, OUTPUT_FILES['processed_data'])
-    
-    # 清理进度条
-    progress_bar.grid_remove()
-    progress_label.grid_remove()
-    
-    if not success:
-        # 提供选择其他位置保存的选项
-        response = messagebox.askyesno("权限错误", "无法保存文件到当前位置。\n是否选择其他位置保存文件？")
-        if response:
-            save_path = filedialog.asksaveasfilename(
-                defaultextension=".xlsx",
-                filetypes=[("CSV files", "*.csv")],  # 改为CSV文件类型
-                initialfile=OUTPUT_FILES['processed_data']
-            )
-            if save_path:
-                try:
-                    all_results.to_csv(save_path, index=True, float_format='%.8f')  # 改为to_csv
-                    log_message(f"数据处理完成！结果已保存为 {os.path.abspath(file_path)}", "SUCCESS")
-                    messagebox.showinfo("保存成功", f"文件已成功保存到:\n{save_path}")
-                except Exception as e:
-                    log_message(f"保存到新位置时出错: {str(e)}", "ERROR")
-                    messagebox.showerror("保存失败", f"保存文件时出错:\n{str(e)}")
 
 def safe_file_save(data, file_path):
     """安全地保存文件，包含备份和错误处理"""

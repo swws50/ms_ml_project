@@ -33,7 +33,7 @@ class HelpSystem:
         # 为你的程序定制的帮助文本
         self.help_texts = {
             # 数据预处理相关
-            "select_files": "智能提峰：自动识别峰值预设提取50个共同峰\n预设值提峰：选择原始的txt格式质谱数据文件\n系统将自动提取47个m/z值的峰值强度",
+            "select_files": "智能提峰：自动识别峰值预设提取50个共同峰",
             
             # 训练相关
             "select_excel": "选择已预处理的Excel数据文件\n第一行应为类别标签标签",

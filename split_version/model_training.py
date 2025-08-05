@@ -17,13 +17,12 @@ from tkinter import messagebox, filedialog
 import customtkinter as ctk
 
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-                   REVERSE_CLASS_MAPPING, DEFAULT_MZ_VALUES)
+                   REVERSE_CLASS_MAPPING)
 from utils import log_message, validate_data, clear_log
-from data_processing import process_file
 from visualization import visualize_performance
 import data_store  # 导入数据存储模块
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-                   REVERSE_CLASS_MAPPING, DEFAULT_MZ_VALUES, MZ_TOLERANCE, NORMALIZATION_FACTOR)
+                   REVERSE_CLASS_MAPPING, MZ_TOLERANCE, NORMALIZATION_FACTOR)
 import pandas as pd
 def find_optimal_threshold(y_true, y_pred_proba):
     """
@@ -384,14 +383,8 @@ def detect_training_features():
             except ValueError:
                 log_message(f"无法解析特征名: {feature_name}，跳过", "WARNING")
         
-        if len(training_mz_values) == 48:
-            # 可能是传统方法，特征名不是数值
-            log_message("检测到传统方法特征格式")
-            return training_mz_values, NORMALIZATION_FACTOR
-        
-        else:
-            log_message(f"检测到智能方法，{len(training_mz_values)} 个特征")
-            return training_mz_values, normalization_factor
+        log_message(f"检测到{len(training_mz_values)} 个特征")
+        return training_mz_values, normalization_factor
         
     except Exception as e:
         log_message(f"检测训练特征失败: {str(e)}", "ERROR")

@@ -7,9 +7,9 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 
 # 导入其他模块
-from config import MODEL_CONFIGS, DEFAULT_MODEL, DEFAULT_MZ_VALUES
+from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
-from data_processing import select_and_process_files, open_data_file, select_and_process_files_intelligent
+from data_processing import  open_data_file, select_and_process_files_intelligent
 from model_training import predict_by_wrapper, open_file_dialog, show_model_info
 from help_system import HelpSystem
 from visualization import reset_analysis
@@ -81,60 +81,12 @@ def create_gui():
     # 菜单按钮容器
     menu_container = ctk.CTkFrame(menu_frame, fg_color="transparent")
     menu_container.pack(side="left", padx=20, pady=15)
-    
-    def select_processing_method(root):
-        """选择处理方法的包装函数"""
-        if processing_method_var.get():
-            # 使用智能峰发现方法
-            log_message("=== 启动智能峰发现模式 ===", "INFO")
-            log_message("• 将使用pyOpenMS进行专业峰检测", "INFO")
-            log_message("• 自动发现并选择最有区分性的特征峰", "INFO")
-            log_message("• 不依赖预设的m/z值列表", "INFO")
-            
-            # 调用智能处理函数
-            open_folder_classification_window(root, is_intelligent_mode=True) 
-        else:
-            # 使用传统方法
-            log_message("=== 使用传统处理方式 ===", "INFO")
-            log_message(f"• 基于预设的{len(DEFAULT_MZ_VALUES)}个m/z特征值", "INFO")
-            log_message("• 使用固定阈值提取峰强度", "INFO")
-            
-            # 调用传统处理函数
-            open_folder_classification_window(root, is_intelligent_mode=False)
             
     # 数据预处理按钮
     data_btn = ctk.CTkButton(menu_container, text="数据预处理", width=120, height=35,
-                            command=lambda: select_processing_method(root))
+                            command=lambda: open_folder_classification_window(root))
     data_btn.pack(side="left", padx=5)
     
-    # 添加处理方式选择开关
-    processing_method_var = ctk.BooleanVar(value=False)  # 默认使用传统方法
-    processing_switch = ctk.CTkSwitch(menu_container, 
-                                    text="提峰模式", 
-                                    variable=processing_method_var,
-                                    width=120)
-    processing_switch.pack(side="left", padx=5)
-    help_system.add_hover_tip(processing_switch, 
-                            "开启：使用pyOpenMS自动发现最佳特征峰\n"
-                            "关闭：使用预设的47个m/z特征值")
-            
-    # 显示当前处理方法
-    method_indicator = ctk.CTkLabel(menu_container, 
-                                text="(传统方式)",
-                                font=ctk.CTkFont(size=10), 
-                                text_color="blue")
-    method_indicator.pack(side="left", padx=2)
-
-    # 更新开关回调，改变指示器文本
-    def on_method_switch():
-        if processing_method_var.get():
-            method_indicator.configure(text="(智能峰发现)", text_color="green")
-            log_message("切换到智能峰发现模式", "INFO")
-        else:
-            method_indicator.configure(text="(传统方式)", text_color="blue")
-            log_message("切换处理方式", "INFO")
-    processing_switch.configure(command=on_method_switch)
-
     # 模型选择下拉菜单
     model_label = ctk.CTkLabel(menu_container, text="模型选择:", 
                               font=ctk.CTkFont(size=12, weight="bold"))
@@ -518,16 +470,8 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
         # 关闭分类窗口
         classification_window.grab_release()
         classification_window.destroy()
-        
-        # 开始数据处理
-        if is_intelligent_mode:
-            # 智能峰发现模式
-            log_message("开始智能峰发现处理...", "INFO")
-            select_and_process_files_intelligent(root)
-        else:
-            # 传统方法
-            log_message("开始传统方法处理...", "INFO")
-            select_and_process_files(root)
+
+        select_and_process_files_intelligent(root)
     
     ctk.CTkButton(button_frame, text="取消", command=cancel_classification, width=100).pack(side='left')
     ctk.CTkButton(button_frame, text="开始处理", command=confirm_classification, width=120).pack(side='right')
