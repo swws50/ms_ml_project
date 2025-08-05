@@ -17,12 +17,12 @@ from tkinter import messagebox, filedialog
 import customtkinter as ctk
 
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-                   REVERSE_CLASS_MAPPING)
+                   MZ_TOLERANCE, get_class_mapping, get_normalization_factor)
 from utils import log_message, clear_log
 from visualization import visualize_performance
 import data_store  # 导入数据存储模块
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-                   REVERSE_CLASS_MAPPING, MZ_TOLERANCE, NORMALIZATION_FACTOR)
+                   MZ_TOLERANCE, get_class_mapping, get_normalization_factor)
 import pandas as pd
 from validation_decorators import require_data_store, safe_model_operation, log_execution_time
 
@@ -264,12 +264,7 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
     """
 
     # 获取动态类别映射
-    try:
-        import data_store
-        classification = data_store.get_file_classification()
-        REVERSE_CLASS_MAPPING = {0: classification['class_0_name'], 1: classification['class_1_name']}
-    except:
-        from config import REVERSE_CLASS_MAPPING
+    _, reverse_class_mapping = get_class_mapping()
 
     try:
         # 加载模型
@@ -297,10 +292,10 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
         
         # 预测
         prediction, probabilities = get_prediction_probability(loaded_model, sample_features)
-        predicted_class = REVERSE_CLASS_MAPPING.get(prediction, "未知")
+        predicted_class = reverse_class_mapping.get(prediction, "未知")
         
         # 显示结果
-        confidence_text = f"类别概率: {REVERSE_CLASS_MAPPING[0]}={probabilities[0]:.4f}, {REVERSE_CLASS_MAPPING[1]}={probabilities[1]:.4f}"
+        confidence_text = f"类别概率: {reverse_class_mapping[0]}={probabilities[0]:.4f}, {reverse_class_mapping[1]}={probabilities[1]:.4f}"
         result_text = f"预测结果: {predicted_class}\n{confidence_text}"
         result_text += f"\n预测样本: {os.path.basename(file_path)}"
         result_text += f"\n特征数量: {len(training_features)}"
@@ -387,37 +382,24 @@ def detect_normalization_factor(df):
     """
     检测归一化因子
     """
-    # 方法1: 尝试读取保存的归一化因子文件
-    normalization_file = 'intelligent_normalization_factor.txt'
-    if os.path.exists(normalization_file):
+     # 优先使用配置管理中的统一函数
+    factor = get_normalization_factor()
+    # 如果是默认值，尝试从训练数据推断
+    if factor == get_normalization_factor():  # 说明是默认值
         try:
-            with open(normalization_file, 'r') as f:
-                factor = float(f.read().strip())
-            log_message(f"从文件读取归一化因子: {factor:.2f}", "SUCCESS")
-            return factor
-        except Exception as e:
-            log_message(f"读取归一化因子文件失败: {str(e)}", "WARNING")
-    
-    # 方法2: 从训练数据推断
-    try:
-        # 获取训练数据的最大值
-        max_training_value = df.iloc[1:, :].max().max()  # 跳过class行
-        
-        if 0.8 <= max_training_value <= 1.2:
-            # 训练数据已归一化，推断原始最大值
-            log_message("训练数据已归一化，使用估算因子", "INFO")
-            return 1000000  # 估算的典型质谱最大值
-        else:
-            # 训练数据可能未归一化
-            log_message("使用训练数据最大值作为归一化因子", "INFO")
-            return max_training_value
+            max_training_value = df.iloc[1:, :].max().max()  # 跳过class行
             
-    except Exception as e:
-        log_message(f"推断归一化因子失败: {str(e)}", "WARNING")
+            if 0.8 <= max_training_value <= 1.2:
+                log_message("训练数据已归一化，使用统一管理的因子", "INFO")
+            else:
+                log_message("使用训练数据最大值作为归一化因子", "INFO")
+                factor = max_training_value
+                
+        except Exception as e:
+            log_message(f"推断归一化因子失败: {str(e)}", "WARNING")
     
-    # 方法3: 使用默认值
-    log_message("使用默认归一化因子", "INFO")
-    return NORMALIZATION_FACTOR
+    log_message(f"最终使用归一化因子: {factor:.2f}", "INFO")
+    return factor
 
 
 def process_prediction_sample(file_path, training_mz_values, normalization_factor):

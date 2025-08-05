@@ -7,12 +7,13 @@ import numpy as np
 from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 import pyopenms as oms
-from config import CLASS_MAPPING, OUTPUT_FILES, NORMALIZATION_FACTOR, MZ_TOLERANCE
+from config import OUTPUT_FILES, MZ_TOLERANCE, get_current_class_names, get_class_mapping, save_normalization_factor
 from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE, 
                    ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, FALLBACK_FOLD_CHANGE,
                    MZ_TOLERANCE)
 from utils import log_message, create_backup_filename
 from validation_decorators import safe_data_processing, handle_file_operations, validate_file_path
+from config import get_current_class_names, get_class_mapping
 
 def get_file_classification(file_path):
     """根据文件路径获取分类"""
@@ -216,10 +217,7 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
         return pd.DataFrame()
     
     # === 动态获取类别名称 ===
-    import data_store
-    classification = data_store.get_file_classification()
-    class_0_name = classification['class_0_name']
-    class_1_name = classification['class_1_name']
+    class_0_name, class_1_name = get_current_class_names()
     
     log_message(f"开始ML导向的共识峰发现，输入 {len(all_peaks_df)} 个峰")
     log_message(f"使用类别: {class_0_name}, {class_1_name}")
@@ -352,13 +350,7 @@ def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_lab
     log_message(f"全局最大强度值: {global_max_intensity:.2f}")
     log_message(f"将使用此值作为归一化因子")
     # 保存归一化因子到文件
-    normalization_file = 'intelligent_normalization_factor.txt'
-    try:
-        with open(normalization_file, 'w') as f:
-            f.write(str(global_max_intensity))
-        log_message(f"归一化因子已保存到 {normalization_file}", "SUCCESS")
-    except Exception as e:
-        log_message(f"保存归一化因子失败: {str(e)}", "WARNING")
+    save_normalization_factor(global_max_intensity)
 
     # === 构建基础矩阵结构 ===
     feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" for _, peak in consensus_peaks.iterrows()]
@@ -498,33 +490,16 @@ def open_data_file(normalization_label, start_button, progress_bar):
         
     # 标签编码
     try:
-        # 尝试从data_store获取用户设置的类别映射
-        import data_store
-        classification = data_store.get_file_classification()
-        if classification['class_0_files'] or classification['class_1_files']:
-            # 用户已进行过文件分类，使用用户设置的映射
-            CLASS_MAPPING = {
-                classification['class_0_name']: 0,
-                classification['class_1_name']: 1
-            }
-            log_message(f"使用用户自定义类别映射: {CLASS_MAPPING}")
-        else:
-            # 2. 如果没有用户分类，从CSV数据中自动检测类别
-            unique_labels = ylabels.unique()
-            if len(unique_labels) >= 2:
-                CLASS_MAPPING = {unique_labels[0]: 0, unique_labels[1]: 1}
-                log_message(f"从CSV自动检测类别映射: {CLASS_MAPPING}")
-            else:
-                # 3. 若文件分类标签小于2则回退到默认映射
-                from config import CLASS_MAPPING
-                log_message("使用默认类别映射: HC/LC")
-
+        # 优先从CSV数据自动检测
+        from config import get_class_mapping_for_labels
+        class_mapping = get_class_mapping_for_labels(ylabels)
+        log_message(f"使用检测到的类别映射: {class_mapping}")
     except Exception as e:
-        # 如果失败，使用原来的默认映射
-        from config import CLASS_MAPPING
-        log_message(f"映射检测失败，使用默认类别映射: {e}")
+        # 回退到当前用户设置的映射
+        class_mapping, _ = get_class_mapping()
+        log_message(f"使用默认类别映射: {class_mapping}")
     
-    column = np.array([CLASS_MAPPING.get(label, -1) for label in ylabels])
+    column = np.array([class_mapping.get(label, -1) for label in ylabels])
 
     # 检查未知类别
     if -1 in column:

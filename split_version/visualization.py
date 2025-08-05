@@ -7,7 +7,7 @@ from PIL import Image
 import customtkinter as ctk
 from tkinter import messagebox
 
-from config import REVERSE_CLASS_MAPPING
+from config import get_class_mapping
 from utils import log_message
 
 def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test, 
@@ -33,12 +33,7 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
     generated_charts = {}
     
     # 获取动态类别映射
-    try:
-        import data_store
-        classification = data_store.get_file_classification()
-        REVERSE_CLASS_MAPPING = {0: classification['class_0_name'], 1: classification['class_1_name']}
-    except:
-        from config import REVERSE_CLASS_MAPPING
+    _, reverse_class_mapping = get_class_mapping()
 
     try:
         # 1. 生成准确率图表
