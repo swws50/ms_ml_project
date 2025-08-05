@@ -18,12 +18,14 @@ import customtkinter as ctk
 
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
                    REVERSE_CLASS_MAPPING)
-from utils import log_message, validate_data, clear_log
+from utils import log_message, clear_log
 from visualization import visualize_performance
 import data_store  # 导入数据存储模块
 from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
                    REVERSE_CLASS_MAPPING, MZ_TOLERANCE, NORMALIZATION_FACTOR)
 import pandas as pd
+from validation_decorators import require_data_store, safe_model_operation, log_execution_time
+
 def find_optimal_threshold(y_true, y_pred_proba):
     """
     基于ROC曲线分析寻找最优分类阈值。
@@ -40,6 +42,9 @@ def find_optimal_threshold(y_true, y_pred_proba):
     optimal_idx = np.argmax(tpr - fpr)
     return thresholds[optimal_idx]
 
+@require_data_store("training_data")
+@safe_model_operation("模型训练")
+@log_execution_time
 def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_label, 
                       balanced_accuracy_test_label, model_save_status_label, 
                       exact_selection, help_system, root):
@@ -47,11 +52,6 @@ def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_lab
     执行机器学习模型的训练、评估和保存的包装函数
     """
     # 从data_store获取训练数据
-    if not data_store.has_training_data():
-        log_message("错误: 数据未正确加载", "ERROR")
-        messagebox.showerror("数据错误", "未找到有效训练数据，请先选择Excel文件。")
-        return
-    
     row, column, df = data_store.get_training_data()
     log_message(f"从数据存储模块获取训练数据: {row.shape}", "INFO")
     
@@ -59,14 +59,6 @@ def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_lab
     clear_log()
     log_message("=> 开始模型训练...")
     
-    # 数据验证
-    is_valid, message = validate_data(row, column)
-    if not is_valid:
-        log_message(f"错误: {message}", "ERROR")
-        messagebox.showerror("数据验证错误", message)
-        progress_bar['value'] = 0
-        return
-
     log_message(f"使用模型: {exact_selection}")
     log_message("数据验证通过，开始训练...")
 

@@ -60,25 +60,3 @@ def create_backup_filename(original_path):
     
     return backup_file_path
 
-def validate_data(row, column, min_samples=5):
-    """验证训练数据的有效性"""
-    try:
-        # 检查数据是否正确加载
-        if row is None or column is None:
-            return False, "数据未正确加载"
-
-        # 检查样本数量
-        n_samples = row.shape[0] if hasattr(row, 'shape') else len(row)
-        if n_samples < min_samples:
-            return False, f"样本数量不足（当前只有{n_samples}个样本）"
-
-        # 检查类别分布
-        import numpy as np
-        unique_classes = np.unique(column)
-        if len(unique_classes) < 2:
-            return False, f"数据中只包含一种类别 ({unique_classes[0]})"
-
-        return True, f"数据验证通过，样本数: {n_samples}, 类别: {unique_classes}"
-
-    except Exception as e:
-        return False, f"数据验证出错: {str(e)}"

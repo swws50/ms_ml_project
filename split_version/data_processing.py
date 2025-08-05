@@ -12,6 +12,7 @@ from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE,
                    ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, FALLBACK_FOLD_CHANGE,
                    MZ_TOLERANCE)
 from utils import log_message, create_backup_filename
+from validation_decorators import safe_data_processing, handle_file_operations, validate_file_path
 
 def get_file_classification(file_path):
     """根据文件路径获取分类"""
@@ -141,72 +142,70 @@ def select_and_process_files_intelligent(root):
         except:
             pass
 
+@validate_file_path(check_exists=True, allowed_extensions=['.txt'])
+@handle_file_operations(show_ui_error=False, return_none_on_error=False)
 def discover_peaks_from_file(file_path):
     """
     最基础的峰发现版本 - 专注于确保能发现峰
     """
-    try:
-        log_message(f"处理文件: {os.path.basename(file_path)}")
-        
-        # 1. 读取数据
-        raw_data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['mz', 'intensity'])
-        log_message(f"读取数据点数: {len(raw_data)}")
-        
-        if raw_data.empty:
-            return pd.DataFrame()
-        
-        # 2. 基本清理
-        raw_data = raw_data[raw_data['intensity'] > 0]
-        raw_data = raw_data.sort_values('mz').reset_index(drop=True)
-        log_message(f"清理后数据点数: {len(raw_data)}")
-        
-        # 3. pyOpenMS最简单的峰拾取
-        spectrum = oms.MSSpectrum()
-        mz_array = raw_data['mz'].values.astype(float)
-        intensity_array = raw_data['intensity'].values.astype(float)
-        spectrum.set_peaks([mz_array, intensity_array])
-        spectrum.sortByPosition()
-        
-        # 4. 使用最宽松的峰拾取参数
-        picker = oms.PeakPickerHiRes()
-        picker_param = picker.getDefaults()
-        picker_param.setValue("signal_to_noise", 1.0)  # 很低的信噪比
-        picker.setParameters(picker_param)
-        
-        picked_spectrum = oms.MSSpectrum()
-        picker.pick(spectrum, picked_spectrum)
-        
-        log_message(f"峰拾取结果: {picked_spectrum.size()} 个峰")
-        
-        if picked_spectrum.size() == 0:
-            log_message("未发现峰", "WARNING")
-            return pd.DataFrame()
-        
-        # 5. 提取峰信息
-        peak_mz, peak_intensity = picked_spectrum.get_peaks()
-        
-        # 6. 构建结果 - 使用新的分类方式
-        file_id = os.path.splitext(os.path.basename(file_path))[0]
-        file_class_name = get_file_classification(file_path)
-        file_class = get_file_classification(file_path)
-        if file_class is None:
-            file_class = "UNKNOWN"
-        else:
-            file_class = file_class_name
-        
-        results = pd.DataFrame({
-            'mz': peak_mz,
-            'intensity': peak_intensity,
-            'file_id': file_id,
-            'class': file_class  # 使用新的分类方式
-        })
-        
-        log_message(f"最终结果: {len(results)} 个峰")
-        return results
-        
-    except Exception as e:
-        log_message(f"处理失败: {str(e)}", "ERROR")
+    log_message(f"处理文件: {os.path.basename(file_path)}")
+    
+    # 1. 读取数据
+    raw_data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['mz', 'intensity'])
+    log_message(f"读取数据点数: {len(raw_data)}")
+    
+    if raw_data.empty:
         return pd.DataFrame()
+    
+    # 2. 基本清理
+    raw_data = raw_data[raw_data['intensity'] > 0]
+    raw_data = raw_data.sort_values('mz').reset_index(drop=True)
+    log_message(f"清理后数据点数: {len(raw_data)}")
+    
+    # 3. pyOpenMS最简单的峰拾取
+    spectrum = oms.MSSpectrum()
+    mz_array = raw_data['mz'].values.astype(float)
+    intensity_array = raw_data['intensity'].values.astype(float)
+    spectrum.set_peaks([mz_array, intensity_array])
+    spectrum.sortByPosition()
+    
+    # 4. 使用最宽松的峰拾取参数
+    picker = oms.PeakPickerHiRes()
+    picker_param = picker.getDefaults()
+    picker_param.setValue("signal_to_noise", 1.0)  # 很低的信噪比
+    picker.setParameters(picker_param)
+    
+    picked_spectrum = oms.MSSpectrum()
+    picker.pick(spectrum, picked_spectrum)
+    
+    log_message(f"峰拾取结果: {picked_spectrum.size()} 个峰")
+    
+    if picked_spectrum.size() == 0:
+        log_message("未发现峰", "WARNING")
+        return pd.DataFrame()
+    
+    # 5. 提取峰信息
+    peak_mz, peak_intensity = picked_spectrum.get_peaks()
+    
+    # 6. 构建结果 - 使用新的分类方式
+    file_id = os.path.splitext(os.path.basename(file_path))[0]
+    file_class_name = get_file_classification(file_path)
+    file_class = get_file_classification(file_path)
+    if file_class is None:
+        file_class = "UNKNOWN"
+    else:
+        file_class = file_class_name
+    
+    results = pd.DataFrame({
+        'mz': peak_mz,
+        'intensity': peak_intensity,
+        'file_id': file_id,
+        'class': file_class  # 使用新的分类方式
+    })
+    
+    log_message(f"最终结果: {len(results)} 个峰")
+    return results
+    
 
 def find_consensus_peaks(all_peaks_df, max_features=50):
     """
@@ -452,9 +451,10 @@ def safe_file_save(data, file_path):
         log_message(f"保存文件时出错: {str(e)}", "ERROR")
         return False
 
+@safe_data_processing(min_samples=5)
 def open_data_file(normalization_label, start_button, progress_bar):
     """
-    打开并加载已处理的特征矩阵Excel文件，准备机器学习模型训练。
+    打开并加载已处理的特征矩阵.csv文件，准备机器学习模型训练。
     
     参数:
         normalization_label: 显示文件选择状态的标签
@@ -472,94 +472,67 @@ def open_data_file(normalization_label, start_button, progress_bar):
     
     log_message(f"正在加载文件: {os.path.basename(file_path)}")
     
-    try:
-        df = pd.read_csv(file_path, index_col=0)
-        df = df.iloc[:, 1:]
-
-        if df.empty:
-            normalization_label.configure(text="文件未选择")
-            log_message("错误：所选文件为空，请选择有效的数据文件")
-            return None, None, None
-
-        # 检查文件格式
-        if df.shape[0] < 2:
-            error_msg = "Excel文件格式不正确，至少需要类别行和特征行"
-            messagebox.showerror("格式错误", error_msg)
-            log_message(f"错误：{error_msg}")
-            return None, None, None
-
-        # === 更新 CustomTkinter 控件状态 ===
-        normalization_label.configure(text="已选择")
-        start_button.configure(state='normal')
-        progress_bar.set(0)  # CustomTkinter 进度条重置
-        log_message("数据文件已成功加载")
-
-        # 处理数据
-        row = df.iloc[1:, :].values.T
-        ylabels = df.iloc[0, :].values
-        ylabels = pd.Series(ylabels)
-
-        log_message(f"数据形状: {row.shape}, 样本数: {row.shape[0]}, 特征数: {row.shape[1]}")
-        log_message(f"类别标签统计: {dict(ylabels.value_counts())}")
-
-        # 检查类别数量
-        if len(ylabels.value_counts()) < 2:
-            warning_msg = "数据中只有一种类别，需要至少两种类别才能训练模型"
-            messagebox.showwarning("警告", warning_msg)
-            log_message(f"警告：{warning_msg}")
-            
-        # 标签编码
-        try:
-            # 尝试从data_store获取用户设置的类别映射
-            import data_store
-            classification = data_store.get_file_classification()
-            if classification['class_0_files'] or classification['class_1_files']:
-                # 用户已进行过文件分类，使用用户设置的映射
-                CLASS_MAPPING = {
-                    classification['class_0_name']: 0,
-                    classification['class_1_name']: 1
-                }
-                log_message(f"使用用户自定义类别映射: {CLASS_MAPPING}")
-            else:
-                # 2. 如果没有用户分类，从CSV数据中自动检测类别
-                unique_labels = ylabels.unique()
-                if len(unique_labels) >= 2:
-                    CLASS_MAPPING = {unique_labels[0]: 0, unique_labels[1]: 1}
-                    log_message(f"从CSV自动检测类别映射: {CLASS_MAPPING}")
-                else:
-                    # 3. 若文件分类标签小于2则回退到默认映射
-                    from config import CLASS_MAPPING
-                    log_message("使用默认类别映射: HC/LC")
-
-        except Exception as e:
-            # 如果失败，使用原来的默认映射
-            from config import CLASS_MAPPING
-            log_message(f"映射检测失败，使用默认类别映射: {e}")
-        
-        column = np.array([CLASS_MAPPING.get(label, -1) for label in ylabels])
-
-        # 检查未知类别
-        if -1 in column:
-            unknown_classes = set(ylabels[column == -1])
-            warning_msg = f"发现未知类别: {unknown_classes}，请检查您的类别映射"
-            log_message(f"警告：{warning_msg}")
-            messagebox.showwarning("警告", warning_msg)
-        else:
-            log_message("标签编码完成，数据预处理成功")
-
-        return row, column, df
-
-    except FileNotFoundError:
-        error_msg = f"文件未找到: {file_path}"
-        messagebox.showerror("文件错误", error_msg)
-        log_message(f"错误：{error_msg}")
-    except pd.errors.EmptyDataError:
-        error_msg = "Excel文件为空或格式不正确"
-        messagebox.showerror("数据错误", error_msg)
-        log_message(f"错误：{error_msg}")
-    except Exception as e:
-        error_msg = f"加载Excel文件时出错: {str(e)}"
-        messagebox.showerror("未知错误", error_msg)
-        log_message(f"错误：{error_msg}")
     
-    return None, None, None
+    df = pd.read_csv(file_path, index_col=0)
+    df = df.iloc[:, 1:]
+
+    # === 更新 CustomTkinter 控件状态 ===
+    normalization_label.configure(text="已选择")
+    start_button.configure(state='normal')
+    progress_bar.set(0)  # CustomTkinter 进度条重置
+    log_message("数据文件已成功加载")
+
+    # 处理数据
+    row = df.iloc[1:, :].values.T
+    ylabels = df.iloc[0, :].values
+    ylabels = pd.Series(ylabels)
+
+    log_message(f"数据形状: {row.shape}, 样本数: {row.shape[0]}, 特征数: {row.shape[1]}")
+    log_message(f"类别标签统计: {dict(ylabels.value_counts())}")
+
+    # 检查类别数量
+    if len(ylabels.value_counts()) < 2:
+        warning_msg = "数据中只有一种类别，需要至少两种类别才能训练模型"
+        messagebox.showwarning("警告", warning_msg)
+        log_message(f"警告：{warning_msg}")
+        
+    # 标签编码
+    try:
+        # 尝试从data_store获取用户设置的类别映射
+        import data_store
+        classification = data_store.get_file_classification()
+        if classification['class_0_files'] or classification['class_1_files']:
+            # 用户已进行过文件分类，使用用户设置的映射
+            CLASS_MAPPING = {
+                classification['class_0_name']: 0,
+                classification['class_1_name']: 1
+            }
+            log_message(f"使用用户自定义类别映射: {CLASS_MAPPING}")
+        else:
+            # 2. 如果没有用户分类，从CSV数据中自动检测类别
+            unique_labels = ylabels.unique()
+            if len(unique_labels) >= 2:
+                CLASS_MAPPING = {unique_labels[0]: 0, unique_labels[1]: 1}
+                log_message(f"从CSV自动检测类别映射: {CLASS_MAPPING}")
+            else:
+                # 3. 若文件分类标签小于2则回退到默认映射
+                from config import CLASS_MAPPING
+                log_message("使用默认类别映射: HC/LC")
+
+    except Exception as e:
+        # 如果失败，使用原来的默认映射
+        from config import CLASS_MAPPING
+        log_message(f"映射检测失败，使用默认类别映射: {e}")
+    
+    column = np.array([CLASS_MAPPING.get(label, -1) for label in ylabels])
+
+    # 检查未知类别
+    if -1 in column:
+        unknown_classes = set(ylabels[column == -1])
+        warning_msg = f"发现未知类别: {unknown_classes}，请检查您的类别映射"
+        log_message(f"警告：{warning_msg}")
+        messagebox.showwarning("警告", warning_msg)
+    else:
+        log_message("标签编码完成，数据预处理成功")
+
+    return row, column, df
