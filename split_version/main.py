@@ -91,17 +91,6 @@ def create_gui():
                             command=lambda: open_folder_classification_window(root))
     data_btn.pack(side="left", padx=5)
     
-    # 模型选择下拉菜单
-    model_label = ctk.CTkLabel(menu_container, text="模型选择:", 
-                              font=ctk.CTkFont(size=12, weight="bold"))
-    model_label.pack(side="left", padx=(15, 5))
-    
-    
-    model_menu = ctk.CTkOptionMenu(menu_container, values=list(MODEL_CONFIGS.keys()),
-                                  command=lambda choice: on_selected_ctk(choice))
-    model_menu.set(exact_selection)
-    model_menu.pack(side="left", padx=5)
-    
     # 项目管理按钮
     project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
                                command=lambda: reset_analysis(help_system))
@@ -129,38 +118,44 @@ def create_gui():
                                 font=ctk.CTkFont(size=14, weight="bold"))
     control_title.grid(row=0, column=0, columnspan=2, pady=10)
 
-   # 文件选择
+   # 文件选择和模型选择
     open_button = ctk.CTkButton(control_frame, text="选择归一化.csv文件", width=180, height=35,
         command=lambda: open_data_file_wrapper(normalization_label, start_button, progress_bar))
     open_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
     help_system.add_hover_tip(open_button, "select_excel")
 
+    model_menu = ctk.CTkOptionMenu(control_frame, values=list(MODEL_CONFIGS.keys()),
+                              command=lambda choice: on_selected_ctk(choice), width=160, height=35)
+    model_menu.set(exact_selection)
+    model_menu.grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+    help_system.add_hover_tip(model_menu, "model_selection")
+
     normalization_label = ctk.CTkLabel(control_frame, text="文件未选择")
     normalization_label.grid(row=1, column=1, padx=10, pady=5, sticky='w')
+
+    model_status_label = ctk.CTkLabel(control_frame, text=f"已选择: {exact_selection}")
+    model_status_label.grid(row=2, column=1, padx=10, pady=5, sticky='w')
 
     # 训练控制
     start_button = ctk.CTkButton(control_frame, text='开始分析', width=180, height=35,
         command=lambda: predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_label, 
                                    balanced_accuracy_test_label, model_save_status_label, 
                                    exact_selection, help_system, root))
-    start_button.grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+    start_button.grid(row=3, column=0, padx=10, pady=5, sticky='ew')
     start_button.configure(state='disabled')
     help_system.add_hover_tip(start_button, "start_analysis")
 
-    display_label = ctk.CTkLabel(control_frame, text='默认使用'+exact_selection)
-    display_label.grid(row=2, column=1, padx=10, pady=5, sticky='w')
-    help_system.add_hover_tip(display_label, "model_selection")
-
     # 进度显示
     progress_label = ctk.CTkLabel(control_frame, text='分析进度: 0%')
-    progress_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
+    progress_label.grid(row=3, column=1, padx=10, pady=5, sticky='w')
     
     progress_bar = ctk.CTkProgressBar(control_frame, width=200)
-    progress_bar.grid(row=3, column=1, padx=10, pady=5, sticky='ew')
+    progress_bar.grid(row=3, column=2, padx=10, pady=5, sticky='ew')
     progress_bar.set(0)
     help_system.add_hover_tip(progress_bar, "progress")
 
     control_frame.grid_columnconfigure(1, weight=1)
+    control_frame.grid_columnconfigure(3, weight=1)
 
     # Frame2: 训练结果面板（中）
     result_frame = ctk.CTkFrame(root, corner_radius=10)
