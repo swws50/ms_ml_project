@@ -1,14 +1,21 @@
 # visualization.py - 可视化和图表生成模块（修复版本）
 
+# ========== 标准库导入 ==========
 import os
+
+# ========== 第三方库导入 ==========
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
 import customtkinter as ctk
 from tkinter import messagebox
+from PIL import Image
 
-from config import get_class_mapping, OUTPUT_FILES  # 导入OUTPUT_FILES
+# ========== 本地模块导入 ==========
+from config import get_class_mapping, OUTPUT_FILES
 from utils import log_message
+import data_store
+
+
 
 def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test, 
                                Fscores, confusion_matrixs, fpr_list, tpr_list, 
@@ -259,7 +266,6 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
 
 def reset_analysis(help_system):
     """重置分析进度，开始新的分析流程"""
-    import data_store  # 导入数据存储模块
     
     if help_system:
         help_system.reset_progress()
@@ -267,5 +273,4 @@ def reset_analysis(help_system):
     # 清空数据存储模块中的数据
     data_store.clear_all_data()  # 修复：使用正确的函数名
     
-    from utils import log_message
     log_message("分析进度已重置，数据存储模块已清空", "INFO")

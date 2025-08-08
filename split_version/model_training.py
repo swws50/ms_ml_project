@@ -1,30 +1,38 @@
 # model_training.py - 模型训练和预测模块 (使用data_store版本)
 
+# ========== 标准库导入 ==========
 import os
-import numpy as np
-import tqdm
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (balanced_accuracy_score, confusion_matrix, 
-                            classification_report, roc_curve, auc)
-from sklearn.cross_decomposition import PLSRegression
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-from sklearn.neural_network import MLPClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
-from sklearn.svm import LinearSVC
-from joblib import dump, load
-from tkinter import messagebox, filedialog
-import customtkinter as ctk
 
-from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-                   MZ_TOLERANCE, get_class_mapping, get_normalization_factor)
-from utils import log_message, clear_log
-from visualization import visualize_performance
-import data_store  # 导入数据存储模块
-from config import (MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-                   MZ_TOLERANCE, get_class_mapping, get_normalization_factor)
+# ========== 第三方库导入 ==========
+import customtkinter as ctk
+import numpy as np
 import pandas as pd
+import tqdm
+from joblib import dump, load
+from sklearn.cross_decomposition import PLSRegression
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.metrics import (
+    balanced_accuracy_score, confusion_matrix, 
+    classification_report, roc_curve, auc
+)
+from sklearn.model_selection import train_test_split
+from sklearn.neural_network import MLPClassifier
+from sklearn.svm import LinearSVC
+from tkinter import messagebox, filedialog
+
+# ========== 本地模块导入 ==========
+from config import (
+    MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
+    MZ_TOLERANCE, get_class_mapping, get_normalization_factor
+)
+import data_store
+from utils import log_message, clear_log
 from validation_decorators import require_data_store, safe_model_operation, log_execution_time
+from visualization import visualize_performance
+
+
 
 def find_optimal_threshold(y_true, y_pred_proba):
     """

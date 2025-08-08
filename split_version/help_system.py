@@ -1,9 +1,16 @@
 # help_system.py - 帮助系统和进度跟踪模块
-import customtkinter as ctk
+
+# ========== 标准库导入 ==========
 import json
 import os
 
+# ========== 第三方库导入 ==========
+import customtkinter as ctk
+
+# ========== 本地模块导入 ==========
 from utils import log_message
+
+
 
 class HelpSystem:
     """统一的帮助系统类 - 完整功能实现"""

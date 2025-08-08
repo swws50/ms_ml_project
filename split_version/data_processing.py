@@ -1,24 +1,32 @@
 # data_processing.py - 数据处理模块
 
+# ========== 标准库导入 ==========
 import os
 import time
-import pandas as pd
-import numpy as np
-from tkinter import filedialog, messagebox, ttk
+
+# ========== 第三方库导入 ==========
 import customtkinter as ctk
+import numpy as np
+import pandas as pd
 import pyopenms as oms
-from config import OUTPUT_FILES, MZ_TOLERANCE, get_current_class_names, get_class_mapping, save_normalization_factor
-from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE, 
-                   ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, FALLBACK_FOLD_CHANGE,
-                   MZ_TOLERANCE)
+from tkinter import filedialog, messagebox, ttk
+
+# ========== 本地模块导入 ==========
+from config import (
+    OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
+    MIN_FOLD_CHANGE, ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, 
+    FALLBACK_FOLD_CHANGE, get_current_class_names, get_class_mapping, 
+    get_class_mapping_for_labels, save_normalization_factor
+)
+import data_store
+from output_manager import output_manager
 from utils import log_message, create_backup_filename
 from validation_decorators import safe_data_processing, handle_file_operations, validate_file_path
-from config import get_current_class_names, get_class_mapping
-from output_manager import output_manager
+
+
 
 def get_file_classification(file_path):
     """根据文件路径获取分类"""
-    import data_store  # 在函数内导入避免循环导入
     
     classification = data_store.get_file_classification()
     
@@ -33,7 +41,6 @@ def select_and_process_files_intelligent(root):
     """
     智能峰发现和特征提取的主函数
     """
-    import data_store
     classification = data_store.get_file_classification()
     file_paths = classification['class_0_files'] + classification['class_1_files']
     
@@ -502,7 +509,6 @@ def open_data_file(normalization_label, start_button, progress_bar):
     # 标签编码
     try:
         # 优先从CSV数据自动检测
-        from config import get_class_mapping_for_labels
         class_mapping = get_class_mapping_for_labels(ylabels)
         log_message(f"使用检测到的类别映射: {class_mapping}")
     except Exception as e:

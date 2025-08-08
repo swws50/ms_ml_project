@@ -1,25 +1,29 @@
-# main.py - 主程序入口和GUI界面 (使用data_store版本)
+# main.py - 主程序入口和GUI界面
 
-# 基础数据处理
+# ========== 标准库导入 ==========
 import os
 
+# ========== 第三方库导入 ==========
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 
-# 导入其他模块
+# ========== 本地模块导入 ==========
 from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
-from data_processing import  open_data_file, select_and_process_files_intelligent
+from data_processing import open_data_file, select_and_process_files_intelligent
 from model_training import predict_by_wrapper, open_file_dialog, show_model_info
 from help_system import HelpSystem
 from visualization import reset_analysis
-import data_store  # 导入数据存储模块
+import data_store  # 直接导入，因为确定不会循环导入
 
-# 全局变量
+# ========== 全局变量 ==========
+
 notebook = None
 info_text = None
 help_system = None
 exact_selection = DEFAULT_MODEL
+
+
 
 def on_selected_ctk(choice):
     """CustomTkinter下拉菜单的回调函数"""
@@ -57,7 +61,7 @@ def create_gui():
     
     # 设置 Customctk 主题
     ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("blue")
+    ctk.set_default_color_theme("dark-blue")
 
     root = ctk.CTk()
     root.title('诊断分析')
@@ -478,7 +482,6 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
             'class_1_files': class_1_files
         }
         
-        import data_store
         data_store.set_file_classification(classification_data)
         
         log_message(f"文件分类完成: {class_0_name.get()}({len(class_0_files)}个), {class_1_name.get()}({len(class_1_files)}个)")

@@ -1,5 +1,5 @@
 # data_store.py - 简化后的数据存储模块
-
+import numpy as np
 """
 这个文件用来存储程序中需要共享的数据
 相当于一个"数据仓库"，所有模块都可以访问
@@ -113,7 +113,6 @@ def get_training_data_info():
     
     row, column, df = get_training_data()
     
-    import numpy as np
     unique_classes = np.unique(column) if column is not None else []
     
     return {

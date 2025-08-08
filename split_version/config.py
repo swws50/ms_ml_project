@@ -1,7 +1,17 @@
 # config.py - 简化后的配置文件和常量定义
-from output_manager import output_manager
-from sklearn.model_selection import StratifiedKFold
+
+# ========== 标准库导入 ==========
 import os
+
+# ========== 第三方库导入 ==========
+import pandas as pd
+from sklearn.model_selection import StratifiedKFold
+
+# ========== 本地模块导入 ==========
+import data_store
+from output_manager import output_manager
+from utils import log_message
+
 # ========== 智能峰发现参数 ==========
 # 特征选择参数
 MAX_FEATURES = 50                # 最大特征数量
@@ -18,7 +28,6 @@ FALLBACK_OCCURRENCE_RATE = 0.1   # 备用模式的出现频率
 FALLBACK_FOLD_CHANGE = 1.2       # 备用模式的倍数变化
 
 # ========== 模型配置 ==========
-# 支持的模型类型及其参数配置
 MODEL_CONFIGS = {
     "RandomForestClassifier": {"n_estimators": 500},
     "LinearSVC": {"max_iter": 10000},
@@ -108,7 +117,6 @@ def get_class_mapping():
         tuple: (正向映射dict, 反向映射dict)
     """
     try:
-        import data_store
         classification = data_store.get_file_classification()
         
         # 检查是否有有效的用户分类
@@ -153,7 +161,6 @@ def get_class_mapping_for_labels(labels):
     返回:
         dict: 标签到数字的映射
     """
-    import pandas as pd
     if isinstance(labels, pd.Series):
         unique_labels = labels.unique()
     else:
@@ -176,16 +183,14 @@ def update_class_names(class_0_name, class_1_name):
         class_1_name: 类别1的名称
     """
     try:
-        import data_store
         classification = data_store.get_file_classification()
         classification['class_0_name'] = class_0_name
         classification['class_1_name'] = class_1_name
         data_store.set_file_classification(classification)
         
-        from utils import log_message
+
         log_message(f"类别名称已更新: {class_0_name}, {class_1_name}", "INFO")
     except Exception as e:
-        from utils import log_message
         log_message(f"更新类别名称失败: {str(e)}", "WARNING")
 
 def get_normalization_factor():
@@ -230,8 +235,6 @@ def save_normalization_factor(factor):
         with open(normalization_file, 'w') as f:
             f.write(str(factor))
         
-        from utils import log_message
         log_message(f"归一化因子已保存到: {normalization_file}, 值: {factor:.2f}", "SUCCESS")
     except Exception as e:
-        from utils import log_message
         log_message(f"保存归一化因子失败: {str(e)}", "WARNING")
