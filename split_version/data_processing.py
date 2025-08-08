@@ -14,6 +14,7 @@ from config import (MAX_FEATURES, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE,
 from utils import log_message, create_backup_filename
 from validation_decorators import safe_data_processing, handle_file_operations, validate_file_path
 from config import get_current_class_names, get_class_mapping
+from output_manager import output_manager
 
 def get_file_classification(file_path):
     """根据文件路径获取分类"""
@@ -456,7 +457,17 @@ def open_data_file(normalization_label, start_button, progress_bar):
     返回:
         tuple: (row, column, df) 特征矩阵、标签和原始DataFrame
     """
-    file_path = filedialog.askopenfilename(filetypes=[("CSV files", "*.csv")])  # 改为CSV文件
+    initial_dir = str(output_manager.get_path('data', ''))
+    
+    # 如果data文件夹不存在，回退到当前目录
+    if not os.path.exists(initial_dir):
+        initial_dir = "/"
+    
+    file_path = filedialog.askopenfilename(
+        initialdir=initial_dir,  # 默认打开data文件夹
+        title="选择归一化CSV文件",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
     
     if not file_path:
         log_message("用户取消了文件选择")

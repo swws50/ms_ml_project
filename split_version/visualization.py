@@ -1,4 +1,4 @@
-# visualization.py - 可视化和图表生成模块
+# visualization.py - 可视化和图表生成模块（修复版本）
 
 import os
 import numpy as np
@@ -7,7 +7,7 @@ from PIL import Image
 import customtkinter as ctk
 from tkinter import messagebox
 
-from config import get_class_mapping
+from config import get_class_mapping, OUTPUT_FILES  # 导入OUTPUT_FILES
 from utils import log_message
 
 def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test, 
@@ -15,19 +15,6 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
                                auc_list, thresholds_used=None):
     """
     生成机器学习模型的性能评估图表
-    
-    参数:
-        balanced_accuracy_train: 训练集平衡准确率列表
-        balanced_accuracy_test: 测试集平衡准确率列表
-        Fscores: F分数数组
-        confusion_matrixs: 混淆矩阵数组
-        fpr_list: 假阳性率列表
-        tpr_list: 真阳性率列表
-        auc_list: AUC值列表
-        thresholds_used: PLS回归使用的阈值列表（可选）
-        
-    返回:
-        dict: 生成的图表文件路径字典
     """
     log_message("开始生成可视化图表...")
     generated_charts = {}
@@ -47,10 +34,12 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.ylabel('Balanced Accuracy')
         plt.legend()
         plt.title('Training and Test Balanced Accuracy over Iterations')
-        chart_path = 'Training and Test Balanced Accuracy.png'
+        
+        # 修复：使用config中定义的路径
+        chart_path = OUTPUT_FILES['chart_accuracy']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
-        generated_charts['accuracy'] = chart_path
+        generated_charts['accuracy'] = str(chart_path)
 
         # 2. 生成F1分数等指标图表
         log_message("生成精确率/召回率/F1分数图...")
@@ -62,10 +51,12 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.ylabel('Score')
         plt.legend()
         plt.title('Weighted Average Precision, Recall, and F1-score over Iterations')
-        chart_path = 'Weighted Average Precision, Recall, and F1-score.png'
+        
+        # 修复：使用config中定义的路径
+        chart_path = OUTPUT_FILES['chart_metrics']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
-        generated_charts['metrics'] = chart_path
+        generated_charts['metrics'] = str(chart_path)
 
         # 3. 生成混淆矩阵图表
         log_message("生成混淆矩阵图...")
@@ -85,10 +76,12 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.xlabel('Predicted Class')
         plt.ylabel('True Class')
         plt.title('Mean Confusion Matrix')
-        chart_path = 'Mean Confusion Matrix.png'
+        
+        # 修复：使用config中定义的路径
+        chart_path = OUTPUT_FILES['chart_confusion']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
-        generated_charts['confusion'] = chart_path
+        generated_charts['confusion'] = str(chart_path)
 
         # 4. 生成ROC曲线
         log_message("生成ROC曲线图...")
@@ -102,10 +95,12 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.ylabel('True Positive Rate')
         plt.title('Mean ROC Curve')
         plt.legend()
-        chart_path = 'Mean ROC Curve.png'
+        
+        # 修复：使用config中定义的路径
+        chart_path = OUTPUT_FILES['chart_roc']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
-        generated_charts['roc'] = chart_path
+        generated_charts['roc'] = str(chart_path)
         
         # 5. 生成PLS阈值分布图（如果有阈值数据）
         if thresholds_used is not None and len(thresholds_used) > 0:
@@ -135,10 +130,12 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
                       fontsize=12)
             plt.ylim(0, y_max)
             plt.tight_layout()
-            chart_path = 'PLS_optimal_thresholds.png'
+            
+            # 修复：使用config中定义的路径
+            chart_path = OUTPUT_FILES['chart_thresholds']
             plt.savefig(chart_path, dpi=100, bbox_inches='tight')
             plt.close()
-            generated_charts['thresholds'] = chart_path
+            generated_charts['thresholds'] = str(chart_path)
 
         log_message("所有图表生成完成")
         return generated_charts
@@ -150,10 +147,6 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
 def create_visualization_tabs(root, generated_charts):
     """
     在GUI中创建可视化标签页显示图表
-    
-    参数:
-        root: tkinter根窗口
-        generated_charts: 生成的图表文件路径字典
     """
     # 检查是否有可视化容器
     if hasattr(root, 'visualization_container') and hasattr(root, 'visualization_placeholder'):
@@ -171,18 +164,17 @@ def create_visualization_tabs(root, generated_charts):
         notebook = ctk.CTkTabview(root, width=800, height=500)
         notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
 
-
-    # 图表文件列表和对应的标签页名称
+    # 修复：图表文件列表使用config中的路径
     chart_configs = [
-        ('Training and Test Balanced Accuracy.png', '准确率'),
-        ('Weighted Average Precision, Recall, and F1-score.png', '精确率/召回率/F1'),
-        ('Mean Confusion Matrix.png', '混淆矩阵'),
-        ('Mean ROC Curve.png', 'ROC曲线')
+        (str(OUTPUT_FILES['chart_accuracy']), '准确率'),
+        (str(OUTPUT_FILES['chart_metrics']), '精确率/召回率/F1'),
+        (str(OUTPUT_FILES['chart_confusion']), '混淆矩阵'),
+        (str(OUTPUT_FILES['chart_roc']), 'ROC曲线')
     ]
     
     # 如果有阈值数据，添加阈值分布图
-    if 'PLS_optimal_thresholds.png' in generated_charts.values():
-        chart_configs.append(('PLS_optimal_thresholds.png', '阈值分布'))
+    if str(OUTPUT_FILES['chart_thresholds']) in generated_charts.values():
+        chart_configs.append((str(OUTPUT_FILES['chart_thresholds']), '阈值分布'))
     
     # 创建选项卡
     for chart_file, tab_name in chart_configs:
@@ -245,23 +237,7 @@ def create_visualization_tabs(root, generated_charts):
 def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, 
                          confusion_matrixs, fpr_list, tpr_list, auc_list, 
                          thresholds_used=None, root=None):
-    """
-    可视化机器学习模型的多种性能指标并在GUI中显示结果。
-    
-    参数:
-        balanced_accuracy_train: 训练集平衡准确率列表
-        balanced_accuracy_test: 测试集平衡准确率列表
-        Fscores: 包含加权平均精确率、召回率和F1分数的数组
-        confusion_matrixs: 混淆矩阵数组
-        fpr_list: 假阳性率列表
-        tpr_list: 真阳性率列表
-        auc_list: AUC值列表
-        thresholds_used: 可选，PLS回归模型使用的最优阈值列表
-        root: tkinter根窗口
-        
-    返回:
-        None: 函数将图像保存到指定目录并在GUI中显示
-    """
+    """可视化机器学习模型的多种性能指标并在GUI中显示结果"""
     try:
         # 生成图表
         generated_charts = generate_performance_charts(
@@ -289,7 +265,7 @@ def reset_analysis(help_system):
         help_system.reset_progress()
     
     # 清空数据存储模块中的数据
-    data_store.clear_data()
+    data_store.clear_all_data()  # 修复：使用正确的函数名
     
     from utils import log_message
     log_message("分析进度已重置，数据存储模块已清空", "INFO")

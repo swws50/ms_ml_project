@@ -270,11 +270,15 @@ def predict_unknown_sample(file_path, prediction_result_label, help_system=None)
         # 加载模型
         loaded_model = data_store.get_best_model()
         if loaded_model is None:
-            if not os.path.exists(OUTPUT_FILES['best_model']):
+            # 使用OUTPUT_FILES中定义的正确路径
+            model_path = OUTPUT_FILES['best_model']
+            if not os.path.exists(model_path):
                 prediction_result_label.configure(text="错误，未找到保存的模型文件", text_color='red')
+                log_message(f"模型文件不存在: {model_path}", "ERROR")
                 return None, None
-            loaded_model = load(OUTPUT_FILES['best_model'])
-            log_message("从文件加载模型", "INFO")
+            
+            loaded_model = load(model_path)
+            log_message(f"从文件加载模型: {model_path}", "INFO")
         else:
             log_message("从数据存储模块获取模型", "INFO")
         

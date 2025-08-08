@@ -1,7 +1,7 @@
 # config.py - 简化后的配置文件和常量定义
-
+from output_manager import output_manager
 from sklearn.model_selection import StratifiedKFold
-
+import os
 # ========== 智能峰发现参数 ==========
 # 特征选择参数
 MAX_FEATURES = 50                # 最大特征数量
@@ -49,19 +49,52 @@ TEST_SIZE = 0.2
 MZ_TOLERANCE = 0.2
 NORMALIZATION_FACTOR = 871.7725  # 默认归一化因子（作为后备值）
 
-# ========== 文件名配置 ==========
-OUTPUT_FILES = {
-    'processed_data': 'normalized_ms_data.csv',
-    'confusion_matrix': 'Con_matrix_SVM.csv',
-    'fscore': 'Fscore_SVM.csv',
-    'auc': '2C_auc_SVM.csv',
-    'fpr_values': 'fpr_values.npy',
-    'tpr_values': 'tpr_values.npy',
-    'thresholds_values': 'thresholds_values.npy',
-    'pls_thresholds': 'PLS_optimal_thresholds.csv',
-    'best_model': 'best_model.joblib'
-}
+# ========== 文件路径配置（使用输出管理器）==========
+def get_output_files():
+    """动态生成输出文件路径"""
+    return {
+        # 数据文件
+        'processed_data': output_manager.get_path('data', 'normalized_ms_data.csv'),
+        'normalization_factor': output_manager.get_path('data', 'intelligent_normalization_factor.txt'),
+        
+        # 模型文件
+        'best_model': output_manager.get_path('model', 'best_model.joblib'),
+        
+        # 结果文件
+        'confusion_matrix': output_manager.get_path('result', 'Con_matrix_SVM.csv'),
+        'fscore': output_manager.get_path('result', 'Fscore_SVM.csv'),
+        'auc': output_manager.get_path('result', '2C_auc_SVM.csv'),
+        'fpr_values': output_manager.get_path('result', 'fpr_values.npy'),
+        'tpr_values': output_manager.get_path('result', 'tpr_values.npy'),
+        'thresholds_values': output_manager.get_path('result', 'thresholds_values.npy'),
+        'pls_thresholds': output_manager.get_path('result', 'PLS_optimal_thresholds.csv'),
+        
+        # 图表文件
+        'chart_accuracy': output_manager.get_path('chart', 'Training and Test Balanced Accuracy.png'),
+        'chart_metrics': output_manager.get_path('chart', 'Weighted Average Precision, Recall, and F1-score.png'),
+        'chart_confusion': output_manager.get_path('chart', 'Mean Confusion Matrix.png'),
+        'chart_roc': output_manager.get_path('chart', 'Mean ROC Curve.png'),
+        'chart_thresholds': output_manager.get_path('chart', 'PLS_optimal_thresholds.png')
+    }
 
+OUTPUT_FILES = get_output_files()
+
+# ========== 便捷保存函数 ==========
+def save_data_file(data, filename, method='pandas'):
+    """保存数据文件"""
+    return output_manager.save_file(data, 'data', filename, method)
+
+def save_model_file(model, filename):
+    """保存模型文件"""
+    return output_manager.save_file(model, 'model', filename, 'joblib')
+
+def save_result_file(data, filename, method='numpy'):
+    """保存结果文件"""
+    return output_manager.save_file(data, 'result', filename, method)
+
+def save_chart_file(figure, filename):
+    """保存图表文件"""
+    return output_manager.save_file(figure, 'chart', filename, 'matplotlib')
 # ========== 动态类别映射管理 ==========
 def get_class_mapping():
     """
@@ -166,10 +199,9 @@ def get_normalization_factor():
     返回:
         float: 归一化因子
     """
-    import os
     
     # 尝试读取智能方法的归一化因子
-    normalization_file = 'intelligent_normalization_factor.txt'
+    normalization_file = OUTPUT_FILES['normalization_factor']
     if os.path.exists(normalization_file):
         try:
             with open(normalization_file, 'r') as f:
@@ -189,11 +221,17 @@ def save_normalization_factor(factor):
         factor: 要保存的归一化因子
     """
     try:
-        with open('intelligent_normalization_factor.txt', 'w') as f:
+        # 修复：使用输出管理器的正确路径
+        normalization_file = OUTPUT_FILES['normalization_factor']
+        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(normalization_file), exist_ok=True)
+        
+        with open(normalization_file, 'w') as f:
             f.write(str(factor))
         
         from utils import log_message
-        log_message(f"归一化因子已保存: {factor:.2f}", "SUCCESS")
+        log_message(f"归一化因子已保存到: {normalization_file}, 值: {factor:.2f}", "SUCCESS")
     except Exception as e:
         from utils import log_message
         log_message(f"保存归一化因子失败: {str(e)}", "WARNING")

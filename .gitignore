@@ -8,3 +8,4 @@
 *.pyc
 data-analysis.py
 split_version/intelligent_normalization_factor.txt
+split_version/outputs/data/intelligent_normalization_factor.txt
