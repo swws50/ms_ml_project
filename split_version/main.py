@@ -181,22 +181,38 @@ def create_gui():
     predict_frame = ctk.CTkFrame(root, corner_radius=10)
     predict_frame.grid(row=2, column=2, sticky='nsew', padx=5, pady=5)
     
+    # 配置predict_frame的网格权重
+    predict_frame.grid_rowconfigure(1, weight=1)
+    predict_frame.grid_columnconfigure(0, weight=0)  # 按钮列不扩展
+    predict_frame.grid_columnconfigure(1, weight=1)  # 结果列扩展
+
     predict_title = ctk.CTkLabel(predict_frame, text="样本预测", 
                                 font=ctk.CTkFont(size=14, weight="bold"))
     predict_title.grid(row=0, column=0, pady=10)
 
-    file_button = ctk.CTkButton(predict_frame, text="选择要检测的txt文件", width=180, height=35,
+    # 创建左侧按钮容器
+    button_container = ctk.CTkFrame(predict_frame, fg_color="transparent")
+    button_container.grid(row=1, column=0, sticky='nsew', padx=(10, 5), pady=5)
+
+    # 创建右侧结果显示容器
+    result_container = ctk.CTkFrame(predict_frame, fg_color="transparent")
+    result_container.grid(row=1, column=1, sticky='nsew', padx=(5, 10), pady=5)
+
+    # 左侧按钮区域
+    file_button = ctk.CTkButton(button_container, text="选择要检测的txt文件", width=180, height=35,
         command=lambda: open_file_dialog(prediction_result_label, help_system))
-    file_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
+    file_button.pack(pady=(0, 10), fill='x')
     help_system.add_hover_tip(file_button, "select_predict_file")
 
-    prediction_result_label = ctk.CTkLabel(predict_frame, text='状态：等待选择文件')
-    prediction_result_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
-
-    model_info_button = ctk.CTkButton(predict_frame, text="查看模型详情", width=180, height=35,
+    model_info_button = ctk.CTkButton(button_container, text="查看模型详情", width=180, height=35,
         command=lambda: show_model_info())
-    model_info_button.grid(row=3, column=0, padx=10, pady=5, sticky='ew')
+    model_info_button.pack(pady=(0, 10), fill='x')
     help_system.add_hover_tip(model_info_button, "model_info")
+    
+    # 右侧结果显示区域
+    prediction_result_label = ctk.CTkLabel(result_container, text='状态：等待选择文件',
+                                        justify='left', anchor='nw')
+    prediction_result_label.pack(fill='both', expand=True, padx=5, pady=5)
 
     # Frame4: 可视化显示面板（左，占大部分空间）
     visualization_frame = ctk.CTkFrame(root, corner_radius=10)
