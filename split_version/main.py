@@ -11,7 +11,9 @@ from tkinter import filedialog, messagebox
 from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
 from data_processing import open_data_file, select_and_process_files_intelligent
-from model_training import predict_by_wrapper, open_file_dialog, show_model_info
+from model_training import predict_by_wrapper  # 训练功能
+from model_predictor import open_file_dialog   # 预测功能  
+from model_info import show_model_info
 from help_system import HelpSystem
 from visualization import reset_analysis
 import data_store  # 直接导入，因为确定不会循环导入

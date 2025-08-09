@@ -1,4 +1,4 @@
-# model_training.py - 模型训练和预测模块 (使用data_store版本)
+# model_training.py - 专门负责模型训练的模块（重构版）
 
 # ========== 标准库导入 ==========
 import os
@@ -6,9 +6,8 @@ import os
 # ========== 第三方库导入 ==========
 import customtkinter as ctk
 import numpy as np
-import pandas as pd
 import tqdm
-from joblib import dump, load
+from joblib import dump
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
@@ -20,36 +19,321 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
-from tkinter import messagebox, filedialog
+from tkinter import messagebox
 
 # ========== 本地模块导入 ==========
-from config import (
-    MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE, 
-    MZ_TOLERANCE, get_class_mapping, get_normalization_factor
-)
+from config import MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE
 import data_store
 from utils import log_message, clear_log
 from validation_decorators import require_data_store, safe_model_operation, log_execution_time
 from visualization import visualize_performance
 
 
-
-def find_optimal_threshold(y_true, y_pred_proba):
-    """
-    基于ROC曲线分析寻找最优分类阈值。
+class ModelTrainer:
+    """模型训练器类 - 统一管理训练相关功能"""
     
-    参数:
-        y_true: 真实类别标签
-        y_pred_proba: 模型的连续预测值或概率估计
+    def __init__(self):
+        self.training_results = {}
+        self.best_model = None
+        self.best_score = -1
+    
+    def find_optimal_threshold(self, y_true, y_pred_proba):
+        """
+        基于ROC曲线分析寻找最优分类阈值
         
-    返回:
-        float: 最优分类阈值
-    """
-    fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
-    # 找到最优点（约登指数最大的点）
-    optimal_idx = np.argmax(tpr - fpr)
-    return thresholds[optimal_idx]
+        参数:
+            y_true: 真实类别标签
+            y_pred_proba: 模型的连续预测值或概率估计
+            
+        返回:
+            float: 最优分类阈值
+        """
+        fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
+        optimal_idx = np.argmax(tpr - fpr)
+        return thresholds[optimal_idx]
+    
+    def train_single_iteration(self, row, column, model_class, params):
+        """
+        执行单次训练迭代
+        
+        参数:
+            row: 特征数据
+            column: 标签数据
+            model_class: 模型类
+            params: 模型参数
+            
+        返回:
+            dict: 本次迭代的结果
+        """
+        # 划分训练测试集
+        train_X, test_X, train_y, test_y = train_test_split(
+            row, column, test_size=TEST_SIZE, stratify=column
+        )
+        
+        # 训练模型
+        current_model = model_class(**params)
+        current_model.fit(train_X, train_y)
+        
+        # 预测处理
+        if isinstance(current_model, PLSRegression):
+            # PLS回归需要特殊处理
+            train_pred_raw = current_model.predict(train_X).flatten()
+            test_pred_raw = current_model.predict(test_X).flatten()
+            
+            optimal_threshold = self.find_optimal_threshold(train_y, train_pred_raw)
+            
+            train_y_pred = (train_pred_raw > optimal_threshold).astype(int)
+            test_y_pred = (test_pred_raw > optimal_threshold).astype(int)
+            
+            threshold_used = optimal_threshold
+        else:
+            train_y_pred = current_model.predict(train_X)
+            test_y_pred = current_model.predict(test_X)
+            threshold_used = None
+        
+        # 性能评估
+        fpr, tpr, thresholds = roc_curve(test_y, test_y_pred)
+        auc_score = auc(fpr, tpr)
+        
+        train_acc = balanced_accuracy_score(train_y, train_y_pred)
+        test_acc = balanced_accuracy_score(test_y, test_y_pred)
+        
+        # 混淆矩阵和F分数
+        cm = confusion_matrix(test_y, test_y_pred).flatten()
+        fscore_dict = classification_report(test_y, test_y_pred, labels=[0, 1], output_dict=True)
+        
+        fscores = [
+            fscore_dict["weighted avg"]["precision"],
+            fscore_dict["weighted avg"]["recall"],
+            fscore_dict["weighted avg"]["f1-score"],
+            0  # 预留位置
+        ]
+        
+        return {
+            'model': current_model,
+            'train_accuracy': train_acc,
+            'test_accuracy': test_acc,
+            'confusion_matrix': cm,
+            'fscores': fscores,
+            'fpr': fpr,
+            'tpr': tpr,
+            'roc_thresholds': thresholds,
+            'auc': auc_score,
+            'threshold_used': threshold_used
+        }
+    
+    def train_model(self, model_name, progress_callback=None):
+        """
+        执行完整的模型训练流程
+        
+        参数:
+            model_name: 模型名称
+            progress_callback: 进度回调函数 callback(progress, message)
+            
+        返回:
+            dict: 训练结果
+        """
+        # 获取训练数据
+        row, column, df = data_store.get_training_data()
+        log_message(f"获取训练数据: {row.shape}", "INFO")
+        
+        # 获取模型类和参数
+        if model_name not in MODEL_CONFIGS:
+            raise ValueError(f"未知的模型: {model_name}")
+        
+        model_class = globals()[model_name]
+        params = MODEL_CONFIGS[model_name]
+        
+        # 初始化结果存储
+        results = {
+            'balanced_accuracy_train': [],
+            'balanced_accuracy_test': [],
+            'trained_models': [],
+            'fpr_list': [],
+            'tpr_list': [],
+            'thresholds_list': [],
+            'auc_list': [],
+            'Fscores': np.zeros((TRAINING_ITERATIONS, 4)),
+            'thresholds_used': [],
+            'confusion_matrixs': np.zeros((TRAINING_ITERATIONS, 4))
+        }
+        
+        self.best_score = -1
+        self.best_model = None
+        
+        log_message(f"开始{TRAINING_ITERATIONS}轮训练循环...")
+        
+        # 主训练循环
+        for i in range(TRAINING_ITERATIONS):
+            # 执行单次训练
+            iteration_result = self.train_single_iteration(row, column, model_class, params)
+            
+            # 收集结果
+            results['balanced_accuracy_train'].append(iteration_result['train_accuracy'])
+            results['balanced_accuracy_test'].append(iteration_result['test_accuracy'])
+            results['trained_models'].append(iteration_result['model'])
+            results['fpr_list'].append(iteration_result['fpr'])
+            results['tpr_list'].append(iteration_result['tpr'])
+            results['thresholds_list'].append(iteration_result['roc_thresholds'])
+            results['auc_list'].append(iteration_result['auc'])
+            results['Fscores'][i] = iteration_result['fscores']
+            results['confusion_matrixs'][i] = iteration_result['confusion_matrix']
+            
+            if iteration_result['threshold_used'] is not None:
+                results['thresholds_used'].append(iteration_result['threshold_used'])
+            
+            # 更新最佳模型
+            test_acc = iteration_result['test_accuracy']
+            if test_acc > self.best_score:
+                self.best_score = test_acc
+                self.best_model = iteration_result['model']
+                log_message(f"发现更高分数：{self.best_score:.4f} (迭代{i+1})")
+            
+            # 更新进度
+            if progress_callback:
+                progress = (i + 1) / TRAINING_ITERATIONS
+                progress_callback(progress, f'分析进度: {progress:.1%}')
+        
+        log_message(f"训练完成！最优模型分数：{self.best_score:.4f}")
+        
+        # 保存最佳模型
+        data_store.set_best_model(self.best_model)
+        log_message("最佳模型已保存到数据存储模块", "SUCCESS")
+        
+        # 保存训练结果
+        self.save_training_results(results)
+        
+        self.training_results = results
+        return results
+    
+    def save_training_results(self, results):
+        """保存训练结果到文件"""
+        log_message("保存训练结果文件...")
+        
+        try:
+            # 保存各种指标
+            np.savetxt(OUTPUT_FILES['confusion_matrix'], results['confusion_matrixs'], delimiter=",")
+            np.savetxt(OUTPUT_FILES['fscore'], results['Fscores'], delimiter=",")
+            np.savetxt(OUTPUT_FILES['auc'], results['auc_list'], delimiter=",")
+            np.save(OUTPUT_FILES['fpr_values'], np.array(results['fpr_list'], dtype=object))
+            np.save(OUTPUT_FILES['tpr_values'], np.array(results['tpr_list'], dtype=object))
+            np.save(OUTPUT_FILES['thresholds_values'], np.array(results['thresholds_list'], dtype=object))
+            
+            # 保存最佳模型
+            if self.best_model is not None:
+                dump(self.best_model, OUTPUT_FILES['best_model'])
+                log_message(f"最优模型已保存到文件，测试集分数: {self.best_score:.4f}")
+            
+            # 保存PLS阈值（如果存在）
+            if len(results['thresholds_used']) > 0:
+                np.savetxt(OUTPUT_FILES['pls_thresholds'], results['thresholds_used'], delimiter=",")
+                mean_threshold = np.mean(results['thresholds_used'])
+                log_message(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
+                
+        except Exception as e:
+            log_message(f"保存训练结果失败: {str(e)}", "ERROR")
+    
+    def get_training_summary(self):
+        """
+        获取训练结果摘要
+        
+        返回:
+            dict: 训练摘要信息
+        """
+        if not self.training_results:
+            return {"error": "尚未完成训练"}
+        
+        results = self.training_results
+        
+        return {
+            "best_score": self.best_score,
+            "mean_train_accuracy": np.mean(results['balanced_accuracy_train']),
+            "mean_test_accuracy": np.mean(results['balanced_accuracy_test']),
+            "mean_auc": np.mean(results['auc_list']),
+            "n_iterations": len(results['balanced_accuracy_test']),
+            "model_type": type(self.best_model).__name__ if self.best_model else None,
+            "has_thresholds": len(results['thresholds_used']) > 0
+        }
 
+
+class TrainingUI:
+    """训练界面处理类"""
+    
+    def __init__(self, help_system=None):
+        self.trainer = ModelTrainer()
+        self.help_system = help_system
+    
+    def train_with_ui_feedback(self, model_name, progress_label, progress_bar, 
+                             train_label, test_label, status_label, root):
+        """
+        带UI反馈的训练函数
+        
+        参数:
+            model_name: 模型名称
+            progress_label: 进度标签
+            progress_bar: 进度条
+            train_label: 训练结果标签
+            test_label: 测试结果标签
+            status_label: 状态标签
+            root: 根窗口
+        """
+        def progress_callback(progress, message):
+            progress_label.configure(text=message)
+            progress_bar.set(progress)
+            root.update_idletasks()
+            root.update()
+        
+        try:
+            # 清空日志
+            clear_log()
+            log_message("=> 开始模型训练...")
+            log_message(f"使用模型: {model_name}")
+            
+            # 执行训练
+            results = self.trainer.train_model(model_name, progress_callback)
+            
+            # 更新UI显示
+            summary = self.trainer.get_training_summary()
+            train_label.configure(text=f"平均训练集平衡精度: {summary['mean_train_accuracy']:.4f}")
+            test_label.configure(text=f"平均测试集平衡精度: {summary['mean_test_accuracy']:.4f}")
+            status_label.configure(
+                text=f'模型保存状态: 已保存 (分数: {summary["best_score"]:.4f})', 
+                text_color='green'
+            )
+            
+            log_message(f"平均训练集平衡精度: {summary['mean_train_accuracy']:.4f}")
+            log_message(f"平均测试集平衡精度: {summary['mean_test_accuracy']:.4f}")
+            log_message("开始生成可视化图表...")
+            
+            # 推进步骤
+            if self.help_system:
+                self.help_system.advance_step("view_results")
+            
+            # 生成可视化
+            thresholds = results['thresholds_used'] if len(results['thresholds_used']) > 0 else None
+            visualize_performance(
+                results['balanced_accuracy_train'],
+                results['balanced_accuracy_test'],
+                results['Fscores'],
+                results['confusion_matrixs'],
+                results['fpr_list'],
+                results['tpr_list'],
+                results['auc_list'],
+                thresholds,
+                root
+            )
+            
+            log_message("所有任务完成！")
+            
+        except Exception as e:
+            error_msg = f"训练过程中出现错误: {str(e)}"
+            log_message(error_msg, "ERROR")
+            messagebox.showerror("训练错误", f"模型训练时出现错误：{str(e)}")
+            progress_bar.set(0)
+            status_label.configure(text='模型保存状态: 训练失败', text_color='red')
+
+
+# ========== 便捷函数接口（保持向后兼容）==========
 @require_data_store("training_data")
 @safe_model_operation("模型训练")
 @log_execution_time
@@ -57,479 +341,29 @@ def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_lab
                       balanced_accuracy_test_label, model_save_status_label, 
                       exact_selection, help_system, root):
     """
-    执行机器学习模型的训练、评估和保存的包装函数
+    保持与原代码兼容的训练包装函数
     """
-    # 从data_store获取训练数据
-    row, column, df = data_store.get_training_data()
-    log_message(f"从数据存储模块获取训练数据: {row.shape}", "INFO")
-    
-    # 清空日志旧信息
-    clear_log()
-    log_message("=> 开始模型训练...")
-    
-    log_message(f"使用模型: {exact_selection}")
-    log_message("数据验证通过，开始训练...")
-
-    # 初始化结果存储
-    balanced_accuracy_train = []  
-    balanced_accuracy_test = []
-    trained_models = []
-    fpr_list = []
-    tpr_list = []
-    thresholds_list = []
-    auc_list = []
-    Fscores = np.zeros((TRAINING_ITERATIONS, 4))
-    thresholds_used = []
-    confusion_matrixs = np.zeros((TRAINING_ITERATIONS, 4))
-    best_score = -1
-    best_model = None
-
-    try:
-        # 获取模型类和参数
-        model_class = globals()[exact_selection]
-        params = MODEL_CONFIGS[exact_selection]
-
-        # 主训练循环
-        log_message(f"开始{TRAINING_ITERATIONS}轮训练循环...")
-        for i in tqdm.tqdm(range(TRAINING_ITERATIONS)):
-            percentage = (i + 1) / TRAINING_ITERATIONS * 100
-
-            # === CustomTkinter 控件更新 ===
-            progress_label.configure(text='分析进度: {0:.2f}%'.format(percentage))
-            progress_bar.set(percentage / 100)  # 转换为 0-1 范围
-            root.update_idletasks()
-            root.update()
-
-            # 划分训练测试集
-            train_X, test_X, train_y, test_y = train_test_split(
-                row, column, test_size=TEST_SIZE, stratify=column
-            )
-            
-            # 训练模型
-            current_model = model_class(**params)
-            current_model.fit(train_X, train_y)
-
-            # 预测处理
-            if isinstance(current_model, PLSRegression):
-                # PLS回归需要特殊处理
-                train_pred_raw = current_model.predict(train_X).flatten()
-                test_pred_raw = current_model.predict(test_X).flatten()
-                
-                optimal_threshold = find_optimal_threshold(train_y, train_pred_raw)
-                thresholds_used.append(optimal_threshold)
-                
-                train_y_pred = (train_pred_raw > optimal_threshold).astype(int)
-                test_y_pred = (test_pred_raw > optimal_threshold).astype(int)
-            else:
-                train_y_pred = current_model.predict(train_X)
-                test_y_pred = current_model.predict(test_X)
-            
-            # 性能评估
-            fpr, tpr, thresholds = roc_curve(test_y, test_y_pred)
-            fpr_list.append(fpr)
-            tpr_list.append(tpr)
-            thresholds_list.append(thresholds)
-            auc_list.append(auc(fpr, tpr))
-
-            # 准确率计算
-            train_acc = balanced_accuracy_score(train_y, train_y_pred)
-            test_acc = balanced_accuracy_score(test_y, test_y_pred)
-            balanced_accuracy_train.append(train_acc)
-            balanced_accuracy_test.append(test_acc)
-
-            # 混淆矩阵和F分数
-            confusion_matrixs[i] = confusion_matrix(test_y, test_y_pred).flatten()
-            
-            fscore_dict = classification_report(test_y, test_y_pred, labels=[0, 1], output_dict=True)
-            Fscores[i][0] = fscore_dict["weighted avg"]["precision"]
-            Fscores[i][1] = fscore_dict["weighted avg"]["recall"]
-            Fscores[i][2] = fscore_dict["weighted avg"]["f1-score"]
-
-            trained_models.append(current_model)
-
-            # 更新最佳模型
-            if test_acc > best_score:
-                best_score = test_acc
-                best_model = current_model
-                log_message(f"发现更高分数：{best_score:.4f} (迭代{i+1})")
-
-        log_message(f"训练完成！最优模型分数：{best_score:.4f}")
-
-        # 保存最佳模型到data_store
-        data_store.set_best_model(best_model)
-        log_message("最佳模型已保存到数据存储模块", "SUCCESS")
-
-        # 保存训练结果
-        save_training_results(confusion_matrixs, Fscores, auc_list, fpr_list, 
-                             tpr_list, thresholds_list, thresholds_used, best_model, best_score)
-
-        # 更新UI显示
-        mean_balanced_accuracy_train = np.mean(balanced_accuracy_train)
-        mean_balanced_accuracy_test = np.mean(balanced_accuracy_test)
-        balanced_accuracy_train_label.configure(text=f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
-        balanced_accuracy_test_label.configure(text=f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
-        
-        model_save_status_label.configure(text=f'模型保存状态: 已保存 (分数: {best_score:.4f})', text_color='green')
-        
-        log_message(f"平均训练集平衡精度: {mean_balanced_accuracy_train:.4f}")
-        log_message(f"平均测试集平衡精度: {mean_balanced_accuracy_test:.4f}")
-        log_message("开始生成可视化图表...")
-        
-        # 推进步骤到"查看结果"
-        if help_system:
-            help_system.advance_step("view_results")
-
-        # 生成可视化
-        if len(trained_models) > 0 and isinstance(trained_models[0], PLSRegression) and len(thresholds_used) > 0:
-            visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, 
-                                confusion_matrixs, fpr_list, tpr_list, auc_list, thresholds_used, root)
-        else:
-            visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, 
-                                confusion_matrixs, fpr_list, tpr_list, auc_list, None, root)
-            
-        log_message("所有任务完成！")
-
-    except Exception as e:
-        log_message(f"训练过程中出现错误: {str(e)}", "ERROR")
-        messagebox.showerror("训练错误", f"模型训练时出现错误：{str(e)}")
-        progress_bar['value'] = 0
-        model_save_status_label.configure(text='模型保存状态: 训练失败', text_color='red')
-
-def save_training_results(confusion_matrixs, Fscores, auc_list, fpr_list, 
-                         tpr_list, thresholds_list, thresholds_used, best_model, best_score):
-    """保存训练结果到文件"""
-    log_message("保存训练结果文件...")
-    
-    # 保存各种指标
-    np.savetxt(OUTPUT_FILES['confusion_matrix'], confusion_matrixs, delimiter=",")
-    np.savetxt(OUTPUT_FILES['fscore'], Fscores, delimiter=",")
-    np.savetxt(OUTPUT_FILES['auc'], auc_list, delimiter=",")
-    np.save(OUTPUT_FILES['fpr_values'], np.array(fpr_list, dtype=object))
-    np.save(OUTPUT_FILES['tpr_values'], np.array(tpr_list, dtype=object))
-    np.save(OUTPUT_FILES['thresholds_values'], np.array(thresholds_list, dtype=object))
-    
-    # 保存最佳模型
-    if best_model is not None:
-        dump(best_model, OUTPUT_FILES['best_model'])
-        log_message(f"最优模型已保存到文件，测试集分数: {best_score:.4f}")
-    
-    # 保存PLS阈值（如果存在）
-    if len(thresholds_used) > 0:
-        np.savetxt(OUTPUT_FILES['pls_thresholds'], thresholds_used, delimiter=",")
-        mean_threshold = np.mean(thresholds_used)
-        log_message(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
-
-def get_prediction_probability(model, features):
-    """
-    获取给定模型对特征的预测概率
-    
-    参数:
-        model: 训练好的模型
-        features: 样本特征
-        
-    返回:
-        tuple: (预测类别, 概率数组)
-    """
-    if isinstance(model, PLSRegression):
-        # PLS回归模型处理
-        raw_value = model.predict(features).flatten()[0]
-        
-        try:
-            threshold = np.mean(np.loadtxt(OUTPUT_FILES['pls_thresholds'], delimiter=","))
-        except:
-            threshold = 0.5
-            
-        prob1 = 1 / (1 + np.exp(-(raw_value - threshold) * 10))
-        probs = np.array([1 - prob1, prob1])
-        pred = 1 if raw_value > threshold else 0
-        
-    elif hasattr(model, 'predict_proba'):
-        # 有predict_proba方法的模型
-        probs = model.predict_proba(features)[0]
-        pred = model.predict(features)[0]
-        
-    elif hasattr(model, 'decision_function'):
-        # 有decision_function的模型
-        decision_value = model.decision_function(features)
-        
-        if isinstance(decision_value, np.ndarray):
-            decision_value = decision_value.flatten()[0]
-            
-        prob1 = 1 / (1 + np.exp(-decision_value))
-        probs = np.array([1 - prob1, prob1])
-        pred = model.predict(features)[0]
-        
-    else:
-        # 其他模型
-        pred = model.predict(features)[0]
-        probs = np.array([0, 1]) if pred == 1 else np.array([1, 0])
-    
-    return pred, probs
-
-def predict_unknown_sample(file_path, prediction_result_label, help_system=None):
-    """
-    智能预测函数 - 自动检测特征和归一化因子
-    """
-
-    # 获取动态类别映射
-    _, reverse_class_mapping = get_class_mapping()
-
-    try:
-        # 加载模型
-        loaded_model = data_store.get_best_model()
-        if loaded_model is None:
-            # 使用OUTPUT_FILES中定义的正确路径
-            model_path = OUTPUT_FILES['best_model']
-            if not os.path.exists(model_path):
-                prediction_result_label.configure(text="错误，未找到保存的模型文件", text_color='red')
-                log_message(f"模型文件不存在: {model_path}", "ERROR")
-                return None, None
-            
-            loaded_model = load(model_path)
-            log_message(f"从文件加载模型: {model_path}", "INFO")
-        else:
-            log_message("从数据存储模块获取模型", "INFO")
-        
-        # 自动检测训练数据的特征
-        training_features, normalization_factor = detect_training_features()
-        
-        if training_features is None:
-            raise ValueError("无法检测训练特征，请确保训练数据文件存在")
-        
-        log_message(f"检测到 {len(training_features)} 个训练特征")
-        log_message(f"使用归一化因子: {normalization_factor:.2f}")
-        
-        # 使用检测到的特征和归一化因子处理样本
-        sample_features = process_prediction_sample(file_path, training_features, normalization_factor)
-        
-        # 预测
-        prediction, probabilities = get_prediction_probability(loaded_model, sample_features)
-        predicted_class = reverse_class_mapping.get(prediction, "未知")
-        
-        # 显示结果
-        confidence_text = f"类别概率: {reverse_class_mapping[0]}={probabilities[0]:.4f}, {reverse_class_mapping[1]}={probabilities[1]:.4f}"
-        result_text = f"预测结果: {predicted_class}\n{confidence_text}"
-        result_text += f"\n预测样本: {os.path.basename(file_path)}"
-        result_text += f"\n特征数量: {len(training_features)}"
-        result_text += f"\n归一化因子: {normalization_factor:.1f}"
-        
-       # 使用预测置信度来决定颜色，而不是固定的类别名称
-        max_probability = max(probabilities)
-        if max_probability >= 0.7:
-            text_color = 'green'  # 高置信度 - 绿色
-        elif max_probability >= 0.5:
-            text_color = 'blue'   # 中等置信度 - 蓝色  
-        else:
-            text_color = 'orange' # 低置信度 - 橙色
-
-        prediction_result_label.configure(text=result_text, 
-                                        text_color=text_color, 
-                                        font=ctk.CTkFont(size=12, weight="bold"))
-
-        if help_system:
-            help_system.complete_step("predict_sample")
-        
-        log_message(f"预测完成 - 样本: {os.path.basename(file_path)}, 结果: {predicted_class}", "SUCCESS")
-        return predicted_class, probabilities
-        
-    except Exception as e:
-        error_message = f"预测过程中发生错误：{str(e)}"
-        prediction_result_label.configure(text=error_message, text_color='red')
-        log_message(error_message, "ERROR")
-        return None, None
-
-def open_file_dialog(prediction_result_label, help_system=None):
-    """
-    打开文件选择对话框，用于选择要预测的样本文件。
-    
-    参数:
-        prediction_result_label: 用于显示预测结果的标签控件
-        help_system: 帮助系统实例
-    """
-    file_path = filedialog.askopenfilename(
-        initialdir="/",
-        title="选择要预测的文件",
-        filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
+    ui = TrainingUI(help_system)
+    ui.train_with_ui_feedback(
+        exact_selection, progress_label, progress_bar,
+        balanced_accuracy_train_label, balanced_accuracy_test_label,
+        model_save_status_label, root
     )
-    if file_path:
-        predict_unknown_sample(file_path, prediction_result_label, help_system)
 
-def detect_training_features():
-    """
-    从训练数据中检测特征和归一化因子
+
+# ========== 使用示例 ==========
+if __name__ == "__main__":
+    # 示例1: 直接使用训练器
+    trainer = ModelTrainer()
     
-    返回:
-        tuple: (特征列表, 归一化因子)
-    """
-    try:
-        # 1. 从CSV文件读取特征
-        data_file = OUTPUT_FILES['processed_data']
-        if not os.path.exists(data_file):
-            log_message("训练数据文件不存在", "ERROR")
-            return None, None
-        
-        df = pd.read_csv(data_file, index_col=0)
-        feature_names = df.index.tolist()[1:]  # 跳过'class'行
-        # 2. 检测归一化因子
-        normalization_factor = detect_normalization_factor(df)
-        
-        # 3. 转换特征名为数值
-        training_mz_values = []
-        for feature_name in feature_names:
-            try:
-                mz_value = float(feature_name)
-                training_mz_values.append(mz_value)
-            except ValueError:
-                log_message(f"无法解析特征名: {feature_name}，跳过", "WARNING")
-        
-        log_message(f"检测到{len(training_mz_values)} 个特征")
-        return training_mz_values, normalization_factor
-        
-    except Exception as e:
-        log_message(f"检测训练特征失败: {str(e)}", "ERROR")
-        return None, None
-
-
-def detect_normalization_factor(df):
-    """
-    检测归一化因子
-    """
-     # 优先使用配置管理中的统一函数
-    factor = get_normalization_factor()
-    # 如果是默认值，尝试从训练数据推断
-    if factor == get_normalization_factor():  # 说明是默认值
-        try:
-            max_training_value = df.iloc[1:, :].max().max()  # 跳过class行
-            
-            if 0.8 <= max_training_value <= 1.2:
-                log_message("训练数据已归一化，使用统一管理的因子", "INFO")
-            else:
-                log_message("使用训练数据最大值作为归一化因子", "INFO")
-                factor = max_training_value
-                
-        except Exception as e:
-            log_message(f"推断归一化因子失败: {str(e)}", "WARNING")
+    def simple_progress(progress, message):
+        print(f"{message} ({progress:.1%})")
     
-    log_message(f"最终使用归一化因子: {factor:.2f}", "INFO")
-    return factor
-
-
-def process_prediction_sample(file_path, training_mz_values, normalization_factor):
-    """
-    使用检测到的特征和归一化因子处理预测样本
-    """
-    # 读取原始数据
-    raw_data = pd.read_csv(file_path, sep=r'\s+', header=None)
-    results = []
+    # 假设数据已加载到data_store
+    results = trainer.train_model("PLSRegression", simple_progress)
+    summary = trainer.get_training_summary()
+    print(f"训练摘要: {summary}")
     
-    # 对每个训练特征提取强度
-    for target_mz in training_mz_values:
-        lower_bound = target_mz - MZ_TOLERANCE
-        upper_bound = target_mz + MZ_TOLERANCE
-        
-        filtered_df = raw_data[(raw_data[0] >= lower_bound) & (raw_data[0] <= upper_bound)]
-        
-        if not filtered_df.empty:
-            max_intensity = filtered_df[1].max()
-            normalized_intensity = max_intensity / normalization_factor
-        else:
-            normalized_intensity = 0.0
-        
-        results.append(normalized_intensity)
-    
-    return np.array(results).reshape(1, -1)
-
-def show_model_info():
-    """显示加载模型的详细信息窗口"""
-    try:
-        # 首先尝试从data_store获取模型
-        loaded_model = data_store.get_best_model()
-        
-        # 如果data_store中没有模型，尝试从文件加载
-        if loaded_model is None:
-            if not os.path.exists(OUTPUT_FILES['best_model']):
-                messagebox.showerror("错误", "未找到模型文件")
-                return
-            loaded_model = load(OUTPUT_FILES['best_model'])
-        
-        # === 使用 CustomTkinter 创建信息窗口 ===
-        info_window = ctk.CTkToplevel()
-        info_window.title(f"模型信息: {type(loaded_model).__name__}")
-        info_window.geometry("600x400")
-        
-        # === 添加强力的窗口置顶方案 ===
-        # 1. 设置为置顶窗口
-        info_window.attributes('-topmost', True)
-        
-        # 2. 获取焦点
-        info_window.focus_force()
-        
-        # 3. 抬升窗口
-        info_window.lift()
-        info_window.tkraise()
-        
-        # 4. 设置为模态窗口
-        info_window.grab_set()  # 模态窗口，必须先处理这个窗口
-        
-        # 5. 延迟取消置顶（保持用户友好）
-        info_window.after(1000, lambda: info_window.attributes('-topmost', False))
-        
-        # 6. 窗口关闭时恢复主窗口焦点
-        def on_closing():
-            info_window.grab_release()  # 释放模态
-            info_window.destroy()
-            # 这里可以添加恢复主窗口焦点的代码，但通常不需要
-        
-        info_window.protocol("WM_DELETE_WINDOW", on_closing)
-        
-        # 使用 CustomTkinter 文本框显示模型信息
-        info_text = ctk.CTkTextbox(info_window, width=580, height=360)
-        info_text.pack(fill='both', expand=True, padx=10, pady=10)
-        
-        # 获取模型信息
-        info_text.insert("end", f"模型类型: {type(loaded_model).__name__}\n\n")
-        
-        # 获取模型参数
-        info_text.insert("end", "模型参数:\n")
-        for param_name, param_value in loaded_model.get_params().items():
-            info_text.insert("end", f"- {param_name}: {param_value}\n")
-
-        # 特殊模型信息
-        if hasattr(loaded_model, 'feature_importances_'):
-            info_text.insert("end", "\n特征重要性:\n")
-            importances = loaded_model.feature_importances_
-            for i, imp in enumerate(importances):
-                info_text.insert("end", f"- 特征 {i+1}: {imp:.4f}\n")
-        
-        elif hasattr(loaded_model, 'coef_'):
-            info_text.insert("end", "\n特征系数:\n")
-            coefs = loaded_model.coef_
-            if coefs.ndim == 1:
-                for i, coef in enumerate(coefs):
-                    info_text.insert("end", f"- 特征 {i+1}: {coef:.4f}\n")
-            
-            elif isinstance(loaded_model, PLSRegression):
-                info_text.insert("end", "\nPLS回归特有信息:\n")
-                info_text.insert("end", f"- 组件数: {loaded_model.n_components}\n")
-                
-                if hasattr(loaded_model, 'x_weights_'):
-                    info_text.insert("end", "\nX权重 (前5个特征的前3个组件):\n")
-                    weights = loaded_model.x_weights_
-                    for i in range(min(5, weights.shape[0])):
-                        weight_str = ", ".join([f"{w:.4f}" for w in weights[i, :min(3, weights.shape[1])]])
-                        info_text.insert("end", f"- 特征 {i+1}: {weight_str}\n")
-                
-                if hasattr(loaded_model, 'x_loadings_'):
-                    info_text.insert("end", "\nX载荷 (前5个特征的前3个组件):\n")
-                    loadings = loaded_model.x_loadings_
-                    for i in range(min(5, loadings.shape[0])):
-                        loading_str = ", ".join([f"{l:.4f}" for l in loadings[i, :min(3, loadings.shape[1])]])
-                        info_text.insert("end", f"- 特征 {i+1}: {loading_str}\n")
-            else:
-                for class_idx, class_coef in enumerate(coefs):
-                    info_text.insert("end", f"\n类别 {class_idx} 的系数:\n")
-                    for i, coef in enumerate(class_coef):
-                        info_text.insert("end", f"- 特征 {i+1}: {coef:.4f}\n")
-                        
-    except Exception as e:
-        messagebox.showerror("错误", f"显示模型信息时出错: {str(e)}")
+    # 示例2: 使用UI训练器
+    # ui = TrainingUI()
+    # ui.train_with_ui_feedback("PLSRegression", ...)

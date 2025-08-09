@@ -19,6 +19,8 @@ _training_data = {
     'df': None        # 原始DataFrame
 }
 
+_training_data_path = None
+
 _best_model = None    # 最佳模型
 
 # ========== 文件分类相关函数 ==========
@@ -122,6 +124,15 @@ def get_training_data_info():
         'classes': unique_classes.tolist() if len(unique_classes) > 0 else [],
         'class_distribution': dict(zip(*np.unique(column, return_counts=True))) if column is not None else {}
     }
+
+def set_training_data_path(file_path):
+    """保存训练数据文件路径"""
+    global _training_data_path
+    _training_data_path = file_path
+
+def get_training_data_path():
+    """获取训练数据文件路径"""
+    return _training_data_path
 
 # ========== 模型相关函数 ==========
 def set_best_model(model):

@@ -480,6 +480,8 @@ def open_data_file(normalization_label, start_button, progress_bar):
         log_message("用户取消了文件选择")
         return None, None, None
     
+    data_store.set_training_data_path(file_path)
+    
     log_message(f"正在加载文件: {os.path.basename(file_path)}")
     
     
