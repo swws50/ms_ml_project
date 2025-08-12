@@ -1,4 +1,4 @@
-# main.py - 主程序入口和GUI界面
+# main.py - 主程序入口和GUI界面（类管理升级版）
 
 # ========== 标准库导入 ==========
 import os
@@ -11,267 +11,325 @@ from tkinter import filedialog, messagebox
 from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
 from data_processing import open_data_file, select_and_process_files_intelligent
-from model_training import predict_by_wrapper  # 训练功能
-from model_predictor import open_file_dialog   # 预测功能  
-from model_info import show_model_info
+from model_training import TrainingUI
+from model_predictor import PredictionUI
+from model_info import ModelInfoDisplay
 from help_system import HelpSystem
 from visualization import reset_analysis
 import data_store  # 直接导入，因为确定不会循环导入
 
-# ========== 全局变量 ==========
 
-notebook = None
-info_text = None
-help_system = None
-exact_selection = DEFAULT_MODEL
-
-
-
-def on_selected_ctk(choice):
-    """CustomTkinter下拉菜单的回调函数"""
-    global exact_selection, help_system
-    exact_selection = choice
-    log_message(f"已选择模型: {exact_selection}")
+class MainGUIManager:
+    """主界面管理器类 - 统一管理所有UI组件"""
     
-    if help_system:
-        help_system.advance_step("train_model")
-
-
-def open_data_file_wrapper(normalization_label, start_button, progress_bar):
-    """包装函数，处理文件加载并推进步骤"""
-    global help_system
-    
-    # 调用数据处理函数
-    row, column, df = open_data_file(normalization_label, start_button, progress_bar)
-    
-    if row is not None and column is not None:
-        # 将数据存储到data_store模块
-        data_store.set_training_data(row, column, df)
-        log_message("训练数据已加载到数据存储模块", "SUCCESS")
+    def __init__(self, root):
+        self.root = root
+        self.help_system = None
+        self.exact_selection = DEFAULT_MODEL
         
-        # 推进步骤到"选择模型"
-        if help_system:
-            help_system.advance_step("select_model")
-    else:
-        log_message("数据加载失败", "ERROR")
+        self.model_info_display = None
+        self.training_ui = None
+        self.prediction_ui = None
 
-def create_gui():
-    """ 
-    创建并配置应用程序的主图形用户界面
-    """
-    global info_text, help_system, exact_selection
+        # 存储所有UI组件引用
+        self.components = {
+            'menu_frame': None,
+            'control_frame': None,
+            'result_frame': None, 
+            'predict_frame': None,
+            'visualization_frame': None,
+            'info_frame': None,
+            # 具体控件
+            'normalization_label': None,
+            'start_button': None,
+            'progress_bar': None,
+            'progress_label': None,
+            'model_menu': None,
+            'info_text': None,
+            'prediction_result_label': None,
+            'balanced_accuracy_train_label': None,
+            'balanced_accuracy_test_label': None,
+            'model_save_status_label': None,
+            'visualization_placeholder': None
+        }
     
-    # 设置 Customctk 主题
-    ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("dark-blue")
-
-    root = ctk.CTk()
-    root.title('诊断分析')
+    def on_model_selected(self, choice):
+        """模型选择回调函数"""
+        self.exact_selection = choice
+        log_message(f"已选择模型: {self.exact_selection}")
+        
+        if self.help_system:
+            self.help_system.advance_step("train_model")
     
-    # 创建帮助系统
-    help_system = HelpSystem(root)
-    
-    # 设置窗口大小和状态
-    width = root.winfo_screenwidth()
-    height = root.winfo_screenheight()
-    root.geometry(f"{width}x{height}+0+0")
-    try:
-        root.state('zoomed')  # Windows
-    except:
-        root.attributes('-zoomed', True)  # Linux
-   
-   # === 创建现代化顶部菜单栏 ===
-    menu_frame = ctk.CTkFrame(root, height=60, corner_radius=0)
-    menu_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=0, pady=0)
-    
-    # 菜单按钮容器
-    menu_container = ctk.CTkFrame(menu_frame, fg_color="transparent")
-    menu_container.pack(side="left", padx=20, pady=15)
+    def open_data_file_wrapper(self):
+        """数据文件加载包装函数"""
+        # 调用数据处理函数
+        row, column, df = open_data_file(
+            self.components['normalization_label'], 
+            self.components['start_button'], 
+            self.components['progress_bar']
+        )
+        
+        if row is not None and column is not None:
+            # 将数据存储到data_store模块
+            data_store.set_training_data(row, column, df)
+            log_message("训练数据已加载到数据存储模块", "SUCCESS")
             
-    # 数据预处理按钮
-    data_btn = ctk.CTkButton(menu_container, text="数据预处理", width=120, height=35,
-                            command=lambda: open_folder_classification_window(root))
-    data_btn.pack(side="left", padx=5)
+            # 推进步骤到"选择模型"
+            if self.help_system:
+                self.help_system.advance_step("select_model")
+        else:
+            log_message("数据加载失败", "ERROR")
     
-    # 项目管理按钮
-    project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
-                               command=lambda: reset_analysis(help_system))
-    project_btn.pack(side="left", padx=5)
+    def start_training_wrapper(self):
+        """训练开始包装函数"""
+        self.training_ui.train_with_ui_feedback(
+        self.exact_selection,
+        self.components['progress_label'], 
+        self.components['progress_bar'], 
+        self.components['balanced_accuracy_train_label'], 
+        self.components['balanced_accuracy_test_label'], 
+        self.components['model_save_status_label'], 
+        self.root
+    )
     
-    # 帮助按钮
-    help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
-                            command=help_system.show_wizard)
-    help_btn.pack(side="left", padx=5)
-
-     # 创建步骤进度指示器
-    help_system.create_progress_indicator(root, row=1, column=0, columnspan=3)
-
-    # 配置根窗口的网格权重
-    root.grid_rowconfigure(3, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-    root.grid_columnconfigure(1, weight=1)
-    root.grid_columnconfigure(2, weight=1)
-
-   # Frame1: 操作控制面板（左）
-    control_frame = ctk.CTkFrame(root, corner_radius=10)
-    control_frame.grid(row=2, column=0, sticky='nsew', padx=5, pady=5)
+    def open_file_dialog_wrapper(self):
+        """文件对话框包装函数"""
+        self.prediction_ui.open_file_dialog(self.components['prediction_result_label'])
     
-    control_title = ctk.CTkLabel(control_frame, text="操作控制", 
+    def create_gui_components(self):
+        """ 
+        创建并配置应用程序的主图形用户界面 - 类管理版本
+        """
+        # 设置 Customctk 主题
+        ctk.set_appearance_mode("light")
+        ctk.set_default_color_theme("dark-blue")
+
+        self.root.title('诊断分析')
+        
+        # 创建帮助系统
+        self.help_system = HelpSystem(self.root)
+
+        # 创建训练和预测系统
+        self.model_info_display = ModelInfoDisplay()
+        self.training_ui = TrainingUI(self.help_system)
+        self.prediction_ui = PredictionUI(self.help_system)
+
+        # 设置窗口大小和状态
+        width = self.root.winfo_screenwidth()
+        height = self.root.winfo_screenheight()
+        self.root.geometry(f"{width}x{height}+0+0")
+        try:
+            self.root.state('zoomed')  # Windows
+        except:
+            self.root.attributes('-zoomed', True)  # Linux
+       
+        # === 创建现代化顶部菜单栏 ===
+        self.components['menu_frame'] = ctk.CTkFrame(self.root, height=60, corner_radius=0)
+        self.components['menu_frame'].grid(row=0, column=0, columnspan=3, sticky='ew', padx=0, pady=0)
+        
+        # 菜单按钮容器
+        menu_container = ctk.CTkFrame(self.components['menu_frame'], fg_color="transparent")
+        menu_container.pack(side="left", padx=20, pady=15)
+                
+        # 数据预处理按钮
+        data_btn = ctk.CTkButton(menu_container, text="数据预处理", width=120, height=35,
+                                command=lambda: open_folder_classification_window(self.root))
+        data_btn.pack(side="left", padx=5)
+        
+        # 项目管理按钮
+        project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
+                                   command=lambda: reset_analysis(self.help_system))
+        project_btn.pack(side="left", padx=5)
+        
+        # 帮助按钮
+        help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
+                                command=self.help_system.show_wizard)
+        help_btn.pack(side="left", padx=5)
+
+        # 创建步骤进度指示器
+        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=3)
+
+        # 配置根窗口的网格权重
+        self.root.grid_rowconfigure(3, weight=1)
+        self.root.grid_columnconfigure(0, weight=1)
+        self.root.grid_columnconfigure(1, weight=1)
+        self.root.grid_columnconfigure(2, weight=1)
+
+        # === 创建各个面板 ===
+        self._create_control_panel()
+        self._create_result_panel()
+        self._create_predict_panel()
+        self._create_visualization_panel()
+        self._create_info_panel()
+        
+        # 保存容器引用供visualize_performance使用
+        self.root.visualization_container = self.components['visualization_frame']
+        self.root.visualization_placeholder = self.components['visualization_placeholder']
+        
+        # 设置全局组件引用
+        set_global_widgets(self.components['info_text'], self.root)
+
+        # 初始化日志
+        log_message("系统已启动，等待用户操作...")
+        log_message("数据存储模块已初始化", "INFO")
+
+        # 如果是首次运行，显示向导
+        if self.help_system.show_wizard_on_startup:
+            self.root.after(500, self.help_system.show_wizard)
+    
+    def _create_control_panel(self):
+        """创建操作控制面板"""
+        self.components['control_frame'] = ctk.CTkFrame(self.root, corner_radius=10)
+        self.components['control_frame'].grid(row=2, column=0, sticky='nsew', padx=5, pady=5)
+        
+        control_title = ctk.CTkLabel(self.components['control_frame'], text="操作控制", 
+                                    font=ctk.CTkFont(size=14, weight="bold"))
+        control_title.grid(row=0, column=0, columnspan=2, pady=10)
+
+        # 文件选择和模型选择
+        open_button = ctk.CTkButton(self.components['control_frame'], text="选择归一化.csv文件", width=180, height=35,
+            command=self.open_data_file_wrapper)
+        open_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
+        self.help_system.add_hover_tip(open_button, "select_excel")
+
+        self.components['model_menu'] = ctk.CTkOptionMenu(self.components['control_frame'], 
+                                  values=list(MODEL_CONFIGS.keys()),
+                                  command=self.on_model_selected, width=160, height=35)
+        self.components['model_menu'].set(self.exact_selection)
+        self.components['model_menu'].grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+        self.help_system.add_hover_tip(self.components['model_menu'], "model_selection")
+
+        self.components['normalization_label'] = ctk.CTkLabel(self.components['control_frame'], text="文件未选择")
+        self.components['normalization_label'].grid(row=1, column=1, padx=10, pady=5, sticky='w')
+
+        model_status_label = ctk.CTkLabel(self.components['control_frame'], text=f"已选择: {self.exact_selection}")
+        model_status_label.grid(row=2, column=1, padx=10, pady=5, sticky='w')
+
+        # 训练控制
+        self.components['start_button'] = ctk.CTkButton(self.components['control_frame'], text='开始分析', width=180, height=35,
+            command=self.start_training_wrapper)
+        self.components['start_button'].grid(row=3, column=0, padx=10, pady=5, sticky='ew')
+        self.components['start_button'].configure(state='disabled')
+        self.help_system.add_hover_tip(self.components['start_button'], "start_analysis")
+
+        # 进度显示
+        self.components['progress_label'] = ctk.CTkLabel(self.components['control_frame'], text='分析进度: 0%')
+        self.components['progress_label'].grid(row=3, column=1, padx=10, pady=5, sticky='w')
+        
+        self.components['progress_bar'] = ctk.CTkProgressBar(self.components['control_frame'], width=200)
+        self.components['progress_bar'].grid(row=3, column=2, padx=10, pady=5, sticky='ew')
+        self.components['progress_bar'].set(0)
+        self.help_system.add_hover_tip(self.components['progress_bar'], "progress")
+
+        self.components['control_frame'].grid_columnconfigure(1, weight=1)
+        self.components['control_frame'].grid_columnconfigure(3, weight=1)
+    
+    def _create_result_panel(self):
+        """创建训练结果面板"""
+        self.components['result_frame'] = ctk.CTkFrame(self.root, corner_radius=10)
+        self.components['result_frame'].grid(row=2, column=1, sticky='nsew', padx=5, pady=5)
+        
+        result_title = ctk.CTkLabel(self.components['result_frame'], text="训练结果", 
+                                   font=ctk.CTkFont(size=14, weight="bold"))
+        result_title.grid(row=0, column=0, pady=10)
+
+        self.components['balanced_accuracy_train_label'] = ctk.CTkLabel(self.components['result_frame'], 
+                                                         text='平均训练集平衡精度: --')
+        self.components['balanced_accuracy_train_label'].grid(row=1, column=0, padx=10, pady=5, sticky='w')
+        self.help_system.add_hover_tip(self.components['balanced_accuracy_train_label'], "results")
+
+        self.components['balanced_accuracy_test_label'] = ctk.CTkLabel(self.components['result_frame'], 
+                                                        text='平均测试集平衡精度: --')
+        self.components['balanced_accuracy_test_label'].grid(row=2, column=0, padx=10, pady=5, sticky='w')
+        self.help_system.add_hover_tip(self.components['balanced_accuracy_test_label'], "results")
+
+        self.components['model_save_status_label'] = ctk.CTkLabel(self.components['result_frame'], 
+                                                 text='模型保存状态: 未保存')
+        self.components['model_save_status_label'].grid(row=3, column=0, padx=10, pady=5, sticky='w')
+    
+    def _create_predict_panel(self):
+        """创建样本预测面板"""
+        self.components['predict_frame'] = ctk.CTkFrame(self.root, corner_radius=10)
+        self.components['predict_frame'].grid(row=2, column=2, sticky='nsew', padx=5, pady=5)
+        
+        # 配置predict_frame的网格权重
+        self.components['predict_frame'].grid_rowconfigure(1, weight=1)
+        self.components['predict_frame'].grid_columnconfigure(0, weight=0)  # 按钮列不扩展
+        self.components['predict_frame'].grid_columnconfigure(1, weight=1)  # 结果列扩展
+
+        predict_title = ctk.CTkLabel(self.components['predict_frame'], text="样本预测", 
+                                    font=ctk.CTkFont(size=14, weight="bold"))
+        predict_title.grid(row=0, column=0, pady=10)
+
+        # 创建左侧按钮容器
+        button_container = ctk.CTkFrame(self.components['predict_frame'], fg_color="transparent")
+        button_container.grid(row=1, column=0, sticky='nsew', padx=(10, 5), pady=5)
+
+        # 创建右侧结果显示容器
+        result_container = ctk.CTkFrame(self.components['predict_frame'], fg_color="transparent")
+        result_container.grid(row=1, column=1, sticky='nsew', padx=(5, 10), pady=5)
+
+        # 左侧按钮区域
+        file_button = ctk.CTkButton(button_container, text="选择要检测的txt文件", width=180, height=35,
+            command=self.open_file_dialog_wrapper)
+        file_button.pack(pady=(0, 10), fill='x')
+        self.help_system.add_hover_tip(file_button, "select_predict_file")
+
+        model_info_button = ctk.CTkButton(button_container, text="查看模型详情", width=180, height=35,
+        command=lambda: self.model_info_display.show_info_window(self.root))
+        model_info_button.pack(pady=(0, 10), fill='x')
+        self.help_system.add_hover_tip(model_info_button, "model_info")
+        
+        # 右侧结果显示区域
+        self.components['prediction_result_label'] = ctk.CTkLabel(result_container, text='状态：等待选择文件',
+                                            justify='left', anchor='nw')
+        self.components['prediction_result_label'].pack(fill='both', expand=True, padx=5, pady=5)
+    
+    def _create_visualization_panel(self):
+        """创建可视化显示面板"""
+        self.components['visualization_frame'] = ctk.CTkFrame(self.root, corner_radius=10)
+        self.components['visualization_frame'].grid(row=3, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
+        
+        # 配置可视化框架的网格权重
+        self.components['visualization_frame'].grid_rowconfigure(1, weight=1)
+        self.components['visualization_frame'].grid_columnconfigure(0, weight=1)
+        
+        # 可视化标题
+        viz_title = ctk.CTkLabel(self.components['visualization_frame'], text="模型评估结果", 
                                 font=ctk.CTkFont(size=14, weight="bold"))
-    control_title.grid(row=0, column=0, columnspan=2, pady=10)
-
-   # 文件选择和模型选择
-    open_button = ctk.CTkButton(control_frame, text="选择归一化.csv文件", width=180, height=35,
-        command=lambda: open_data_file_wrapper(normalization_label, start_button, progress_bar))
-    open_button.grid(row=1, column=0, padx=10, pady=5, sticky='ew')
-    help_system.add_hover_tip(open_button, "select_excel")
-
-    model_menu = ctk.CTkOptionMenu(control_frame, values=list(MODEL_CONFIGS.keys()),
-                              command=lambda choice: on_selected_ctk(choice), width=160, height=35)
-    model_menu.set(exact_selection)
-    model_menu.grid(row=2, column=0, padx=10, pady=5, sticky='ew')
-    help_system.add_hover_tip(model_menu, "model_selection")
-
-    normalization_label = ctk.CTkLabel(control_frame, text="文件未选择")
-    normalization_label.grid(row=1, column=1, padx=10, pady=5, sticky='w')
-
-    model_status_label = ctk.CTkLabel(control_frame, text=f"已选择: {exact_selection}")
-    model_status_label.grid(row=2, column=1, padx=10, pady=5, sticky='w')
-
-    # 训练控制
-    start_button = ctk.CTkButton(control_frame, text='开始分析', width=180, height=35,
-        command=lambda: predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_label, 
-                                   balanced_accuracy_test_label, model_save_status_label, 
-                                   exact_selection, help_system, root))
-    start_button.grid(row=3, column=0, padx=10, pady=5, sticky='ew')
-    start_button.configure(state='disabled')
-    help_system.add_hover_tip(start_button, "start_analysis")
-
-    # 进度显示
-    progress_label = ctk.CTkLabel(control_frame, text='分析进度: 0%')
-    progress_label.grid(row=3, column=1, padx=10, pady=5, sticky='w')
+        viz_title.grid(row=0, column=0, pady=10)
+        
+        # 可视化占位区域
+        self.components['visualization_placeholder'] = ctk.CTkFrame(self.components['visualization_frame'])
+        self.components['visualization_placeholder'].grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
+        
+        placeholder_label = ctk.CTkLabel(self.components['visualization_placeholder'], 
+                                        text="训练完成后，模型评估图表将在此显示", 
+                                        font=ctk.CTkFont(size=12))
+        placeholder_label.pack(expand=True)
     
-    progress_bar = ctk.CTkProgressBar(control_frame, width=200)
-    progress_bar.grid(row=3, column=2, padx=10, pady=5, sticky='ew')
-    progress_bar.set(0)
-    help_system.add_hover_tip(progress_bar, "progress")
+    def _create_info_panel(self):
+        """创建运行信息面板"""
+        self.components['info_frame'] = ctk.CTkFrame(self.root, corner_radius=10)
+        self.components['info_frame'].grid(row=3, column=2, sticky='nsew', padx=5, pady=5)
+        
+        # 配置信息框架的网格权重
+        self.components['info_frame'].grid_rowconfigure(1, weight=1)
+        self.components['info_frame'].grid_columnconfigure(0, weight=1)
+        
+        # 信息显示标题
+        info_title = ctk.CTkLabel(self.components['info_frame'], text="运行信息", 
+                                 font=ctk.CTkFont(size=14, weight="bold"))
+        info_title.grid(row=0, column=0, pady=10)
 
-    control_frame.grid_columnconfigure(1, weight=1)
-    control_frame.grid_columnconfigure(3, weight=1)
+        # 日志文本框
+        self.components['info_text'] = ctk.CTkTextbox(self.components['info_frame'], width=300, height=250)
+        self.components['info_text'].grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
+        self.help_system.add_hover_tip(self.components['info_text'], "log_info")
 
-    # Frame2: 训练结果面板（中）
-    result_frame = ctk.CTkFrame(root, corner_radius=10)
-    result_frame.grid(row=2, column=1, sticky='nsew', padx=5, pady=5)
-    
-    result_title = ctk.CTkLabel(result_frame, text="训练结果", 
-                               font=ctk.CTkFont(size=14, weight="bold"))
-    result_title.grid(row=0, column=0, pady=10)
 
-    balanced_accuracy_train_label = ctk.CTkLabel(result_frame, text='平均训练集平衡精度: --')
-    balanced_accuracy_train_label.grid(row=1, column=0, padx=10, pady=5, sticky='w')
-    help_system.add_hover_tip(balanced_accuracy_train_label, "results")
-
-    balanced_accuracy_test_label = ctk.CTkLabel(result_frame, text='平均测试集平衡精度: --')
-    balanced_accuracy_test_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
-    help_system.add_hover_tip(balanced_accuracy_test_label, "results")
-
-    model_save_status_label = ctk.CTkLabel(result_frame, text='模型保存状态: 未保存')
-    model_save_status_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
-
-    # Frame3: 样本预测面板（右）
-    predict_frame = ctk.CTkFrame(root, corner_radius=10)
-    predict_frame.grid(row=2, column=2, sticky='nsew', padx=5, pady=5)
-    
-    # 配置predict_frame的网格权重
-    predict_frame.grid_rowconfigure(1, weight=1)
-    predict_frame.grid_columnconfigure(0, weight=0)  # 按钮列不扩展
-    predict_frame.grid_columnconfigure(1, weight=1)  # 结果列扩展
-
-    predict_title = ctk.CTkLabel(predict_frame, text="样本预测", 
-                                font=ctk.CTkFont(size=14, weight="bold"))
-    predict_title.grid(row=0, column=0, pady=10)
-
-    # 创建左侧按钮容器
-    button_container = ctk.CTkFrame(predict_frame, fg_color="transparent")
-    button_container.grid(row=1, column=0, sticky='nsew', padx=(10, 5), pady=5)
-
-    # 创建右侧结果显示容器
-    result_container = ctk.CTkFrame(predict_frame, fg_color="transparent")
-    result_container.grid(row=1, column=1, sticky='nsew', padx=(5, 10), pady=5)
-
-    # 左侧按钮区域
-    file_button = ctk.CTkButton(button_container, text="选择要检测的txt文件", width=180, height=35,
-        command=lambda: open_file_dialog(prediction_result_label, help_system))
-    file_button.pack(pady=(0, 10), fill='x')
-    help_system.add_hover_tip(file_button, "select_predict_file")
-
-    model_info_button = ctk.CTkButton(button_container, text="查看模型详情", width=180, height=35,
-        command=lambda: show_model_info())
-    model_info_button.pack(pady=(0, 10), fill='x')
-    help_system.add_hover_tip(model_info_button, "model_info")
-    
-    # 右侧结果显示区域
-    prediction_result_label = ctk.CTkLabel(result_container, text='状态：等待选择文件',
-                                        justify='left', anchor='nw')
-    prediction_result_label.pack(fill='both', expand=True, padx=5, pady=5)
-
-    # Frame4: 可视化显示面板（左，占大部分空间）
-    visualization_frame = ctk.CTkFrame(root, corner_radius=10)
-    visualization_frame.grid(row=3, column=0, columnspan=2, sticky='nsew', padx=5, pady=5)
-    
-   # 配置可视化框架的网格权重
-    visualization_frame.grid_rowconfigure(1, weight=1)
-    visualization_frame.grid_columnconfigure(0, weight=1)
-    
-    # 可视化标题
-    viz_title = ctk.CTkLabel(visualization_frame, text="模型评估结果", 
-                            font=ctk.CTkFont(size=14, weight="bold"))
-    viz_title.grid(row=0, column=0, pady=10)
-    
-    # 可视化占位区域
-    visualization_placeholder = ctk.CTkFrame(visualization_frame)
-    visualization_placeholder.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
-    
-    placeholder_label = ctk.CTkLabel(visualization_placeholder, 
-                                    text="训练完成后，模型评估图表将在此显示", 
-                                    font=ctk.CTkFont(size=12))
-    placeholder_label.pack(expand=True)
-    
-    # Frame5: 运行信息面板（右）
-    info_frame = ctk.CTkFrame(root, corner_radius=10)
-    info_frame.grid(row=3, column=2, sticky='nsew', padx=5, pady=5)
-    
-    # 配置信息框架的网格权重
-    info_frame.grid_rowconfigure(1, weight=1)
-    info_frame.grid_columnconfigure(0, weight=1)
-    
-    # 信息显示标题
-    info_title = ctk.CTkLabel(info_frame, text="运行信息", 
-                             font=ctk.CTkFont(size=14, weight="bold"))
-    info_title.grid(row=0, column=0, pady=10)
-
-    # 日志文本框
-    info_text = ctk.CTkTextbox(info_frame, width=300, height=250)
-    info_text.grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
-    help_system.add_hover_tip(info_text, "log_info")
-
-    # 保存容器引用供visualize_performance使用
-    root.visualization_container = visualization_frame
-    root.visualization_placeholder = visualization_placeholder
-
-    # 设置全局组件引用
-    set_global_widgets(info_text, root)
-
-    # 初始化日志
-    log_message("系统已启动，等待用户操作...")
-    log_message("数据存储模块已初始化", "INFO")
-
-    # 如果是首次运行，显示向导
-    if help_system.show_wizard_on_startup:
-        root.after(500, help_system.show_wizard)
-
-    return root
-
+# ========== 保持原有的便捷函数（兼容性） ==========
 
 def select_folder_for_classification():
     """选择文件夹并扫描txt文件"""
@@ -501,6 +559,17 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
         classification_window.destroy()
     
     classification_window.protocol("WM_DELETE_WINDOW", on_closing)
+
+
+def create_gui():
+    """
+    创建GUI - 使用新的类管理方式
+    """
+    root = ctk.CTk()
+    gui_manager = MainGUIManager(root)
+    gui_manager.create_gui_components()
+    return root
+
 
 if __name__ == "__main__":
     root = create_gui()
