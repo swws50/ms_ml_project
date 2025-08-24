@@ -15,8 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
     MIN_FOLD_CHANGE, ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, 
-    FALLBACK_FOLD_CHANGE, get_current_class_names, get_class_mapping, 
-    get_class_mapping_for_labels, save_normalization_factor
+    FALLBACK_FOLD_CHANGE, get_class_mapping, save_normalization_factor
 )
 import data_store
 from output_manager import output_manager
@@ -225,7 +224,8 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
         return pd.DataFrame()
     
     # === 动态获取类别名称 ===
-    class_0_name, class_1_name = get_current_class_names()
+    _, reverse_mapping = get_class_mapping()
+    class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
     
     log_message(f"开始ML导向的共识峰发现，输入 {len(all_peaks_df)} 个峰")
     log_message(f"使用类别: {class_0_name}, {class_1_name}")
@@ -487,6 +487,9 @@ def open_data_file(normalization_label, start_button, progress_bar):
     
     df = pd.read_csv(file_path, index_col=0)
     df = df.iloc[:, 1:]
+    
+    # 清除旧的分类信息，强制使用CSV中的实际标签
+    data_store.clear_file_classification()
 
     # === 更新 CustomTkinter 控件状态 ===
     normalization_label.configure(text="已选择")
@@ -509,24 +512,10 @@ def open_data_file(normalization_label, start_button, progress_bar):
         log_message(f"警告：{warning_msg}")
         
     # 标签编码
-    try:
-        # 优先从CSV数据自动检测
-        class_mapping = get_class_mapping_for_labels(ylabels)
-        log_message(f"使用检测到的类别映射: {class_mapping}")
-    except Exception as e:
-        # 回退到当前用户设置的映射
-        class_mapping, _ = get_class_mapping()
-        log_message(f"使用默认类别映射: {class_mapping}")
-    
-    column = np.array([class_mapping.get(label, -1) for label in ylabels])
+    class_mapping, _ = get_class_mapping(ylabels)
+    column = np.array([class_mapping[label] for label in ylabels])
 
-    # 检查未知类别
-    if -1 in column:
-        unknown_classes = set(ylabels[column == -1])
-        warning_msg = f"发现未知类别: {unknown_classes}，请检查您的类别映射"
-        log_message(f"警告：{warning_msg}")
-        messagebox.showwarning("警告", warning_msg)
-    else:
-        log_message("标签编码完成，数据预处理成功")
+
+    log_message("标签编码完成，数据预处理成功")
 
     return row, column, df

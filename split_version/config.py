@@ -105,7 +105,7 @@ def save_chart_file(figure, filename):
     """保存图表文件"""
     return output_manager.save_file(figure, 'chart', filename, 'matplotlib')
 # ========== 动态类别映射管理 ==========
-def get_class_mapping():
+def get_class_mapping(labels=None):
     """
     获取当前的类别映射
     
@@ -121,7 +121,7 @@ def get_class_mapping():
         
         # 检查是否有有效的用户分类
         if (classification['class_0_files'] or classification['class_1_files'] or 
-            classification['class_0_name'] != '0类' or classification['class_1_name'] != '1类'):
+            classification['class_0_name'] != '类别0' or classification['class_1_name'] != '类别1'):
             
             # 使用用户自定义的类别名称
             forward_mapping = {
@@ -136,62 +136,21 @@ def get_class_mapping():
     except (ImportError, AttributeError):
         pass
     
+    # 如果提供了labels参数，根据标签自动创建映射
+    if labels is not None:
+        if isinstance(labels, pd.Series):
+            unique_labels = labels.unique()
+        else:
+            unique_labels = list(set(labels))
+        
+        if len(unique_labels) >= 2:
+            return {unique_labels[0]: 0, unique_labels[1]: 1}, {0: unique_labels[0], 1: unique_labels[1]}
+        
     # 回退到默认映射
     default_forward = {"类别0": 0, "类别1": 1}
     default_reverse = {0: "类别0", 1: "类别1"}
     return default_forward, default_reverse
 
-def get_current_class_names():
-    """
-    获取当前的类别名称
-    
-    返回:
-        tuple: (class_0_name, class_1_name)
-    """
-    _, reverse_mapping = get_class_mapping()
-    return reverse_mapping[0], reverse_mapping[1]
-
-def get_class_mapping_for_labels(labels):
-    """
-    根据给定的标签数据自动创建类别映射
-    
-    参数:
-        labels: pandas.Series 或 list，包含类别标签
-        
-    返回:
-        dict: 标签到数字的映射
-    """
-    if isinstance(labels, pd.Series):
-        unique_labels = labels.unique()
-    else:
-        unique_labels = list(set(labels))
-    
-    if len(unique_labels) >= 2:
-        return {unique_labels[0]: 0, unique_labels[1]: 1}
-    else:
-        # 如果只有一个类别，返回默认映射
-        forward_mapping, _ = get_class_mapping()
-        return forward_mapping
-
-# ========== 便捷函数 ==========
-def update_class_names(class_0_name, class_1_name):
-    """
-    更新类别名称到data_store
-    
-    参数:
-        class_0_name: 类别0的名称
-        class_1_name: 类别1的名称
-    """
-    try:
-        classification = data_store.get_file_classification()
-        classification['class_0_name'] = class_0_name
-        classification['class_1_name'] = class_1_name
-        data_store.set_file_classification(classification)
-        
-
-        log_message(f"类别名称已更新: {class_0_name}, {class_1_name}", "INFO")
-    except Exception as e:
-        log_message(f"更新类别名称失败: {str(e)}", "WARNING")
 
 def get_normalization_factor():
     """
