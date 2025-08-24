@@ -429,14 +429,16 @@ class HelpSystem:
         step2 = wizard_tabs.add("2. 数据预处理")
         ctk.CTkLabel(step2, text="数据预处理步骤", 
                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step2, text="2. 选择处理模式：传统方式 或 智能峰发现",
+        ctk.CTkLabel(step2, text="1. 点击'数据预处理'按钮，打开文件分类窗口",
+            wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step2, text="2. 在弹出窗口中自定义两个类别的名称",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step2, text="3. 在弹出窗口中自定义两个类别的名称",
+        ctk.CTkLabel(step2, text="3. 分别选择包含两类样本的文件夹",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step2, text="4. 分别选择包含两类样本的文件夹",
+        ctk.CTkLabel(step2, text="4. 确认预览信息，开始处理生成CSV文件",
                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step2, text="5. 确认预览信息，开始处理生成CSV文件",
-                    wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step2, text="5. 等待智能峰发现处理完成，生成CSV文件",
+            wraplength=550).pack(anchor='w', padx=20, pady=2)
         # 第3步：模型训练
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估", 

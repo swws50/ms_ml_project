@@ -1,10 +1,10 @@
 # ui_components.py - UI组件模块化
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import customtkinter as ctk
 from tkinter import messagebox
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import MODEL_CONFIGS
 from utils import log_message
 
@@ -411,7 +411,7 @@ class InfoPanel(BasePanel):
         self.components['text_box'].delete("1.0", "end")
 
 
-# ========== UI组件工厂函数 ==========
+# UI组件工厂函数 
 def create_control_panel(parent, help_system, callbacks):
     """创建控制面板的工厂函数"""
     panel = ControlPanel(parent, help_system, callbacks)
