@@ -44,11 +44,7 @@ class MainGUIManager:
             'info': None
         }
         
-        # 保留一些旧的组件引用（渐进式迁移）
-        self.legacy_components = {
-            'menu_frame': None,
-            'visualization_placeholder': None  # 供visualization模块使用
-        }
+        self.menu_frame = None
     
     def create_gui_components(self):
         """ 
@@ -107,12 +103,11 @@ class MainGUIManager:
         self._create_ui_panels()
     
     def _create_menu_bar(self):
-        """创建菜单栏（保持原有实现）"""
-        self.legacy_components['menu_frame'] = ctk.CTkFrame(self.root, height=60, corner_radius=0)
-        self.legacy_components['menu_frame'].grid(row=0, column=0, columnspan=3, sticky='ew', padx=0, pady=0)
+        """创建菜单栏"""
+        self.menu_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0)
+        self.menu_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=0, pady=0)
         
-        # 菜单按钮容器
-        menu_container = ctk.CTkFrame(self.legacy_components['menu_frame'], fg_color="transparent")
+        menu_container = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
         menu_container.pack(side="left", padx=20, pady=15)
         
         # 数据预处理按钮
@@ -122,14 +117,14 @@ class MainGUIManager:
         
         # 项目管理按钮
         project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
-                                   command=lambda: reset_analysis(self.help_system))
+                                command=lambda: reset_analysis(self.help_system))
         project_btn.pack(side="left", padx=5)
         
         # 帮助按钮
         help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
                                 command=self.help_system.show_wizard)
         help_btn.pack(side="left", padx=5)
-    
+        
     def _create_ui_panels(self):
         """使用UI组件创建各个面板"""
         

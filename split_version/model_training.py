@@ -333,23 +333,6 @@ class TrainingUI:
             status_label.configure(text='模型保存状态: 训练失败', text_color='red')
 
 
-# ========== 便捷函数接口（保持向后兼容）==========
-@require_data_store("training_data")
-@safe_model_operation("模型训练")
-@log_execution_time
-def predict_by_wrapper(progress_label, progress_bar, balanced_accuracy_train_label, 
-                      balanced_accuracy_test_label, model_save_status_label, 
-                      exact_selection, help_system, root):
-    """
-    保持与原代码兼容的训练包装函数
-    """
-    ui = TrainingUI(help_system)
-    ui.train_with_ui_feedback(
-        exact_selection, progress_label, progress_bar,
-        balanced_accuracy_train_label, balanced_accuracy_test_label,
-        model_save_status_label, root
-    )
-
 
 # ========== 使用示例 ==========
 if __name__ == "__main__":

@@ -516,53 +516,6 @@ class PredictionManager:
         return results
 
 
-# ========== 便捷函数接口（保持向后兼容）==========
-def predict_unknown_sample(file_path, prediction_result_label, help_system=None):
-    """
-    便捷的预测函数 - 保持与原代码的兼容性
-    
-    参数:
-        file_path: 样本文件路径
-        prediction_result_label: 结果显示标签
-        help_system: 帮助系统实例
-        
-    返回:
-        tuple: (predicted_class, probabilities) 或 (None, None)
-    """
-    manager = PredictionManager(help_system)
-    manager.predict_and_display(file_path, prediction_result_label)
-    
-    # 为了兼容性，也返回预测结果
-    result = manager.predict_sample(file_path)
-    if result["success"]:
-        return result["predicted_class"], result["probabilities"]
-    else:
-        return None, None
-
-
-def open_file_dialog(prediction_result_label, help_system=None):
-    """
-    便捷的文件对话框函数 - 保持与原代码的兼容性
-    
-    参数:
-        prediction_result_label: 结果显示标签
-        help_system: 帮助系统实例
-    """
-    manager = PredictionManager(help_system)
-    manager.open_file_dialog(prediction_result_label)
-
-
-def show_model_info(parent=None):
-    """
-    便捷的模型信息显示函数 - 保持与原代码的兼容性
-    
-    参数:
-        parent: 父窗口
-    """
-    manager = PredictionManager()
-    manager.show_model_info_window(parent)
-
-
 # ========== 使用示例 ==========
 if __name__ == "__main__":
     # 示例1: 直接使用统一管理器
