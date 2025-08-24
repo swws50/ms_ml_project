@@ -12,8 +12,7 @@ from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
 from data_processing import open_data_file, select_and_process_files_intelligent
 from model_training import TrainingUI
-from model_predictor import PredictionUI
-from model_info import ModelInfoDisplay
+from model_predictor import PredictionManager  # 统一的预测管理器
 from help_system import HelpSystem
 from visualization import reset_analysis
 import data_store  # 直接导入，因为确定不会循环导入
@@ -27,9 +26,8 @@ class MainGUIManager:
         self.help_system = None
         self.exact_selection = DEFAULT_MODEL
         
-        self.model_info_display = None
         self.training_ui = None
-        self.prediction_ui = None
+        self.prediction_manager = None
 
         # 存储所有UI组件引用
         self.components = {
@@ -95,7 +93,7 @@ class MainGUIManager:
     
     def open_file_dialog_wrapper(self):
         """文件对话框包装函数"""
-        self.prediction_ui.open_file_dialog(self.components['prediction_result_label'])
+        self.prediction_manager.open_file_dialog(self.components['prediction_result_label'])
     
     def create_gui_components(self):
         """ 
@@ -111,9 +109,8 @@ class MainGUIManager:
         self.help_system = HelpSystem(self.root)
 
         # 创建训练和预测系统
-        self.model_info_display = ModelInfoDisplay()
         self.training_ui = TrainingUI(self.help_system)
-        self.prediction_ui = PredictionUI(self.help_system)
+        self.prediction_manager = PredictionManager(self.help_system) 
 
         # 设置窗口大小和状态
         width = self.root.winfo_screenwidth()
@@ -277,7 +274,7 @@ class MainGUIManager:
         self.help_system.add_hover_tip(file_button, "select_predict_file")
 
         model_info_button = ctk.CTkButton(button_container, text="查看模型详情", width=180, height=35,
-        command=lambda: self.model_info_display.show_info_window(self.root))
+        command=lambda: self.prediction_manager.show_model_info_window(self.root))
         model_info_button.pack(pady=(0, 10), fill='x')
         self.help_system.add_hover_tip(model_info_button, "model_info")
         
