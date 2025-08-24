@@ -5,7 +5,7 @@ import numpy as np
 相当于一个"数据仓库"，所有模块都可以访问
 """
 
-# ========== 全局数据变量 ==========
+# 全局数据变量 
 _file_classification = {
     'class_0_name': '类别0',  # 统一默认名称
     'class_1_name': '类别1', 
@@ -23,7 +23,7 @@ _training_data_path = None
 
 _best_model = None    # 最佳模型
 
-# ========== 文件分类相关函数 ==========
+# 文件分类相关函数 
 def set_file_classification(classification_data):
     """
     设置文件分类信息
@@ -84,7 +84,7 @@ def has_file_classification():
     return (len(_file_classification['class_0_files']) > 0 or 
             len(_file_classification['class_1_files']) > 0)
 
-# ========== 训练数据相关函数 ==========
+# 训练数据相关函数 
 def set_training_data(row, column, df):
     """设置训练数据"""
     global _training_data
@@ -134,7 +134,7 @@ def get_training_data_path():
     """获取训练数据文件路径"""
     return _training_data_path
 
-# ========== 模型相关函数 ==========
+# 模型相关函数 
 def set_best_model(model):
     """设置最佳模型"""
     global _best_model
@@ -165,7 +165,7 @@ def get_model_info():
         'model_params': model.get_params() if hasattr(model, 'get_params') else {}
     }
 
-# ========== 数据清理函数 ==========
+# 数据清理函数 
 def clear_file_classification():
     """清空文件分类数据"""
     global _file_classification
@@ -196,7 +196,7 @@ def clear_all_data():
     clear_training_data()
     clear_model()
 
-# ========== 状态检查函数 ==========
+# 状态检查函数 
 def get_system_status():
     """
     获取系统整体状态

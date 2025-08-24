@@ -1,9 +1,9 @@
 # model_training.py - 专门负责模型训练的模块（重构版）
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import customtkinter as ctk
 import numpy as np
 import tqdm
@@ -21,7 +21,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
 from tkinter import messagebox
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE
 import data_store
 from utils import log_message, clear_log
@@ -334,7 +334,7 @@ class TrainingUI:
 
 
 
-# ========== 使用示例 ==========
+# 使用示例 
 if __name__ == "__main__":
     # 示例1: 直接使用训练器
     trainer = ModelTrainer()

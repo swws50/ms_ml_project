@@ -1,18 +1,18 @@
 # config.py - 简化后的配置文件和常量定义
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 import data_store
 from output_manager import output_manager
 from utils import log_message
 
-# ========== 智能峰发现参数 ==========
+# 智能峰发现参数 
 # 特征选择参数
 MAX_FEATURES = 50                # 最大特征数量
 MIN_OCCURRENCE_RATE = 0.2        # 最小出现频率（20%的文件中出现）
@@ -27,7 +27,7 @@ ENABLE_FALLBACK = True           # 是否启用备用策略
 FALLBACK_OCCURRENCE_RATE = 0.1   # 备用模式的出现频率
 FALLBACK_FOLD_CHANGE = 1.2       # 备用模式的倍数变化
 
-# ========== 模型配置 ==========
+# 模型配置 
 MODEL_CONFIGS = {
     "RandomForestClassifier": {"n_estimators": 500},
     "LinearSVC": {"max_iter": 10000},
@@ -52,13 +52,13 @@ MODEL_CONFIGS = {
 # 默认模型选择
 DEFAULT_MODEL = "PLSRegression"
 
-# ========== 训练配置 ==========
+# 训练配置 
 TRAINING_ITERATIONS = 500
 TEST_SIZE = 0.2
 MZ_TOLERANCE = 0.2
 NORMALIZATION_FACTOR = 871.7725  # 默认归一化因子（作为后备值）
 
-# ========== 文件路径配置（使用输出管理器）==========
+# 文件路径配置（使用输出管理器）
 def get_output_files():
     """动态生成输出文件路径"""
     return {
@@ -88,7 +88,7 @@ def get_output_files():
 
 OUTPUT_FILES = get_output_files()
 
-# ========== 便捷保存函数 ==========
+# 便捷保存函数 
 def save_data_file(data, filename, method='pandas'):
     """保存数据文件"""
     return output_manager.save_file(data, 'data', filename, method)
@@ -104,7 +104,7 @@ def save_result_file(data, filename, method='numpy'):
 def save_chart_file(figure, filename):
     """保存图表文件"""
     return output_manager.save_file(figure, 'chart', filename, 'matplotlib')
-# ========== 动态类别映射管理 ==========
+# 动态类别映射管理 
 def get_class_mapping(labels=None):
     """
     获取当前的类别映射

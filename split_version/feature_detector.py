@@ -1,13 +1,13 @@
 # feature_detector.py - 特征检测和处理模块
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import numpy as np
 import pandas as pd
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import OUTPUT_FILES, MZ_TOLERANCE, get_normalization_factor
 import data_store
 from utils import log_message

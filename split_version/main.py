@@ -1,13 +1,13 @@
 # main.py - 使用UI组件的主程序（渐进式升级）
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
 from data_processing import open_data_file, select_and_process_files_intelligent
@@ -87,19 +87,19 @@ class MainGUIManager:
     
     def _create_layout(self):
         """创建UI布局"""
-        # === 创建顶部菜单栏（保持原样）===
+        # 创建顶部菜单栏（保持原样）
         self._create_menu_bar()
         
-        # === 创建进度指示器 ===
+        # 创建进度指示器 
         self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=3)
         
-        # === 配置网格权重 ===
+        # 配置网格权重 
         self.root.grid_rowconfigure(3, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         
-        # === 使用UI组件创建面板 ===
+        # 使用UI组件创建面板 
         self._create_ui_panels()
     
     def _create_menu_bar(self):
@@ -128,7 +128,7 @@ class MainGUIManager:
     def _create_ui_panels(self):
         """使用UI组件创建各个面板"""
         
-        # === 1. 控制面板 ===
+        # 1. 控制面板 
         control_callbacks = {
             'on_file_select': self.handle_file_select,
             'on_model_select': self.handle_model_select,
@@ -137,11 +137,11 @@ class MainGUIManager:
         self.ui_panels['control'] = ControlPanel(self.root, self.help_system, control_callbacks)
         self.ui_panels['control'].create_panel(row=2, column=0)
         
-        # === 2. 结果面板 ===
+        # 2. 结果面板 
         self.ui_panels['result'] = ResultPanel(self.root, self.help_system)
         self.ui_panels['result'].create_panel(row=2, column=1)
         
-        # === 3. 预测面板 ===
+        # 3. 预测面板 
         prediction_callbacks = {
             'on_predict_file': self.handle_predict_file,
             'on_model_info': self.handle_model_info,
@@ -149,11 +149,11 @@ class MainGUIManager:
         self.ui_panels['prediction'] = PredictionPanel(self.root, self.help_system, prediction_callbacks)
         self.ui_panels['prediction'].create_panel(row=2, column=2)
         
-        # === 4. 可视化面板 ===
+        # 4. 可视化面板 
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
         self.ui_panels['visualization'].create_panel(row=3, column=0, columnspan=2)
         
-        # === 5. 信息面板 ===
+        # 5. 信息面板 
         self.ui_panels['info'] = InfoPanel(self.root, self.help_system)
         self.ui_panels['info'].create_panel(row=3, column=2)
     
@@ -175,7 +175,7 @@ class MainGUIManager:
         if self.help_system.show_wizard_on_startup:
             self.root.after(500, self.help_system.show_wizard)
     
-    # ========== 业务逻辑处理方法 ==========
+    # 业务逻辑处理方法 
     
     def handle_file_select(self):
         """处理文件选择"""
@@ -242,7 +242,7 @@ class MainGUIManager:
         self.prediction_manager.show_model_info_window(self.root)
     
     
-    # ========== 公共接口方法（供其他模块调用）==========
+    # 公共接口方法（供其他模块调用）
     
     def get_control_panel(self):
         """获取控制面板实例"""
@@ -275,7 +275,7 @@ class MainGUIManager:
             self.ui_panels['prediction'].update_result(result_text, color)
 
 
-# ========== 保持原有的便捷函数（向后兼容）==========
+# 保持原有的便捷函数（向后兼容）
 
 def select_folder_for_classification():
     """选择文件夹并扫描txt文件"""
@@ -321,13 +321,13 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
     class_0_files = []
     class_1_files = []
     
-    # === 标题 ===
+    # 标题 
     title_label = ctk.CTkLabel(classification_window, 
                               text="数据文件分类设置", 
                               font=ctk.CTkFont(size=16, weight="bold"))
     title_label.pack(pady=10)
     
-    # === 类别名称设置区域 ===
+    # 类别名称设置区域 
     name_frame = ctk.CTkFrame(classification_window)
     name_frame.pack(fill='x', padx=20, pady=10)
     
@@ -346,7 +346,7 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
     class_1_entry = ctk.CTkEntry(name_input_frame, textvariable=class_1_name, width=120)
     class_1_entry.pack(side='left', padx=5)
     
-    # === 文件夹选择区域 ===
+    # 文件夹选择区域 
     folder_frame = ctk.CTkFrame(classification_window)
     folder_frame.pack(fill='x', padx=20, pady=10)
     
@@ -413,7 +413,7 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
     ctk.CTkButton(class_1_folder_frame, text="选择文件夹...", 
                  command=select_class_1_folder, width=120).pack(anchor='w', pady=2)
     
-    # === 预览区域 ===
+    # 预览区域 
     preview_frame = ctk.CTkFrame(classification_window)
     preview_frame.pack(fill='both', expand=True, padx=20, pady=10)
     
@@ -450,7 +450,7 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
     class_0_name.trace('w', lambda *args: update_preview())
     class_1_name.trace('w', lambda *args: update_preview())
     
-    # === 底部按钮 ===
+    # 底部按钮 
     button_frame = ctk.CTkFrame(classification_window, fg_color="transparent")
     button_frame.pack(fill='x', padx=20, pady=10)
     

@@ -1,17 +1,17 @@
 # data_processing.py - 数据处理模块
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 import time
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import customtkinter as ctk
 import numpy as np
 import pandas as pd
 import pyopenms as oms
 from tkinter import filedialog, messagebox, ttk
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
     MIN_FOLD_CHANGE, ENABLE_FALLBACK, FALLBACK_OCCURRENCE_RATE, 
@@ -56,7 +56,7 @@ def select_and_process_files_intelligent(root):
     try:
         log_message("🔬 开始智能峰发现处理...")
         
-        # === 创建进度条 ===
+        # 创建进度条 
         progress_label = ctk.CTkLabel(root, text="智能峰发现进度: 0%")
         progress_label.grid(row=8, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
         
@@ -64,9 +64,9 @@ def select_and_process_files_intelligent(root):
         progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
         progress_bar.set(0)
 
-        # === 阶段1：峰发现 ===
+        # 阶段1：峰发现 
         progress_label.configure(text="阶段1: 峰发现中...")
-        log_message("=== 阶段1：从所有文件中发现峰 ===")
+        log_message(" 阶段1：从所有文件中发现峰 ")
         
         all_peaks_data = []
         for index, file_path in enumerate(file_paths):
@@ -85,9 +85,9 @@ def select_and_process_files_intelligent(root):
         if not all_peaks_data:
             raise ValueError("未从任何文件中发现有效峰")
 
-        # === 阶段2：共识峰发现 ===
+        # 阶段2：共识峰发现 
         progress_label.configure(text="阶段2: 特征选择中...")
-        log_message("=== 阶段2：识别共识特征峰 ===")
+        log_message(" 阶段2：识别共识特征峰 ")
         
         # 合并所有峰数据
         all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
@@ -102,14 +102,14 @@ def select_and_process_files_intelligent(root):
         progress_label.configure(text="阶段2: 特征选择完成 (66%)")
         root.update()
 
-        # === 阶段3：特征矩阵构建 ===
+        # 阶段3：特征矩阵构建 
         progress_label.configure(text="阶段3: 构建特征矩阵...")
-        log_message("=== 阶段3：构建最终特征矩阵 ===")
+        log_message(" 阶段3：构建最终特征矩阵 ")
         
         # 构建特征矩阵
         all_results = build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_label, root)
         
-        # === 复用现有的保存函数 ===
+        # 复用现有的保存函数 
         success = safe_file_save(all_results, OUTPUT_FILES['processed_data'])
         
         # 清理进度条
@@ -223,7 +223,7 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
         log_message("输入峰数据为空", "ERROR")
         return pd.DataFrame()
     
-    # === 动态获取类别名称 ===
+    # 动态获取类别名称 
     _, reverse_mapping = get_class_mapping()
     class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
     
@@ -231,7 +231,7 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
     log_message(f"使用类别: {class_0_name}, {class_1_name}")
     log_message(f"配置参数: 最大特征={MAX_FEATURES}, 覆盖率≥{MIN_OCCURRENCE_RATE:.1%}, 倍数变化≥{MIN_FOLD_CHANGE:.1f}")
     
-    # === 使用动态类别名称 ===
+    # 使用动态类别名称 
     class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
     class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
     total_files = all_peaks_df['file_id'].nunique()
@@ -248,11 +248,11 @@ def find_consensus_peaks(all_peaks_df, max_features=50):
     for mz_group in all_peaks_df['mz_group'].unique():
         group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
         
-        # === 使用动态类别名称 ===
+        # 使用动态类别名称 
         class_0_data = group_data[group_data['class'] == class_0_name]
         class_1_data = group_data[group_data['class'] == class_1_name]
         
-        # === 关键条件：两类都必须存在这个峰 ===
+        # 关键条件：两类都必须存在这个峰 
         class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
         class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
         
@@ -330,7 +330,7 @@ def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_lab
     log_message(f"构建动态归一化特征矩阵: {len(file_paths)} 文件 × {len(consensus_peaks)} 特征")
     log_message(f"使用容差: {MZ_TOLERANCE} Da")
     
-    # === 第一轮：扫描所有数据，找到全局最大强度值 ===
+    # 第一轮：扫描所有数据，找到全局最大强度值 
     log_message("第一轮：扫描全局最大强度值...")
     global_max_intensity = 0.0
     all_file_peaks = {}  # 缓存每个文件的峰数据，避免重复计算
@@ -360,12 +360,12 @@ def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_lab
     # 保存归一化因子到文件
     save_normalization_factor(global_max_intensity)
 
-    # === 构建基础矩阵结构 ===
+    # 构建基础矩阵结构 
     feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" for _, peak in consensus_peaks.iterrows()]
     feature_series = pd.Series(data=feature_names, index=feature_names)
     all_results = pd.DataFrame(feature_series, columns=['m/z'])
     
-    # === 第二轮：使用全局最大值进行归一化处理 ===
+    # 第二轮：使用全局最大值进行归一化处理 
     log_message("第二轮：构建归一化特征矩阵...")
     
     for i, file_path in enumerate(file_paths):
@@ -400,7 +400,7 @@ def build_feature_matrix(file_paths, consensus_peaks, progress_bar, progress_lab
                     best_match_idx = mz_diff[mz_diff <= MZ_TOLERANCE].idxmin()
                     raw_intensity = peaks_df.loc[best_match_idx, 'intensity']
                     
-                    # === 关键：使用全局最大值进行归一化 ===
+                    # 关键：使用全局最大值进行归一化 
                     normalized_intensity = raw_intensity / global_max_intensity
                 else:
                     normalized_intensity = 0.0
@@ -491,7 +491,7 @@ def open_data_file(normalization_label, start_button, progress_bar):
     # 清除旧的分类信息，强制使用CSV中的实际标签
     data_store.clear_file_classification()
 
-    # === 更新 CustomTkinter 控件状态 ===
+    # 更新 CustomTkinter 控件状态 
     normalization_label.configure(text="已选择")
     start_button.configure(state='normal')
     progress_bar.set(0)  # CustomTkinter 进度条重置

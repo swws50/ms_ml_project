@@ -1,16 +1,16 @@
 # visualization.py - 可视化和图表生成模块（修复版本）
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import numpy as np
 import matplotlib.pyplot as plt
 import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import get_class_mapping, OUTPUT_FILES
 from utils import log_message
 import data_store
@@ -163,7 +163,7 @@ def create_visualization_tabs(root, generated_charts):
         except:
             pass
         
-        # === 创建更大的选项卡视图 ===
+        # 创建更大的选项卡视图 
         notebook = ctk.CTkTabview(root.visualization_container, width=800, height=500)
         notebook.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
     else:
@@ -190,7 +190,7 @@ def create_visualization_tabs(root, generated_charts):
                 # 创建选项卡
                 tab = notebook.add(tab_name)
                  
-                # === 创建图像显示框架 ===
+                # 创建图像显示框架 
                 image_frame = ctk.CTkFrame(tab, fg_color="transparent")
                 image_frame.pack(fill='both', expand=True, padx=10, pady=10)
                 
@@ -198,7 +198,7 @@ def create_visualization_tabs(root, generated_charts):
                 image = Image.open(chart_file)
                 img_width, img_height = image.size
                 
-               # === 计算最佳显示尺寸 ===
+               # 计算最佳显示尺寸 
                 # 可用的显示区域尺寸（考虑选项卡的标题栏和边距）
                 available_width = 760   # 800 - 40 (左右边距)
                 available_height = 440  # 500 - 60 (上下边距 + 选项卡标题)
@@ -216,7 +216,7 @@ def create_visualization_tabs(root, generated_charts):
                 resized_image = image.resize((final_width, final_height), Image.Resampling.LANCZOS)
                 ctk_image = ctk.CTkImage(light_image=resized_image, size=(final_width, final_height))
 
-                # === 居中显示图像 ===
+                # 居中显示图像 
                 label = ctk.CTkLabel(image_frame, image=ctk_image, text="")
                 label.place(relx=0.5, rely=0.5, anchor='center')  # 精确居中
                 

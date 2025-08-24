@@ -1,13 +1,13 @@
 # help_system.py - 帮助系统和进度跟踪模块
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import json
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import customtkinter as ctk
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from utils import log_message
 
 
@@ -20,7 +20,7 @@ class HelpSystem:
         self.config_file = config_file
         self.active_tooltips = {}  # 跟踪活动的提示窗口
         
-        # === 步骤进度跟踪 ===
+        # 步骤进度跟踪 
         self.steps = [
             {"id": "select_data", "name": "选择数据文件", "completed": False},
             {"id": "select_model", "name": "选择模型", "completed": False},
@@ -386,7 +386,7 @@ class HelpSystem:
         self.wizard_window.geometry("650x500")
         self.wizard_window.resizable(False, False)
 
-        # === 更强力的窗口置顶方案 ===
+        # 更强力的窗口置顶方案 
         # 1. 设置为置顶窗口
         self.wizard_window.attributes('-topmost', True)
         

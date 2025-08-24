@@ -1,9 +1,9 @@
 # model_predictor.py - 统一的预测管理模块（合并版）
 
-# ========== 标准库导入 ==========
+# 标准库导入 
 import os
 
-# ========== 第三方库导入 ==========
+# 第三方库导入 
 import customtkinter as ctk
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ from joblib import load
 from sklearn.cross_decomposition import PLSRegression
 from tkinter import filedialog, messagebox
 
-# ========== 本地模块导入 ==========
+# 本地模块导入 
 from config import OUTPUT_FILES, MZ_TOLERANCE, get_class_mapping
 import data_store
 from feature_detector import FeatureDetector
@@ -35,7 +35,7 @@ class PredictionManager:
         """更新类别映射"""
         self.class_mapping, self.reverse_class_mapping = get_class_mapping()
     
-    # ========== 模型加载相关 ==========
+    # 模型加载相关 
     def load_model(self):
         """
         加载最佳模型
@@ -66,7 +66,7 @@ class PredictionManager:
             self.model = None
             return False
     
-    # ========== 预测功能相关 ==========
+    # 预测功能相关 
     def get_prediction_probability(self, features):
         """
         获取预测概率 - 统一的概率计算接口
@@ -238,7 +238,7 @@ class PredictionManager:
         
         return result_text
     
-    # ========== UI交互相关 ==========
+    # UI交互相关 
     def open_file_dialog(self, result_label):
         """
         打开文件选择对话框
@@ -285,7 +285,7 @@ class PredictionManager:
                 text_color='red'
             )
     
-    # ========== 模型信息相关（从model_info.py迁移过来）==========
+    # 模型信息相关（从model_info.py迁移过来）
     def get_model_info(self):
         """
         获取模型详细信息
@@ -489,7 +489,7 @@ class PredictionManager:
         
         self.info_window.protocol("WM_DELETE_WINDOW", on_closing)
     
-    # ========== 批量预测相关（为步骤2准备）==========
+    # 批量预测相关（为步骤2准备）
     def batch_predict(self, file_paths, progress_callback=None):
         """
         批量预测功能
@@ -516,7 +516,7 @@ class PredictionManager:
         return results
 
 
-# ========== 使用示例 ==========
+# 使用示例 
 if __name__ == "__main__":
     # 示例1: 直接使用统一管理器
     manager = PredictionManager()
