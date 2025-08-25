@@ -285,7 +285,6 @@ class TrainingUI:
         
         try:
             # 清空日志
-            clear_log()
             log_message("=> 开始模型训练...")
             log_message(f"使用模型: {model_name}")
             

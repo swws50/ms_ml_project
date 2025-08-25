@@ -271,6 +271,6 @@ def reset_analysis(help_system):
         help_system.reset_progress()
     
     # 清空数据存储模块中的数据
-    data_store.clear_all_data()  # 修复：使用正确的函数名
+    data_store.clear_all_data()  
     
     log_message("分析进度已重置，数据存储模块已清空", "INFO")

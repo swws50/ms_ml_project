@@ -22,10 +22,7 @@ MIN_FOLD_CHANGE = 1.3            # 最小倍数变化（30%强度差异）
 SIGNAL_TO_NOISE = 1.0            # 信噪比阈值
 SPACING_DIFFERENCE = 1.5         # 峰间距要求
 
-# 备用策略参数（当严格条件找不到特征时）
-ENABLE_FALLBACK = True           # 是否启用备用策略
-FALLBACK_OCCURRENCE_RATE = 0.1   # 备用模式的出现频率
-FALLBACK_FOLD_CHANGE = 1.2       # 备用模式的倍数变化
+
 
 # 模型配置 
 MODEL_CONFIGS = {

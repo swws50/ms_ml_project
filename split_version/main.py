@@ -117,7 +117,7 @@ class MainGUIManager:
         
         # 项目管理按钮
         project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
-                                command=lambda: reset_analysis(self.help_system))
+                                command=self.handle_reset_progress)
         project_btn.pack(side="left", padx=5)
         
         # 帮助按钮
@@ -241,7 +241,29 @@ class MainGUIManager:
         """处理模型信息查看"""
         self.prediction_manager.show_model_info_window(self.root)
     
-    
+    def handle_reset_progress(self):
+        """完整的重置操作"""
+        # 重置数据和进度
+        reset_analysis(self.help_system)
+        
+        # 清理UI显示
+        clear_log()
+        self.ui_panels['result'].reset_results()
+        self.ui_panels['prediction'].update_result("状态：等待选择文件")
+        
+         # 重新创建可视化面板
+        old_viz_panel = self.ui_panels['visualization'].frame
+        old_viz_panel.destroy()
+        # 重新创建
+        self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
+        self.ui_panels['visualization'].create_panel(row=3, column=0, columnspan=2)
+        # 更新引用
+        self.root.visualization_container = self.ui_panels['visualization'].get_container()
+        self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
+        
+        
+        log_message("系统已重置，可以开始新的分析流程", "SUCCESS")
+        
     # 公共接口方法（供其他模块调用）
     
     def get_control_panel(self):
