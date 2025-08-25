@@ -59,7 +59,7 @@ MZ_TOLERANCE = 0.2
 NORMALIZATION_FACTOR = 871.7725  # 默认归一化因子（作为后备值）
 
 # 文件路径配置（使用输出管理器）
-def get_output_files():
+def get_output_paths():
     """动态生成输出文件路径"""
     return {
         # 数据文件
@@ -86,7 +86,7 @@ def get_output_files():
         'chart_thresholds': output_manager.get_path('chart', 'PLS_optimal_thresholds.png')
     }
 
-OUTPUT_FILES = get_output_files()
+OUTPUT_FILES = get_output_paths()
 
 # 便捷保存函数 
 def save_data_file(data, filename, method='pandas'):

@@ -36,7 +36,7 @@ def get_file_classification(file_path):
     else:
         return None
 
-def select_and_process_files_intelligent(root):
+def process_classified_files(root):
     """
     智能峰发现和特征提取的主函数
     """

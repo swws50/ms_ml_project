@@ -21,7 +21,7 @@ class FeatureDetector:
         self.normalization_factor = None
         self.training_data_path = None
     
-    def detect_training_features(self, force_reload=False):
+    def load_training_features(self, force_reload=False):
         """
         检测训练特征和归一化因子
         
@@ -132,7 +132,7 @@ class FeatureDetector:
         """
         # 如果未提供特征信息，自动检测
         if training_mz_values is None or normalization_factor is None:
-            detected_features, detected_factor = self.detect_training_features()
+            detected_features, detected_factor = self.load_training_features()
             if detected_features is None:
                 raise ValueError("无法检测训练特征")
             
@@ -236,7 +236,7 @@ class FeatureDetector:
             dict: 特征信息字典
         """
         if self.training_features is None:
-            self.detect_training_features()
+            self.load_training_features()
         
         return {
             "n_features": len(self.training_features) if self.training_features else 0,

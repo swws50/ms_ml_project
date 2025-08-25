@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox
 # 本地模块导入 
 from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
-from data_processing import open_data_file, select_and_process_files_intelligent
+from data_processing import open_data_file, process_classified_files
 from model_training import TrainingUI
 from model_predictor import PredictionManager
 from help_system import HelpSystem
@@ -491,7 +491,7 @@ def open_folder_classification_window(root, is_intelligent_mode=False):
         classification_window.grab_release()
         classification_window.destroy()
 
-        select_and_process_files_intelligent(root)
+        process_classified_files(root)
     
     ctk.CTkButton(button_frame, text="取消", command=cancel_classification, width=100).pack(side='left')
     ctk.CTkButton(button_frame, text="开始处理", command=confirm_classification, width=120).pack(side='right')

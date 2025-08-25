@@ -154,7 +154,7 @@ class PredictionManager:
         
         try:
             # 检测特征
-            training_features, normalization_factor = self.feature_detector.detect_training_features()
+            training_features, normalization_factor = self.feature_detector.load_training_features()
             
             if training_features is None:
                 return {"success": False, "error": "无法检测训练特征"}
@@ -294,8 +294,8 @@ class PredictionManager:
             dict: 模型信息字典
         """
         if self.model is None:
-            success, _ = self.load_model()
-            if not success:
+            self.load_model()
+            if not self.load_model():
                 return {"error": "模型未加载"}
         
         info = {
