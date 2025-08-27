@@ -57,6 +57,57 @@ class BasePanel:
         if self.help_system:
             self.help_system.add_hover_tip(widget, key_or_text)
 
+class PreprocessingPanel(BasePanel):
+    """数据预处理面板组件"""
+    
+    def __init__(self, parent, help_system=None, callbacks=None):
+        super().__init__(parent, "数据预处理", help_system)
+        self.callbacks = callbacks or {}
+    
+    def create_panel(self, row, column):
+        """创建完整的预处理面板"""
+        # 创建基础框架
+        self.create_frame(row, column)
+        self.create_title()
+        
+        # 配置网格权重
+        self.frame.grid_rowconfigure(1, weight=1)
+        self.frame.grid_columnconfigure(0, weight=1)
+        
+        self._create_panel_content()
+        
+        return self.frame
+    
+    def _create_panel_content(self):
+        """创建面板内容"""
+        # 主按钮
+        self.components['preprocess_button'] = ctk.CTkButton(
+            self.frame, text="数据预处理", width=180, height=35,
+            command=self._on_start_preprocessing
+        )
+        self.components['preprocess_button'].grid(row=1, column=0, padx=10, pady=5, sticky='ew')
+        self.add_hover_tip(self.components['preprocess_button'], "start_preprocessing")
+        
+        # 状态显示
+        self.components['status_label'] = ctk.CTkLabel(
+            self.frame, text="状态：等待开始预处理",
+            justify='left', anchor='nw'
+        )
+        self.components['status_label'].grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+    
+    def _on_start_preprocessing(self):
+        """预处理按钮回调"""
+        if 'on_start_preprocessing' in self.callbacks: 
+            self.callbacks['on_start_preprocessing']()
+    
+    def update_status(self, status_text, color='black'):
+        """更新状态显示"""
+        self.components['status_label'].configure(text=f"状态：{status_text}", text_color=color)
+    
+    def set_button_state(self, enabled=True):
+        """设置按钮状态"""
+        state = 'normal' if enabled else 'disabled'
+        self.components['preprocess_button'].configure(state=state)
 
 class ControlPanel(BasePanel):
     """操作控制面板组件"""
@@ -376,10 +427,10 @@ class InfoPanel(BasePanel):
     def __init__(self, parent, help_system=None):
         super().__init__(parent, "运行信息", help_system)
     
-    def create_panel(self, row, column):
+    def create_panel(self, row, column, columnspan=2):  # 添加columnspan参数
         """创建完整的信息面板"""
-        # 创建基础框架
-        self.create_frame(row, column)
+        # 创建基础框架 - 传递columnspan参数
+        self.create_frame(row, column, sticky='nsew', columnspan=columnspan)  # 添加columnspan参数
         
         # 配置网格权重
         self.frame.grid_rowconfigure(1, weight=1)
@@ -410,29 +461,3 @@ class InfoPanel(BasePanel):
         """清空消息"""
         self.components['text_box'].delete("1.0", "end")
 
-
-# UI组件工厂函数 
-def create_control_panel(parent, help_system, callbacks):
-    """创建控制面板的工厂函数"""
-    panel = ControlPanel(parent, help_system, callbacks)
-    return panel.create_panel(row=2, column=0)
-
-def create_result_panel(parent, help_system):
-    """创建结果面板的工厂函数"""
-    panel = ResultPanel(parent, help_system)
-    return panel.create_panel(row=2, column=1)
-
-def create_prediction_panel(parent, help_system, callbacks):
-    """创建预测面板的工厂函数"""
-    panel = PredictionPanel(parent, help_system, callbacks)
-    return panel.create_panel(row=2, column=2)
-
-def create_visualization_panel(parent, help_system):
-    """创建可视化面板的工厂函数"""
-    panel = VisualizationPanel(parent, help_system)
-    return panel.create_panel(row=3, column=0, columnspan=2)
-
-def create_info_panel(parent, help_system):
-    """创建信息面板的工厂函数"""
-    panel = InfoPanel(parent, help_system)
-    return panel.create_panel(row=3, column=2)

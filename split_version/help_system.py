@@ -22,7 +22,8 @@ class HelpSystem:
         
         # 步骤进度跟踪 
         self.steps = [
-            {"id": "select_data", "name": "选择数据文件", "completed": False},
+            {"id": "preprocess_data", "name": "原始数据预处理", "completed": False},
+            {"id": "select_data", "name": "选择已整合数据文件", "completed": False},
             {"id": "select_model", "name": "选择模型", "completed": False},
             {"id": "train_model", "name": "训练模型", "completed": False},
             {"id": "view_results", "name": "查看结果", "completed": False},
@@ -39,6 +40,7 @@ class HelpSystem:
 
         # 为你的程序定制的帮助文本
         self.help_texts = {
+            "start_preprocessing": "开始数据预处理流程\n包括文件分类和智能峰发现\n处理完成后自动生成归一化CSV文件",
             # 数据预处理相关
             "select_files": "智能提峰：自动识别并提取最优特征峰",
             
@@ -59,8 +61,9 @@ class HelpSystem:
         
         # 步骤相关的提示信息
         self.step_hints = {
-            "select_data": "💡 下一步：请先点击 '数据预处理' 处理原始txt文件，或直接选择已归一化的CSV文件",
-            "select_model": "💡 下一步：从菜单栏 '模型选择' 中选择合适的机器学习算法",
+            "preprocess_data": "💡 下一步：点击 '开始数据预处理' 处理原始txt文件",
+            "select_data": "💡 下一步：选择预处理生成的归一化CSV文件",
+            "select_model": "💡 下一步：从 '模型选择' 中选择合适的机器学习算法", 
             "train_model": "💡 下一步：点击 '开始分析' 按钮开始训练模型",
             "view_results": "💡 训练完成！您可以查看生成的评估图表",
             "predict_sample": "💡 模型已就绪！可以选择新样本进行预测"

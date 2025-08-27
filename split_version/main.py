@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox
 # 本地模块导入 
 from config import MODEL_CONFIGS, DEFAULT_MODEL
 from utils import log_message, clear_log, set_global_widgets
-from data_processing import open_data_file, process_classified_files
+from data_processing import open_data_file
 from model_training import TrainingUI
 from model_predictor import PredictionManager
 from help_system import HelpSystem
@@ -19,9 +19,9 @@ import data_store
 # 导入新的UI组件
 from ui_components import (
     ControlPanel, ResultPanel, PredictionPanel, 
-    VisualizationPanel, InfoPanel
+    VisualizationPanel, InfoPanel, PreprocessingPanel
 )
-
+from data_preprocessor import show_data_preprocessing_dialog, process_classified_files
 
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
@@ -91,29 +91,24 @@ class MainGUIManager:
         self._create_menu_bar()
         
         # 创建进度指示器 
-        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=3)
+        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)
         
         # 配置网格权重 
         self.root.grid_rowconfigure(3, weight=1)
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
-        
+        self.root.grid_columnconfigure(3, weight=1)
         # 使用UI组件创建面板 
         self._create_ui_panels()
     
     def _create_menu_bar(self):
         """创建菜单栏"""
         self.menu_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0)
-        self.menu_frame.grid(row=0, column=0, columnspan=3, sticky='ew', padx=0, pady=0)
+        self.menu_frame.grid(row=0, column=0, columnspan=4, sticky='ew', padx=0, pady=0)
         
         menu_container = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
         menu_container.pack(side="left", padx=20, pady=15)
-        
-        # 数据预处理按钮
-        data_btn = ctk.CTkButton(menu_container, text="数据预处理", width=120, height=35,
-                                command=lambda: open_folder_classification_window(self.root))
-        data_btn.pack(side="left", padx=5)
         
         # 项目管理按钮
         project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
@@ -127,7 +122,13 @@ class MainGUIManager:
         
     def _create_ui_panels(self):
         """使用UI组件创建各个面板"""
-        
+        # 0. 预处理面板（新增）
+        preprocessing_callbacks = {
+            'on_start_preprocessing': lambda: show_data_preprocessing_dialog(self.root)
+        }
+        self.ui_panels['preprocessing'] = PreprocessingPanel(self.root, self.help_system, preprocessing_callbacks)
+        self.ui_panels['preprocessing'].create_panel(row=2, column=0)
+
         # 1. 控制面板 
         control_callbacks = {
             'on_file_select': self.handle_file_select,
@@ -135,11 +136,11 @@ class MainGUIManager:
             'on_start_training': self.handle_start_training
         }
         self.ui_panels['control'] = ControlPanel(self.root, self.help_system, control_callbacks)
-        self.ui_panels['control'].create_panel(row=2, column=0)
+        self.ui_panels['control'].create_panel(row=2, column=1)
         
         # 2. 结果面板 
         self.ui_panels['result'] = ResultPanel(self.root, self.help_system)
-        self.ui_panels['result'].create_panel(row=2, column=1)
+        self.ui_panels['result'].create_panel(row=2, column=2)
         
         # 3. 预测面板 
         prediction_callbacks = {
@@ -147,7 +148,7 @@ class MainGUIManager:
             'on_model_info': self.handle_model_info,
         }
         self.ui_panels['prediction'] = PredictionPanel(self.root, self.help_system, prediction_callbacks)
-        self.ui_panels['prediction'].create_panel(row=2, column=2)
+        self.ui_panels['prediction'].create_panel(row=2, column=3)
         
         # 4. 可视化面板 
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
@@ -155,7 +156,7 @@ class MainGUIManager:
         
         # 5. 信息面板 
         self.ui_panels['info'] = InfoPanel(self.root, self.help_system)
-        self.ui_panels['info'].create_panel(row=3, column=2)
+        self.ui_panels['info'].create_panel(row=3, column=2, columnspan=2)
     
     def _finalize_setup(self):
         """完成设置"""
@@ -298,235 +299,6 @@ class MainGUIManager:
 
 
 # 保持原有的便捷函数（向后兼容）
-
-def select_folder_for_classification():
-    """选择文件夹并扫描txt文件"""
-    folder_path = filedialog.askdirectory(title="选择类别文件夹")
-    if folder_path:
-        txt_files = []
-        for file in os.listdir(folder_path):
-            if file.lower().endswith('.txt'):
-                txt_files.append(os.path.join(folder_path, file))
-        return folder_path, txt_files
-    return None, []
-
-def open_folder_classification_window(root, is_intelligent_mode=False):
-    """打开文件夹分类窗口"""
-    # 创建新窗口
-    classification_window = ctk.CTkToplevel(root)
-    classification_window.title("数据文件分类设置")
-    
-    # 计算居中位置
-    window_width = 700
-    window_height = 750
-    screen_width = classification_window.winfo_screenwidth()
-    screen_height = classification_window.winfo_screenheight()
-    center_x = int(screen_width/2 - window_width/2)
-    center_y = int(screen_height/2 - window_height/2)  
-    
-    # 设置窗口位置和大小
-    classification_window.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
-    classification_window.resizable(True, True)
-    
-    # 窗口置顶和焦点设置
-    classification_window.attributes('-topmost', True)
-    classification_window.focus_force()
-    classification_window.lift()
-    classification_window.grab_set()  # 模态窗口
-    classification_window.after(1000, lambda: classification_window.attributes('-topmost', False))
-    
-    # 存储分类信息的变量
-    class_0_folder = ctk.StringVar(value="")
-    class_1_folder = ctk.StringVar(value="")
-    class_0_name = ctk.StringVar(value="class 0")
-    class_1_name = ctk.StringVar(value="class 1")
-    class_0_files = []
-    class_1_files = []
-    
-    # 标题 
-    title_label = ctk.CTkLabel(classification_window, 
-                              text="数据文件分类设置", 
-                              font=ctk.CTkFont(size=16, weight="bold"))
-    title_label.pack(pady=10)
-    
-    # 类别名称设置区域 
-    name_frame = ctk.CTkFrame(classification_window)
-    name_frame.pack(fill='x', padx=20, pady=10)
-    
-    ctk.CTkLabel(name_frame, text="类别名称设置（可手动更改命名）:", 
-                font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=10, pady=5)
-    
-    name_input_frame = ctk.CTkFrame(name_frame, fg_color="transparent")
-    name_input_frame.pack(fill='x', padx=10, pady=5)
-    
-    # 类别0名称
-    ctk.CTkLabel(name_input_frame, text="类别0:").pack(side='left', padx=5)
-    class_0_entry = ctk.CTkEntry(name_input_frame, textvariable=class_0_name, width=120)
-    class_0_entry.pack(side='left', padx=5)
-    
-    ctk.CTkLabel(name_input_frame, text="类别1:").pack(side='left', padx=(20, 5))
-    class_1_entry = ctk.CTkEntry(name_input_frame, textvariable=class_1_name, width=120)
-    class_1_entry.pack(side='left', padx=5)
-    
-    # 文件夹选择区域 
-    folder_frame = ctk.CTkFrame(classification_window)
-    folder_frame.pack(fill='x', padx=20, pady=10)
-    
-    ctk.CTkLabel(folder_frame, text="文件夹选择:", 
-                font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=10, pady=5)
-    
-    # 类别0文件夹选择
-    class_0_folder_frame = ctk.CTkFrame(folder_frame, fg_color="transparent")
-    class_0_folder_frame.pack(fill='x', padx=10, pady=5)
-    
-    ctk.CTkLabel(class_0_folder_frame, text="📁 类别0文件夹:").pack(anchor='w')
-    
-    class_0_path_frame = ctk.CTkFrame(class_0_folder_frame, fg_color="transparent")
-    class_0_path_frame.pack(fill='x', pady=2)
-    
-    class_0_path_label = ctk.CTkLabel(class_0_path_frame, text="未选择", 
-                                     font=ctk.CTkFont(size=10), text_color="gray")
-    class_0_path_label.pack(side='left')
-    
-    class_0_count_label = ctk.CTkLabel(class_0_path_frame, text="", 
-                                      font=ctk.CTkFont(size=10), text_color="blue")
-    class_0_count_label.pack(side='right')
-    
-    def select_class_0_folder():
-        nonlocal class_0_files
-        folder_path, txt_files = select_folder_for_classification()
-        if folder_path:
-            class_0_folder.set(folder_path)
-            class_0_files = txt_files
-            class_0_path_label.configure(text=f"路径: {folder_path}")
-            class_0_count_label.configure(text=f"找到: {len(txt_files)} 个 .txt 文件")
-            update_preview()
-    
-    ctk.CTkButton(class_0_folder_frame, text="选择文件夹...", 
-                 command=select_class_0_folder, width=120).pack(anchor='w', pady=2)
-    
-    # 类别1文件夹选择
-    class_1_folder_frame = ctk.CTkFrame(folder_frame, fg_color="transparent")
-    class_1_folder_frame.pack(fill='x', padx=10, pady=5)
-    
-    ctk.CTkLabel(class_1_folder_frame, text="📁 类别1文件夹:").pack(anchor='w')
-    
-    class_1_path_frame = ctk.CTkFrame(class_1_folder_frame, fg_color="transparent")
-    class_1_path_frame.pack(fill='x', pady=2)
-    
-    class_1_path_label = ctk.CTkLabel(class_1_path_frame, text="未选择", 
-                                     font=ctk.CTkFont(size=10), text_color="gray")
-    class_1_path_label.pack(side='left')
-    
-    class_1_count_label = ctk.CTkLabel(class_1_path_frame, text="", 
-                                      font=ctk.CTkFont(size=10), text_color="blue")
-    class_1_count_label.pack(side='right')
-    
-    def select_class_1_folder():
-        nonlocal class_1_files
-        folder_path, txt_files = select_folder_for_classification()
-        if folder_path:
-            class_1_folder.set(folder_path)
-            class_1_files = txt_files
-            class_1_path_label.configure(text=f"路径: {folder_path}")
-            class_1_count_label.configure(text=f"找到: {len(txt_files)} 个 .txt 文件")
-            update_preview()
-    
-    ctk.CTkButton(class_1_folder_frame, text="选择文件夹...", 
-                 command=select_class_1_folder, width=120).pack(anchor='w', pady=2)
-    
-    # 预览区域 
-    preview_frame = ctk.CTkFrame(classification_window)
-    preview_frame.pack(fill='both', expand=True, padx=20, pady=10)
-    
-    ctk.CTkLabel(preview_frame, text="预览:", 
-                font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=10, pady=5)
-    
-    preview_text = ctk.CTkTextbox(preview_frame, height=120)
-    preview_text.pack(fill='both', expand=True, padx=10, pady=5)
-    
-    def update_preview():
-        """更新预览信息"""
-        preview_text.delete("1.0", "end")
-        
-        if class_0_files:
-            file_names = [os.path.basename(f) for f in class_0_files[:5]]
-            preview_text.insert("end", f"{class_0_name.get()} ({len(class_0_files)}个文件):\n")
-            preview_text.insert("end", f"  {', '.join(file_names)}")
-            if len(class_0_files) > 5:
-                preview_text.insert("end", f"... 还有{len(class_0_files)-5}个文件")
-            preview_text.insert("end", "\n\n")
-        
-        if class_1_files:
-            file_names = [os.path.basename(f) for f in class_1_files[:5]]
-            preview_text.insert("end", f"{class_1_name.get()} ({len(class_1_files)}个文件):\n")
-            preview_text.insert("end", f"  {', '.join(file_names)}")
-            if len(class_1_files) > 5:
-                preview_text.insert("end", f"... 还有{len(class_1_files)-5}个文件")
-            preview_text.insert("end", "\n\n")
-        
-        if not class_0_files and not class_1_files:
-            preview_text.insert("end", "请选择文件夹以预览分类结果")
-    
-    # 绑定名称变化事件
-    class_0_name.trace('w', lambda *args: update_preview())
-    class_1_name.trace('w', lambda *args: update_preview())
-    
-    # 底部按钮 
-    button_frame = ctk.CTkFrame(classification_window, fg_color="transparent")
-    button_frame.pack(fill='x', padx=20, pady=10)
-    
-    def cancel_classification():
-        """取消分类"""
-        classification_window.grab_release()
-        classification_window.destroy()
-    
-    def confirm_classification():
-        """确认分类并开始处理"""
-        if not class_0_files and not class_1_files:
-            messagebox.showwarning("警告", "请至少选择一个文件夹")
-            return
-        
-        if not class_0_files:
-            response = messagebox.askyesno("确认", "类别0没有文件，是否继续？")
-            if not response:
-                return
-        
-        if not class_1_files:
-            response = messagebox.askyesno("确认", "类别1没有文件，是否继续？")
-            if not response:
-                return
-        
-        # 保存分类信息到data_store
-        classification_data = {
-            'class_0_name': class_0_name.get(),
-            'class_1_name': class_1_name.get(),
-            'class_0_files': class_0_files,
-            'class_1_files': class_1_files
-        }
-        
-        data_store.set_file_classification(classification_data)
-        
-        log_message(f"文件分类完成: {class_0_name.get()}({len(class_0_files)}个), {class_1_name.get()}({len(class_1_files)}个)")
-        
-        # 关闭分类窗口
-        classification_window.grab_release()
-        classification_window.destroy()
-
-        process_classified_files(root)
-    
-    ctk.CTkButton(button_frame, text="取消", command=cancel_classification, width=100).pack(side='left')
-    ctk.CTkButton(button_frame, text="开始处理", command=confirm_classification, width=120).pack(side='right')
-    
-    # 初始化预览
-    update_preview()
-    
-    # 窗口关闭处理
-    def on_closing():
-        classification_window.grab_release()
-        classification_window.destroy()
-    
-    classification_window.protocol("WM_DELETE_WINDOW", on_closing)
 
 
 def create_gui():

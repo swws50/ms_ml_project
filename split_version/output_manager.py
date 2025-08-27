@@ -19,7 +19,8 @@ class OutputManager:
     """简单的输出文件管理器 - 按类型分类保存文件"""
     
     def __init__(self, base_dir="outputs"):
-        self.base_dir = Path(base_dir)
+        script_dir = Path(__file__).parent.absolute()
+        self.base_dir = script_dir / base_dir
         self.create_directories()
     
     def create_directories(self):
