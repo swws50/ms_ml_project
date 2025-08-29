@@ -12,6 +12,12 @@ import data_store
 from output_manager import output_manager
 from utils import log_message
 
+ICON_CONFIG = {
+    'app_icon_ico': 'assets/app_icon.ico',
+    'app_icon_png': 'assets/app_icon.png',
+}
+
+
 # 智能峰发现参数 
 # 特征选择参数
 MAX_FEATURES = 50                # 最大特征数量

@@ -5,10 +5,10 @@ import os
 
 # 第三方库导入 
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox,PhotoImage
 
 # 本地模块导入 
-from config import MODEL_CONFIGS, DEFAULT_MODEL
+from config import MODEL_CONFIGS, DEFAULT_MODEL, ICON_CONFIG
 from utils import log_message, clear_log, set_global_widgets
 from data_processing import open_data_file
 from model_training import TrainingUI
@@ -24,6 +24,19 @@ from ui_components import (
 from data_preprocessor import show_data_preprocessing_dialog, process_classified_files
 from ui_components import ProgressComponent
 
+
+def set_application_icon(window):
+    """设置应用程序图标"""
+    try:
+        window.iconbitmap(ICON_CONFIG['app_icon_ico'])
+    except:
+        try:
+            icon = PhotoImage(file=ICON_CONFIG['app_icon_png'])
+            window.iconphoto(True, icon)
+            window._app_icon_ref = icon
+        except:
+            pass
+
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
     
@@ -32,7 +45,6 @@ class MainGUIManager:
         self.root.gui_manager = self
         self.help_system = None
         self.exact_selection = DEFAULT_MODEL
-        
         # 业务逻辑管理器
         self.training_ui = None
         self.prediction_manager = None
@@ -47,7 +59,7 @@ class MainGUIManager:
         }
         
         self.menu_frame = None
-    
+
     def create_gui_components(self):
         """ 
         创建GUI界面 - 使用模块化UI组件
@@ -70,6 +82,8 @@ class MainGUIManager:
         ctk.set_default_color_theme("dark-blue")
         self.root.title('诊断分析')
         
+        # 设置图标
+        set_application_icon(self.root)
         # 创建帮助系统
         self.help_system = HelpSystem(self.root)
         
