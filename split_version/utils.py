@@ -14,17 +14,28 @@ info_text = None
 root = None
 
 def set_window_icon(window):
-    """设置应用程序图标"""
-    from config import ICON_CONFIG
-    try:
-        window.iconbitmap(ICON_CONFIG['app_icon_ico'])
-    except:
+    """设置窗口图标 - 带稳定性保证"""
+    def _apply_icon():
+        if not window.winfo_exists():
+            return
+            
         try:
-            icon = PhotoImage(file=ICON_CONFIG['app_icon_png'])
-            window.iconphoto(True, icon)
-            window._app_icon_ref = icon
+            from config import ICON_CONFIG
+            window.iconbitmap(ICON_CONFIG.get('app_icon_ico', 'icon.ico'))
         except:
-            pass
+            try:
+                window.iconbitmap('icon.ico')
+            except:
+                pass
+    
+    # 立即应用
+    _apply_icon()
+    
+    # 如果是CTkToplevel窗口，需要延迟加固
+    if isinstance(window, ctk.CTkToplevel):
+        window.after(50, _apply_icon)
+        window.after(200, _apply_icon)
+
 
 def set_global_widgets(info_widget, root_widget):
     """设置全局组件引用"""

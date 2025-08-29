@@ -8,7 +8,7 @@ import os
 import customtkinter as ctk
 
 # 本地模块导入 
-from utils import log_message
+from utils import log_message, set_window_icon
 
 
 
@@ -389,6 +389,8 @@ class HelpSystem:
         self.wizard_window.geometry("650x500")
         self.wizard_window.resizable(False, False)
 
+        set_window_icon(self.wizard_window)
+
         # 更强力的窗口置顶方案 
         # 1. 设置为置顶窗口
         self.wizard_window.attributes('-topmost', True)
@@ -493,7 +495,8 @@ class HelpSystem:
         about_window.title("关于诊断分析工具")
         about_window.geometry("400x300")
         about_window.resizable(False, False)
-
+        set_window_icon(about_window)
+        
         ctk.CTkLabel(about_window, text="诊断分析工具", 
                     font=ctk.CTkFont(size=16, weight="bold")).pack(pady=15)
         ctk.CTkLabel(about_window, text="版本: 1.0", 

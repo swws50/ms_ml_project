@@ -15,7 +15,7 @@ from config import (
     MIN_FOLD_CHANGE, get_class_mapping, save_normalization_factor
 )
 import data_store
-from utils import log_message, create_backup_filename
+from utils import log_message, create_backup_filename, set_window_icon
 
 
 class DataPreprocessor:
@@ -79,6 +79,9 @@ class DataPreprocessor:
         self.classification_window.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
         self.classification_window.resizable(True, True)
         
+        # 图标
+        set_window_icon(self.classification_window)
+
         # 窗口置顶和焦点设置
         self.classification_window.attributes('-topmost', True)
         self.classification_window.focus_force()
