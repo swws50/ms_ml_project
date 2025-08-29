@@ -9,6 +9,56 @@ from config import MODEL_CONFIGS
 from utils import log_message
 
 
+class ProgressComponent:
+    """简化的进度组件，直接集成在UI组件模块中"""
+    
+    def __init__(self, parent, width=200, show_label=True):
+        self.parent = parent
+        self.width = width 
+        self.show_label = show_label 
+        self.progress_bar = None
+        self.status_label = None
+        self.current_progress = 0.0
+        
+    def create(self, row, column, sticky='ew', padx=5, pady=2, columnspan=1):
+        """创建进度组件"""
+        if self.show_label:
+            self.status_label = ctk.CTkLabel(self.parent, text="准备中...", font=ctk.CTkFont(size=11))
+            self.status_label.grid(row=row, column=column, columnspan=columnspan, sticky='w', padx=padx, pady=(pady, 2))
+            
+        self.progress_bar = ctk.CTkProgressBar(self.parent, width=self.width)  # 使用 self.width
+        self.progress_bar.grid(row=row+1, column=column, columnspan=columnspan, sticky=sticky, padx=padx, pady=(0, pady))
+        self.progress_bar.set(0)
+        
+    def update(self, progress, message=None):
+        """更新进度"""
+        self.current_progress = max(0.0, min(1.0, progress))
+        if self.progress_bar:
+            self.progress_bar.set(self.current_progress)
+        if message and self.status_label:
+            self.status_label.configure(text=message)
+            
+    def hide(self):
+        """隐藏组件"""
+        if self.progress_bar:
+            self.progress_bar.grid_remove()
+        if self.status_label:
+            self.status_label.grid_remove()
+            
+    def show(self):
+        """显示组件"""
+        if self.progress_bar:
+            self.progress_bar.grid()
+        if self.status_label:
+            self.status_label.grid()
+    
+    def get_status_label(self):
+        """获取状态标签（向后兼容）"""
+        return self.status_label
+    
+    def get_progress_bar(self):
+        """获取进度条（向后兼容）"""
+        return self.progress_bar
 class BasePanel:
     """基础面板类 - 提供公共功能"""
     
@@ -18,6 +68,7 @@ class BasePanel:
         self.help_system = help_system
         self.frame = None
         self.components = {}  # 存储面板内的组件引用
+        self.progress_component = None
     
     def create_frame(self, row, column, sticky='nsew', padx=5, pady=5, columnspan=1, **kwargs):
         """创建基础框架"""
@@ -57,6 +108,36 @@ class BasePanel:
         if self.help_system:
             self.help_system.add_hover_tip(widget, key_or_text)
 
+    def add_progress(self, row, column, sticky='ew', padx=5, pady=2, 
+                    columnspan=1, show_label=True, width=200):
+        """为面板添加进度组件"""
+        self.progress_component = ProgressComponent(self.frame, width=width, show_label=show_label)
+        self.progress_component.create(row, column, sticky, padx, pady, columnspan)
+        return self.progress_component
+    
+    def update_progress(self, progress, message=None):
+        """更新进度"""
+        if self.progress_component:
+            self.progress_component.update(progress, message)
+    
+    def show_progress(self):
+        """显示进度组件"""
+        if self.progress_component:
+            self.progress_component.show()
+    
+    def hide_progress(self):
+        """隐藏进度组件"""
+        if self.progress_component:
+            self.progress_component.hide()
+    
+    def get_progress_bar(self):
+        """获取进度条（向后兼容）"""
+        return self.progress_component.progress_bar if self.progress_component else None
+    
+    def get_progress_label(self):
+        """获取进度标签（向后兼容）"""
+        return self.progress_component.status_label if self.progress_component else None        
+
 class PreprocessingPanel(BasePanel):
     """数据预处理面板组件"""
     
@@ -94,7 +175,8 @@ class PreprocessingPanel(BasePanel):
             justify='left', anchor='nw'
         )
         self.components['status_label'].grid(row=2, column=0, padx=10, pady=5, sticky='ew')
-    
+
+
     def _on_start_preprocessing(self):
         """预处理按钮回调"""
         if 'on_start_preprocessing' in self.callbacks: 
@@ -108,6 +190,7 @@ class PreprocessingPanel(BasePanel):
         """设置按钮状态"""
         state = 'normal' if enabled else 'disabled'
         self.components['preprocess_button'].configure(state=state)
+
 
 class ControlPanel(BasePanel):
     """操作控制面板组件"""
@@ -175,15 +258,6 @@ class ControlPanel(BasePanel):
         self.components['start_button'].grid(row=3, column=0, padx=10, pady=5, sticky='ew')
         self.add_hover_tip(self.components['start_button'], "start_analysis")
         
-        # 进度标签
-        self.components['progress_label'] = ctk.CTkLabel(self.frame, text='分析进度: 0%')
-        self.components['progress_label'].grid(row=3, column=1, padx=10, pady=5, sticky='w')
-        
-        # 进度条
-        self.components['progress_bar'] = ctk.CTkProgressBar(self.frame, width=200)
-        self.components['progress_bar'].grid(row=3, column=2, padx=10, pady=5, sticky='ew')
-        self.components['progress_bar'].set(0)
-        self.add_hover_tip(self.components['progress_bar'], "progress")
     
     def _on_file_select(self):
         """文件选择回调"""
@@ -213,15 +287,31 @@ class ControlPanel(BasePanel):
         state = 'normal' if enabled else 'disabled'
         self.components['start_button'].configure(state=state)
     
-    def update_progress(self, progress, text):
-        """更新进度"""
-        self.components['progress_bar'].set(progress)
-        self.components['progress_label'].configure(text=text)
+    def _update_progress(self, progress: float, message: str):
+        """更新进度显示"""
+        if self.root and hasattr(self.root, 'gui_manager'):
+            # 使用全局进度条
+            self.root.gui_manager.update_global_progress(progress, message)
+        
+        if self.root:
+            self.root.update()
     
     def get_selected_model(self):
         """获取选择的模型"""
         return self.current_model or self.components['model_menu'].get()
 
+    def update_progress(self, progress, message):
+        """更新进度的便捷方法"""
+        if hasattr(self, 'progress_component'):
+            self.progress_component.update(progress, message)
+
+    def get_progress_bar(self):
+        """向后兼容方法"""
+        return self.progress_component.progress_bar if hasattr(self, 'progress_component') else None
+
+    def get_progress_label(self):
+        """向后兼容方法"""  
+        return self.progress_component.status_label if hasattr(self, 'progress_component') else None
 
 class ResultPanel(BasePanel):
     """训练结果面板组件"""

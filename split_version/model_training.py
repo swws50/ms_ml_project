@@ -278,10 +278,14 @@ class TrainingUI:
             root: 根窗口
         """
         def progress_callback(progress, message):
-            progress_label.configure(text=message)
-            progress_bar.set(progress)
-            root.update_idletasks()
-            root.update()
+            # 添加空值检查
+            if progress_label:
+                progress_label.configure(text=message)
+            if progress_bar:
+                progress_bar.set(progress)
+            if root:
+                root.update_idletasks()
+                root.update()
         
         try:
             # 清空日志
@@ -328,7 +332,8 @@ class TrainingUI:
             error_msg = f"训练过程中出现错误: {str(e)}"
             log_message(error_msg, "ERROR")
             messagebox.showerror("训练错误", f"模型训练时出现错误：{str(e)}")
-            progress_bar.set(0)
+            if progress_bar:  # 添加空值检查
+                progress_bar.set(0)
             status_label.configure(text='模型保存状态: 训练失败', text_color='red')
 
 

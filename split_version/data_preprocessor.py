@@ -356,32 +356,6 @@ class DataPreprocessor:
             messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
         finally:
             self._cleanup_progress_ui()
-    
-    # 其余的处理方法保持不变...
-    def _create_progress_ui(self):
-        """创建进度显示界面"""
-        self.progress_label = ctk.CTkLabel(self.root, text="智能峰发现进度: 0%")
-        self.progress_label.grid(row=8, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
-        
-        self.progress_bar = ctk.CTkProgressBar(self.root, width=300)
-        self.progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
-        self.progress_bar.set(0)
-    
-    def _cleanup_progress_ui(self):
-        """清理进度显示界面"""
-        if self.progress_bar:
-            self.progress_bar.grid_remove()
-        if self.progress_label:
-            self.progress_label.grid_remove()
-    
-    def _update_progress(self, progress: float, message: str):
-        """更新进度显示"""
-        if self.progress_bar:
-            self.progress_bar.set(progress)
-        if self.progress_label:
-            self.progress_label.configure(text=message)
-        if self.root:
-            self.root.update()
 
     def process_classified_files(self, root):
         """
@@ -446,26 +420,20 @@ class DataPreprocessor:
     
     def _create_progress_ui(self):
         """创建进度显示界面"""
-        self.progress_label = ctk.CTkLabel(self.root, text="智能峰发现进度: 0%")
-        self.progress_label.grid(row=8, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
-        
-        self.progress_bar = ctk.CTkProgressBar(self.root, width=300)
-        self.progress_bar.grid(row=9, column=0, columnspan=2, sticky='ew', padx=10, pady=5)
-        self.progress_bar.set(0)
+        if self.root and hasattr(self.root, 'gui_manager'):
+            self.root.gui_manager.show_global_progress("开始智能峰发现处理...")
     
     def _cleanup_progress_ui(self):
-        """清理进度显示界面"""
-        if self.progress_bar:
-            self.progress_bar.grid_remove()
-        if self.progress_label:
-            self.progress_label.grid_remove()
-    
+        """清理进度显示界面 - 隐藏全局进度条"""  
+        if self.root and hasattr(self.root, 'gui_manager'):
+            self.root.gui_manager.hide_global_progress()
+        
     def _update_progress(self, progress: float, message: str):
         """更新进度显示"""
-        if self.progress_bar:
-            self.progress_bar.set(progress)
-        if self.progress_label:
-            self.progress_label.configure(text=message)
+        if self.root and hasattr(self.root, 'gui_manager'):
+            # 使用全局进度条
+            self.root.gui_manager.update_global_progress(progress, message)
+        
         if self.root:
             self.root.update()
     

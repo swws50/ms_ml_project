@@ -22,12 +22,14 @@ from ui_components import (
     VisualizationPanel, InfoPanel, PreprocessingPanel
 )
 from data_preprocessor import show_data_preprocessing_dialog, process_classified_files
+from ui_components import ProgressComponent
 
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
     
     def __init__(self, root):
         self.root = root
+        self.root.gui_manager = self
         self.help_system = None
         self.exact_selection = DEFAULT_MODEL
         
@@ -87,21 +89,38 @@ class MainGUIManager:
     
     def _create_layout(self):
         """创建UI布局"""
-        # 创建顶部菜单栏（保持原样）
+        # 创建顶部菜单栏 - row=0
         self._create_menu_bar()
         
-        # 创建进度指示器 
+        # 创建进度指示器 - row=1 
         self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)
         
+
         # 配置网格权重 
-        self.root.grid_rowconfigure(3, weight=1)
+        self.root.grid_rowconfigure(3, minsize=30, weight=0)  # 进度条行限制高度
+        self.root.grid_rowconfigure(4, weight=1)  # 下方面板区域可扩展
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         self.root.grid_columnconfigure(3, weight=1)
-        # 使用UI组件创建面板 
+
+        # 先创建面板 - row=2
         self._create_ui_panels()
-    
+
+        # 后创建进度条 - row=3
+        self._create_global_progress()
+
+    def _create_global_progress(self):
+        """创建全局进度组件"""
+        # 进度容器放在row=3
+        self.progress_container = ctk.CTkFrame(self.root, fg_color="transparent", height=25)
+        self.progress_container.grid(row=3, column=0, columnspan=4, sticky='ew', padx=20, pady=2)
+        self.progress_container.grid_columnconfigure(0, weight=1)
+        
+        self.global_progress = ProgressComponent(self.progress_container, width=200, show_label=True)
+        self.global_progress.create(row=0, column=0, sticky='ew', padx=0, pady=0)
+        self.global_progress.hide()
+            
     def _create_menu_bar(self):
         """创建菜单栏"""
         self.menu_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0)
@@ -122,12 +141,13 @@ class MainGUIManager:
         
     def _create_ui_panels(self):
         """使用UI组件创建各个面板"""
-        # 0. 预处理面板（新增）
+        # 上方面板在row=2
+        # 0. 预处理面板
         preprocessing_callbacks = {
-            'on_start_preprocessing': lambda: show_data_preprocessing_dialog(self.root)
+            'on_start_preprocessing':self._handle_preprocessing_start
         }
         self.ui_panels['preprocessing'] = PreprocessingPanel(self.root, self.help_system, preprocessing_callbacks)
-        self.ui_panels['preprocessing'].create_panel(row=2, column=0)
+        self.ui_panels['preprocessing'].create_panel(2, column=0)
 
         # 1. 控制面板 
         control_callbacks = {
@@ -152,11 +172,11 @@ class MainGUIManager:
         
         # 4. 可视化面板 
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-        self.ui_panels['visualization'].create_panel(row=3, column=0, columnspan=2)
+        self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
         
         # 5. 信息面板 
         self.ui_panels['info'] = InfoPanel(self.root, self.help_system)
-        self.ui_panels['info'].create_panel(row=3, column=2, columnspan=2)
+        self.ui_panels['info'].create_panel(row=4, column=2, columnspan=2)
     
     def _finalize_setup(self):
         """完成设置"""
@@ -187,9 +207,8 @@ class MainGUIManager:
         row, column, df = open_data_file(
             control_panel.components['file_status'],  # 传递状态标签
             control_panel.components['start_button'], # 传递训练按钮
-            control_panel.components['progress_bar']  # 传递进度条
         )
-        
+
         if row is not None and column is not None:
             # 将数据存储到data_store模块
             data_store.set_training_data(row, column, df)
@@ -213,25 +232,6 @@ class MainGUIManager:
         # 推进帮助系统步骤
         if self.help_system:
             self.help_system.advance_step("train_model")
-    
-    def handle_start_training(self):
-        """处理开始训练"""
-        control_panel = self.ui_panels['control']
-        result_panel = self.ui_panels['result']
-        
-        # 重置结果显示
-        result_panel.reset_results()
-        
-        # 使用训练UI进行训练
-        self.training_ui.train_with_ui_feedback(
-            self.exact_selection,
-            control_panel.components['progress_label'],
-            control_panel.components['progress_bar'],
-            result_panel.components['train_accuracy'],
-            result_panel.components['test_accuracy'],
-            result_panel.components['model_status'],
-            self.root
-        )
     
     def handle_predict_file(self):
         """处理文件预测"""
@@ -257,14 +257,54 @@ class MainGUIManager:
         old_viz_panel.destroy()
         # 重新创建
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-        self.ui_panels['visualization'].create_panel(row=3, column=0, columnspan=2)
+        self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
         # 更新引用
         self.root.visualization_container = self.ui_panels['visualization'].get_container()
         self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
         
         
         log_message("系统已重置，可以开始新的分析流程", "SUCCESS")
+
+    def show_global_progress(self, message="处理中..."):
+        """显示全局进度条"""
+        self.global_progress.show()
+        self.global_progress.update(0, message)
+
+    def update_global_progress(self, progress, message):
+        """更新全局进度"""
+        self.global_progress.update(progress, message)
+
+    def hide_global_progress(self):
+        """隐藏全局进度条"""
+        self.global_progress.hide()
+
+    def _handle_preprocessing_start(self):
+        """处理预处理开始"""
+        self.show_global_progress("正在启动数据预处理...")
+        show_data_preprocessing_dialog(self.root)
+
+    def handle_start_training(self):
+        """处理开始训练"""
+        control_panel = self.ui_panels['control']
+        result_panel = self.ui_panels['result']
         
+        # 重置结果显示
+        result_panel.reset_results()
+        
+        # 显示全局进度条
+        self.show_global_progress("开始模型训练...")
+        
+        # 使用训练UI进行训练
+        self.training_ui.train_with_ui_feedback(
+            self.exact_selection,
+            self.global_progress.get_status_label(),
+            self.global_progress.get_progress_bar(),
+            result_panel.components['train_accuracy'],
+            result_panel.components['test_accuracy'],
+            result_panel.components['model_status'],
+            self.root
+        )
+            
     # 公共接口方法（供其他模块调用）
     
     def get_control_panel(self):

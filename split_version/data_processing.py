@@ -36,7 +36,7 @@ def get_file_classification(file_path):
         return None
 
 @safe_data_processing(min_samples=5)
-def open_data_file(normalization_label, start_button, progress_bar):
+def open_data_file(normalization_label, start_button):
     """
     打开并加载已处理的特征矩阵.csv文件，准备机器学习模型训练。
     
@@ -78,7 +78,6 @@ def open_data_file(normalization_label, start_button, progress_bar):
     # 更新 CustomTkinter 控件状态 
     normalization_label.configure(text="已选择")
     start_button.configure(state='normal')
-    progress_bar.set(0)  # CustomTkinter 进度条重置
     log_message("数据文件已成功加载")
 
     # 处理数据
