@@ -12,6 +12,7 @@ import data_store
 from output_manager import output_manager
 from utils import log_message
 
+# 应用程序图标路径
 ICON_CONFIG = {
     'app_icon_ico': 'assets/app_icon.ico',
     'app_icon_png': 'assets/app_icon.png',

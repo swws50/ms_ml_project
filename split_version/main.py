@@ -8,8 +8,8 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox,PhotoImage
 
 # 本地模块导入 
-from config import MODEL_CONFIGS, DEFAULT_MODEL, ICON_CONFIG
-from utils import log_message, clear_log, set_global_widgets
+from config import MODEL_CONFIGS, DEFAULT_MODEL
+from utils import log_message, clear_log, set_global_widgets, set_window_icon
 from data_processing import open_data_file
 from model_training import TrainingUI
 from model_predictor import PredictionManager
@@ -23,19 +23,7 @@ from ui_components import (
 )
 from data_preprocessor import show_data_preprocessing_dialog, process_classified_files
 from ui_components import ProgressComponent
-
-
-def set_application_icon(window):
-    """设置应用程序图标"""
-    try:
-        window.iconbitmap(ICON_CONFIG['app_icon_ico'])
-    except:
-        try:
-            icon = PhotoImage(file=ICON_CONFIG['app_icon_png'])
-            window.iconphoto(True, icon)
-            window._app_icon_ref = icon
-        except:
-            pass
+from print_manager import PrintManager
 
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
@@ -59,6 +47,8 @@ class MainGUIManager:
         }
         
         self.menu_frame = None
+        # 添加打印管理器
+        self.print_manager = PrintManager()
 
     def create_gui_components(self):
         """ 
@@ -83,7 +73,7 @@ class MainGUIManager:
         self.root.title('诊断分析')
         
         # 设置图标
-        set_application_icon(self.root)
+        set_window_icon(self.root)
         # 创建帮助系统
         self.help_system = HelpSystem(self.root)
         
@@ -148,11 +138,20 @@ class MainGUIManager:
                                 command=self.handle_reset_progress)
         project_btn.pack(side="left", padx=5)
         
+        # 新增：打印按钮
+        print_btn = ctk.CTkButton(menu_container, text="打印报告", width=100, height=35,
+                                command=self.handle_print_report)
+        print_btn.pack(side="left", padx=5)
+
         # 帮助按钮
         help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
                                 command=self.help_system.show_wizard)
         help_btn.pack(side="left", padx=5)
         
+    def handle_print_report(self):
+        """处理打印报告"""
+        self.print_manager.show_print_dialog(self.root)
+               
     def _create_ui_panels(self):
         """使用UI组件创建各个面板"""
         # 上方面板在row=2

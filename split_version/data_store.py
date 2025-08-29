@@ -23,6 +23,8 @@ _training_data_path = None
 
 _best_model = None    # 最佳模型
 
+_latest_prediction = None
+
 # 文件分类相关函数 
 def set_file_classification(classification_data):
     """
@@ -165,6 +167,19 @@ def get_model_info():
         'model_params': model.get_params() if hasattr(model, 'get_params') else {}
     }
 
+def set_latest_prediction(prediction_result):
+    """保存最新预测结果"""
+    global _latest_prediction
+    _latest_prediction = prediction_result.copy() if prediction_result else None
+
+def get_latest_prediction():
+    """获取最新预测结果"""
+    return _latest_prediction.copy() if _latest_prediction else None
+
+def has_latest_prediction():
+    """检查是否有预测结果"""
+    return _latest_prediction is not None
+
 # 数据清理函数 
 def clear_file_classification():
     """清空文件分类数据"""
@@ -190,12 +205,19 @@ def clear_model():
     global _best_model
     _best_model = None
 
+
+def clear_prediction_results():
+    """清空预测结果"""
+    global _latest_prediction
+    _latest_prediction = None
+
 def clear_all_data():
     """清空所有数据"""
     clear_file_classification()
     clear_training_data()
     clear_model()
-
+    clear_prediction_results()
+    
 # 状态检查函数 
 def get_system_status():
     """

@@ -10,6 +10,7 @@ import pandas as pd
 from joblib import load
 from sklearn.cross_decomposition import PLSRegression
 from tkinter import filedialog, messagebox
+from datetime import datetime
 
 # 本地模块导入 
 from config import OUTPUT_FILES, MZ_TOLERANCE, get_class_mapping
@@ -284,7 +285,15 @@ class PredictionManager:
                 text=result_text,
                 text_color='red'
             )
-    
+        # 保存最新预测结果到data_store    
+        prediction_data = {
+            "filename": result.get("file_name", ""),
+            "predicted_class": result.get("predicted_class", ""),
+            "confidence": result.get("max_probability", 0),
+            "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        data_store.set_latest_prediction(prediction_data)
+        
     # 模型信息相关（从model_info.py迁移过来）
     def get_model_info(self):
         """

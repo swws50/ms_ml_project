@@ -6,12 +6,25 @@ import os
 
 # 第三方库导入 
 import customtkinter as ctk
-
+from tkinter import PhotoImage
 
 
 # 全局变量
 info_text = None
 root = None
+
+def set_window_icon(window):
+    """设置应用程序图标"""
+    from config import ICON_CONFIG
+    try:
+        window.iconbitmap(ICON_CONFIG['app_icon_ico'])
+    except:
+        try:
+            icon = PhotoImage(file=ICON_CONFIG['app_icon_png'])
+            window.iconphoto(True, icon)
+            window._app_icon_ref = icon
+        except:
+            pass
 
 def set_global_widgets(info_widget, root_widget):
     """设置全局组件引用"""
