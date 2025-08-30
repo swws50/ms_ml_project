@@ -22,12 +22,20 @@ class PrintDialog:
             'include_model_info': ctk.BooleanVar(value=True),
             'export_to_file': ctk.BooleanVar(value=True)
         }
-    
+        
+        self.patient_info = {
+            'name': ctk.StringVar(),
+            'age': ctk.StringVar(),
+            'patient_id': ctk.StringVar(),
+            'gender': ctk.StringVar(value="男"),
+            'diagnosis_date': ctk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
+        }
+
     def show_dialog(self):
         """显示打印设置对话框"""
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title("打印设置")
-        self.dialog.geometry("400x450")
+        self.dialog.geometry("400x650")
 
         # 设置图标
         set_window_icon(self.dialog) 
@@ -62,7 +70,42 @@ class PrintDialog:
         for key, text in options:
             checkbox = ctk.CTkCheckBox(content_frame, text=text, variable=self.print_options[key])
             checkbox.pack(anchor="w", padx=20, pady=5)
-        
+
+        # 病人信息输入
+        patient_frame = ctk.CTkFrame(self.dialog)
+        patient_frame.pack(fill="x", padx=20, pady=10)
+
+        ctk.CTkLabel(patient_frame, text="病人基础信息:", 
+                    font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=10, pady=(10, 5))
+
+        # 姓名输入
+        name_frame = ctk.CTkFrame(patient_frame, fg_color="transparent")
+        name_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(name_frame, text="姓名:", width=60).pack(side="left")
+        ctk.CTkEntry(name_frame, textvariable=self.patient_info['name'], width=120).pack(side="left", padx=5)
+
+        # 年龄和性别
+        age_gender_frame = ctk.CTkFrame(patient_frame, fg_color="transparent")
+        age_gender_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(age_gender_frame, text="年龄:", width=60).pack(side="left")
+        ctk.CTkEntry(age_gender_frame, textvariable=self.patient_info['age'], width=60).pack(side="left", padx=5)
+        ctk.CTkLabel(age_gender_frame, text="性别:", width=40).pack(side="left", padx=(20,5))
+        gender_menu = ctk.CTkOptionMenu(age_gender_frame, variable=self.patient_info['gender'], 
+                                    values=["男", "女"], width=60)
+        gender_menu.pack(side="left")
+
+        # 病人编号
+        id_frame = ctk.CTkFrame(patient_frame, fg_color="transparent")
+        id_frame.pack(fill="x", padx=10, pady=2)
+        ctk.CTkLabel(id_frame, text="编号:", width=60).pack(side="left")
+        ctk.CTkEntry(id_frame, textvariable=self.patient_info['patient_id'], width=150).pack(side="left", padx=5)
+
+        # 诊断日期
+        date_frame = ctk.CTkFrame(patient_frame, fg_color="transparent")
+        date_frame.pack(fill="x", padx=10, pady=(2,10))
+        ctk.CTkLabel(date_frame, text="日期:", width=60).pack(side="left")
+        ctk.CTkEntry(date_frame, textvariable=self.patient_info['diagnosis_date'], width=120).pack(side="left", padx=5)
+
         # 导出选项
         export_frame = ctk.CTkFrame(self.dialog)
         export_frame.pack(fill="x", padx=20, pady=10)
@@ -93,7 +136,7 @@ class PrintDialog:
     
     def _on_preview(self):
         """预览打印内容"""
-        content = self.print_manager._generate_content(self.print_options)
+        content = self.print_manager._generate_content(self.print_options, self.patient_info)
         if content:
             self._show_preview_window(content)
         else:
@@ -128,7 +171,7 @@ class PrintDialog:
     def _on_print(self):
         """执行打印操作"""
         try:
-            success = self.print_manager.execute_print(self.print_options)
+            success = self.print_manager.execute_print(self.print_options, self.patient_info)
             if success:
                 log_message("报告已生成", "SUCCESS")
                 self.dialog.destroy()
@@ -150,9 +193,9 @@ class PrintManager:
         dialog = PrintDialog(parent, self)
         dialog.show_dialog()
     
-    def execute_print(self, options):
+    def execute_print(self, options, patient_info=None):
         """执行打印操作"""
-        content = self._generate_content(options)
+        content = self._generate_content(options, patient_info)
         if not content:
             return False
         
@@ -169,7 +212,7 @@ class PrintManager:
         
         return True
     
-    def _generate_content(self, options):
+    def _generate_content(self, options, patient_info=None):
         """生成文本内容"""
         # 获取数据
         system_status = data_store.get_system_status()
@@ -251,7 +294,28 @@ class PrintManager:
             content_parts.append(f"  模型类型: {model_info.get('model_type', 'N/A')}")
             content_parts.append(f"  训练状态: 已完成")
             content_parts.append("")
-        
+        # 病人基础信息
+        if patient_info:
+            name = patient_info['name'].get().strip()
+            age = patient_info['age'].get().strip()
+            patient_id = patient_info['patient_id'].get().strip()
+            gender = patient_info['gender'].get()
+            diagnosis_date = patient_info['diagnosis_date'].get().strip()
+            
+            if any([name, age, patient_id]):  # 至少有一个信息不为空
+                content_parts.append("病人基础信息:")
+                if name:
+                    content_parts.append(f"  姓名: {name}")
+                if age:
+                    content_parts.append(f"  年龄: {age}岁")
+                if gender:
+                    content_parts.append(f"  性别: {gender}")
+                if patient_id:
+                    content_parts.append(f"  病人编号: {patient_id}")
+                if diagnosis_date:
+                    content_parts.append(f"  诊断日期: {diagnosis_date}")
+                content_parts.append("")
+                
         return "\n".join(content_parts)
     
     def _export_to_file(self, content):
