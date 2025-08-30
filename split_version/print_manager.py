@@ -195,22 +195,45 @@ class PrintManager:
         # 数据集信息
         if options['include_dataset_info'].get() and system_status.get('file_classification', {}).get('has_data', False):
             file_class = system_status['file_classification']
+            class_names = file_class['class_names']
+            file_counts = file_class['file_counts']
+            
             content_parts.append("数据集信息:")
-            content_parts.append(f"  类别0 ({file_class['class_names'][0]}): {file_class['file_counts']['class_0']} 个文件")
-            content_parts.append(f"  类别1 ({file_class['class_names'][1]}): {file_class['file_counts']['class_1']} 个文件")
-            content_parts.append(f"  总文件数: {file_class['file_counts']['total']}")
+            content_parts.append(f"  类别0 \"{class_names[0]}\": {file_counts['class_0']} 个文件")
+            content_parts.append(f"  类别1 \"{class_names[1]}\": {file_counts['class_1']} 个文件")
+            content_parts.append(f"  总文件数: {file_counts['total']} 个文件")
+            
+            # 添加数据来源信息
+            if file_counts['total'] > 0:
+                content_parts.append(f"  数据来源: {'数据预处理' if file_counts['class_0'] > 0 or file_counts['class_1'] > 0 else 'CSV文件导入'}")
             content_parts.append("")
-        
+
         # 训练信息
         if options['include_training_info'].get() and training_data_info.get('has_data', False):
             content_parts.append("训练数据信息:")
-            content_parts.append(f"  样本数量: {training_data_info.get('n_samples', 'N/A')}")
-            content_parts.append(f"  特征数量: {training_data_info.get('n_features', 'N/A')}")
-            # 类别分布信息
+            content_parts.append(f"  样本数量: {training_data_info.get('n_samples', 'N/A')} 个")
+            content_parts.append(f"  特征数量: {training_data_info.get('n_features', 'N/A')} 个")
+            
+            # 更精确的类别分布信息
             if 'class_distribution' in training_data_info and training_data_info['class_distribution']:
                 content_parts.append("  类别分布:")
-                for cls, count in training_data_info['class_distribution'].items():
-                    content_parts.append(f"    类别{cls}: {count} 个样本")
+                total_samples = sum(training_data_info['class_distribution'].values())
+                
+                # 获取实际的类别名称
+                class_names = system_status.get('file_classification', {}).get('class_names', ['类别0', '类别1'])
+                
+                for i, (cls, count) in enumerate(training_data_info['class_distribution'].items()):
+                    percentage = (count / total_samples * 100) if total_samples > 0 else 0
+                    class_name = class_names[int(cls)] if i < len(class_names) else f"类别{cls}"
+                    content_parts.append(f"    \"{class_name}\": {count} 个样本 ({percentage:.1f}%)")
+            
+            # 添加数据平衡性评估
+            if len(training_data_info.get('class_distribution', {})) == 2:
+                counts = list(training_data_info['class_distribution'].values())
+                balance_ratio = min(counts) / max(counts) if max(counts) > 0 else 0
+                balance_status = "平衡" if balance_ratio > 0.8 else "不平衡" if balance_ratio > 0.5 else "严重不平衡"
+                content_parts.append(f"  数据平衡性: {balance_status} (比例: {balance_ratio:.2f})")
+            
             content_parts.append("")
         
         # 预测信息

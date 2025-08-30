@@ -83,8 +83,20 @@ def open_data_file(normalization_label, start_button):
     # 处理数据
     row = df.iloc[1:, :].values.T
     ylabels = df.iloc[0, :].values
-    ylabels = pd.Series(ylabels)
+    ylabels = pd.Series(ylabels).astype(str)
 
+    # 从CSV读取类别并保存到datastore
+    unique_labels = ylabels.unique()
+    if len(unique_labels) >= 2:
+        classification_data = {
+            'class_0_name': str(unique_labels[0]),
+            'class_1_name': str(unique_labels[1]),
+            'class_0_files': [],  # CSV模式下不需要文件列表
+            'class_1_files': []
+        }
+        data_store.set_file_classification(classification_data)
+        log_message(f"从CSV读取类别并保存: {unique_labels[0]}, {unique_labels[1]}")
+        
     log_message(f"数据形状: {row.shape}, 样本数: {row.shape[0]}, 特征数: {row.shape[1]}")
     log_message(f"类别标签统计: {dict(ylabels.value_counts())}")
 
@@ -95,10 +107,11 @@ def open_data_file(normalization_label, start_button):
         log_message(f"警告：{warning_msg}")
         
     # 标签编码
-    class_mapping, _ = get_class_mapping(ylabels)
+    class_mapping, _ = get_class_mapping()
     column = np.array([class_mapping[label] for label in ylabels])
 
 
     log_message("标签编码完成，数据预处理成功")
 
+    print(data_store._file_classification)
     return row, column, df

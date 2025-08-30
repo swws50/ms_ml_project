@@ -108,14 +108,11 @@ def save_result_file(data, filename, method='numpy'):
 def save_chart_file(figure, filename):
     """保存图表文件"""
     return output_manager.save_file(figure, 'chart', filename, 'matplotlib')
+
 # 动态类别映射管理 
 def get_class_mapping(labels=None):
     """
-    获取当前的类别映射
-    
-    优先级：
-    1. data_store中的用户自定义类别
-    2. 默认类别映射
+    获取当前的类别映射 - 优先使用datastore中的类别
     
     返回:
         tuple: (正向映射dict, 反向映射dict)
@@ -123,37 +120,23 @@ def get_class_mapping(labels=None):
     try:
         classification = data_store.get_file_classification()
         
-        # 检查是否有有效的用户分类
-        if (classification['class_0_files'] or classification['class_1_files'] or 
-            classification['class_0_name'] != '类别0' or classification['class_1_name'] != '类别1'):
-            
-            # 使用用户自定义的类别名称
-            forward_mapping = {
-                classification['class_0_name']: 0,
-                classification['class_1_name']: 1
-            }
-            reverse_mapping = {
-                0: classification['class_0_name'],
-                1: classification['class_1_name']
-            }
-            return forward_mapping, reverse_mapping
-    except (ImportError, AttributeError):
-        pass
-    
-    # 如果提供了labels参数，根据标签自动创建映射
-    if labels is not None:
-        if isinstance(labels, pd.Series):
-            unique_labels = labels.unique()
-        else:
-            unique_labels = list(set(labels))
+        # 直接使用datastore中的类别名称
+        forward_mapping = {
+            classification['class_0_name']: 0,
+            classification['class_1_name']: 1
+        }
+        reverse_mapping = {
+            0: classification['class_0_name'],
+            1: classification['class_1_name']
+        }
+        return forward_mapping, reverse_mapping
         
-        if len(unique_labels) >= 2:
-            return {unique_labels[0]: 0, unique_labels[1]: 1}, {0: unique_labels[0], 1: unique_labels[1]}
-        
-    # 回退到默认映射
-    default_forward = {"类别0": 0, "类别1": 1}
-    default_reverse = {0: "类别0", 1: "类别1"}
-    return default_forward, default_reverse
+    except Exception as e:
+        # 回退到默认映射
+        log_message(f"获取类别映射失败，使用默认值: {e}")
+        default_forward = {"类别0": 0, "类别1": 1}
+        default_reverse = {0: "类别0", 1: "类别1"}
+        return default_forward, default_reverse
 
 
 def get_normalization_factor():
