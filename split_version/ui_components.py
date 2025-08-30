@@ -99,25 +99,7 @@ class BasePanel:
     def add_hover_tip(self, widget, key_or_text):
         """添加悬停提示"""
         if self.help_system:
-            self.help_system.add_hover_tip(widget, key_or_text)
-
-    def add_progress(self, row, column, sticky='ew', padx=5, pady=2, 
-                    columnspan=1, show_label=True, width=200):
-        """为面板添加进度组件"""
-        self.progress_component = ProgressComponent(self.frame, width=width, show_label=show_label)
-        self.progress_component.create(row, column, sticky, padx, pady, columnspan)
-        return self.progress_component
-    
-    def show_progress(self):
-        """显示进度组件"""
-        if self.progress_component:
-            self.progress_component.show()
-    
-    def hide_progress(self):
-        """隐藏进度组件"""
-        if self.progress_component:
-            self.progress_component.hide()
-     
+            self.help_system.add_hover_tip(widget, key_or_text)     
 
 class PreprocessingPanel(BasePanel):
     """数据预处理面板组件"""

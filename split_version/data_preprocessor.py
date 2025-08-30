@@ -42,21 +42,6 @@ class DataPreprocessor:
         self.root = parent_root
         self._create_classification_window()
     
-    def process_classified_files(self, root):
-        """处理已分类的文件（保持原接口）"""
-        self.root = root
-        
-        # 获取分类文件
-        classification = data_store.get_file_classification()
-        file_paths = classification['class_0_files'] + classification['class_1_files']
-        
-        if not file_paths:
-            log_message("未找到已分类的文件", "WARNING")
-            messagebox.showerror("错误", "未找到已分类的文件，请先进行文件分类")
-            return
-        
-        self._execute_processing(file_paths)    
-    
     def _create_classification_window(self):
         """创建文件分类窗口"""
         # 检查是否已有窗口打开

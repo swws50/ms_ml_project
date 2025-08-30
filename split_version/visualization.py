@@ -264,13 +264,3 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
         log_message(f"创建可视化界面时出错: {str(e)}", "ERROR")
         messagebox.showerror("界面创建错误", f"创建可视化界面时出现错误：{str(e)}")
 
-def reset_analysis(help_system):
-    """重置分析进度，开始新的分析流程"""
-    
-    if help_system:
-        help_system.reset_progress()
-    
-    # 清空数据存储模块中的数据
-    data_store.clear_all_data()  
-    
-    log_message("分析进度已重置，数据存储模块已清空", "INFO")

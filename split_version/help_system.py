@@ -222,13 +222,6 @@ class HelpSystem:
             self.current_step_index = next_index
             self.update_progress_display()
     
-    def reset_progress(self):
-        """重置进度"""
-        for step in self.steps:
-            step['completed'] = False
-        self.current_step_index = 0
-        self.update_progress_display()
-    
     def get_current_step(self):
         """获取当前步骤信息"""
         if self.current_step_index < len(self.steps):

@@ -14,7 +14,6 @@ from data_processing import open_data_file
 from model_training import TrainingUI
 from model_predictor import PredictionManager
 from help_system import HelpSystem
-from visualization import reset_analysis
 import data_store
 # 导入新的UI组件
 from ui_components import (
@@ -249,27 +248,46 @@ class MainGUIManager:
         self.prediction_manager.show_model_info_window(self.root)
     
     def handle_reset_progress(self):
-        """完整的重置操作"""
-        # 重置数据和进度
-        reset_analysis(self.help_system)
+        """完整重置到初始状态"""
+        try:
+            log_message("开始重置系统...", "INFO")
+            
+            # 1. 重置数据存储
+            data_store.clear_all_data()
+            
+            # 2. 重置帮助系统进度
+            for step in self.help_system.steps:
+                step['completed'] = False
+            self.help_system.current_step_index = 0
+            self.help_system.update_progress_display()
+            self.help_system.hide_all_tips()
+            
+            # 3. 重置UI面板
+            self.ui_panels['result'].reset_results()
+            self.ui_panels['prediction'].update_result("状态：等待选择文件")
+            self.ui_panels['control'].update_file_status("文件未选择")
+            self.ui_panels['control'].enable_training(False)
+            self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
+            self.ui_panels['control'].current_model = DEFAULT_MODEL
+            self.ui_panels['preprocessing'].update_status("等待开始预处理")
+            
+            # 4. 重置可视化面板
+            old_viz = self.ui_panels['visualization'].frame
+            old_viz.destroy()
+            self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
+            self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
+            self.root.visualization_container = self.ui_panels['visualization'].get_container()
+            self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
+            
+            # 5. 隐藏进度条并重置模型选择
+            self.hide_global_progress()
+            self.exact_selection = DEFAULT_MODEL
+            clear_log()
+            
+            log_message("系统已完全重置", "SUCCESS")
         
-        # 清理UI显示
-        clear_log()
-        self.ui_panels['result'].reset_results()
-        self.ui_panels['prediction'].update_result("状态：等待选择文件")
-        
-         # 重新创建可视化面板
-        old_viz_panel = self.ui_panels['visualization'].frame
-        old_viz_panel.destroy()
-        # 重新创建
-        self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-        self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
-        # 更新引用
-        self.root.visualization_container = self.ui_panels['visualization'].get_container()
-        self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
-        
-        
-        log_message("系统已重置，可以开始新的分析流程", "SUCCESS")
+        except Exception as e:
+            log_message(f"重置失败: {str(e)}", "ERROR")
 
     def show_global_progress(self, message="处理中..."):
         """显示全局进度条"""
@@ -310,25 +328,6 @@ class MainGUIManager:
             result_panel.components['model_status'],
             self.root
         )
-            
-    # 公共接口方法（供其他模块调用）
-    
-    def get_control_panel(self):
-        """获取控制面板实例"""
-        return self.ui_panels['control']
-    
-    def get_result_panel(self):
-        """获取结果面板实例"""
-        return self.ui_panels['result']
-    
-    def get_prediction_panel(self):
-        """获取预测面板实例"""
-        return self.ui_panels['prediction']
-    
-    def update_training_progress(self, progress, message):
-        """更新训练进度（供训练模块调用）"""
-        if self.ui_panels['control']:
-            self.ui_panels['control'].update_progress(progress, message)
     
     def update_training_results(self, train_acc, test_acc, model_status, score=None):
         """更新训练结果（供训练模块调用）"""
@@ -343,8 +342,6 @@ class MainGUIManager:
         if self.ui_panels['prediction']:
             self.ui_panels['prediction'].update_result(result_text, color)
 
-
-# 保持原有的便捷函数（向后兼容）
 
 
 if __name__ == "__main__":
