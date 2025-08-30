@@ -13,9 +13,10 @@ from output_manager import output_manager
 from utils import log_message
 
 # 应用程序图标路径
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_CONFIG = {
-    'app_icon_ico': 'assets/app_icon.ico',
-    'app_icon_png': 'assets/app_icon.png',
+    'app_icon_ico': os.path.join(BASE_DIR, 'assets', 'app_icon.ico'),
+    'app_icon_png': os.path.join(BASE_DIR, 'assets', 'app_icon.png'),
 }
 
 

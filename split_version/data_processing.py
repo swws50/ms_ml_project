@@ -113,5 +113,4 @@ def open_data_file(normalization_label, start_button):
 
     log_message("标签编码完成，数据预处理成功")
 
-    print(data_store._file_classification)
     return row, column, df
