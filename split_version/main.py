@@ -310,8 +310,8 @@ class MainGUIManager:
         # 使用训练UI进行训练
         self.training_ui.train_with_ui_feedback(
             self.exact_selection,
-            self.global_progress.get_status_label(),
-            self.global_progress.get_progress_bar(),
+            self.global_progress.status_label,
+            self.global_progress.progress_bar,
             result_panel.components['train_accuracy'],
             result_panel.components['test_accuracy'],
             result_panel.components['model_status'],

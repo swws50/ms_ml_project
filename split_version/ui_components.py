@@ -52,13 +52,6 @@ class ProgressComponent:
         if self.status_label:
             self.status_label.grid()
     
-    def get_status_label(self):
-        """获取状态标签（向后兼容）"""
-        return self.status_label
-    
-    def get_progress_bar(self):
-        """获取进度条（向后兼容）"""
-        return self.progress_bar
 class BasePanel:
     """基础面板类 - 提供公共功能"""
     
@@ -115,11 +108,6 @@ class BasePanel:
         self.progress_component.create(row, column, sticky, padx, pady, columnspan)
         return self.progress_component
     
-    def update_progress(self, progress, message=None):
-        """更新进度"""
-        if self.progress_component:
-            self.progress_component.update(progress, message)
-    
     def show_progress(self):
         """显示进度组件"""
         if self.progress_component:
@@ -129,14 +117,7 @@ class BasePanel:
         """隐藏进度组件"""
         if self.progress_component:
             self.progress_component.hide()
-    
-    def get_progress_bar(self):
-        """获取进度条（向后兼容）"""
-        return self.progress_component.progress_bar if self.progress_component else None
-    
-    def get_progress_label(self):
-        """获取进度标签（向后兼容）"""
-        return self.progress_component.status_label if self.progress_component else None        
+     
 
 class PreprocessingPanel(BasePanel):
     """数据预处理面板组件"""
@@ -285,33 +266,13 @@ class ControlPanel(BasePanel):
     def enable_training(self, enabled=True):
         """启用/禁用训练按钮"""
         state = 'normal' if enabled else 'disabled'
-        self.components['start_button'].configure(state=state)
-    
-    def _update_progress(self, progress: float, message: str):
-        """更新进度显示"""
-        if self.root and hasattr(self.root, 'gui_manager'):
-            # 使用全局进度条
-            self.root.gui_manager.update_global_progress(progress, message)
-        
-        if self.root:
-            self.root.update()
+        self.components['start_button'].configure(state=state)  
     
     def get_selected_model(self):
         """获取选择的模型"""
         return self.current_model or self.components['model_menu'].get()
 
-    def update_progress(self, progress, message):
-        """更新进度的便捷方法"""
-        if hasattr(self, 'progress_component'):
-            self.progress_component.update(progress, message)
 
-    def get_progress_bar(self):
-        """向后兼容方法"""
-        return self.progress_component.progress_bar if hasattr(self, 'progress_component') else None
-
-    def get_progress_label(self):
-        """向后兼容方法"""  
-        return self.progress_component.status_label if hasattr(self, 'progress_component') else None
 
 class ResultPanel(BasePanel):
     """训练结果面板组件"""
