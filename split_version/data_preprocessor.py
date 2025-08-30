@@ -779,14 +779,3 @@ class DataPreprocessor:
 
 
 
-
-# 全局实例和兼容函数
-_preprocessor_instance = DataPreprocessor()
-
-def show_data_preprocessing_dialog(root):
-    """显示数据预处理对话框（新接口）"""
-    _preprocessor_instance.show_classification_dialog(root)
-
-def process_classified_files(root):
-    """处理已分类文件（保持兼容的旧接口）"""
-    _preprocessor_instance.process_classified_files(root)

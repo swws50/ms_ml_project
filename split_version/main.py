@@ -21,7 +21,7 @@ from ui_components import (
     ControlPanel, ResultPanel, PredictionPanel, 
     VisualizationPanel, InfoPanel, PreprocessingPanel
 )
-from data_preprocessor import show_data_preprocessing_dialog, process_classified_files
+from data_preprocessor import  DataPreprocessor
 from ui_components import ProgressComponent
 from print_manager import PrintManager
 
@@ -33,10 +33,12 @@ class MainGUIManager:
         self.root.gui_manager = self
         self.help_system = None
         self.exact_selection = DEFAULT_MODEL
+
         # 业务逻辑管理器
+        self.data_preprocessor = DataPreprocessor()
         self.training_ui = None
         self.prediction_manager = None
-        
+
         # UI组件面板
         self.ui_panels = {
             'control': None,
@@ -47,6 +49,7 @@ class MainGUIManager:
         }
         
         self.menu_frame = None
+
         # 添加打印管理器
         self.print_manager = PrintManager()
 
@@ -294,7 +297,7 @@ class MainGUIManager:
     def _handle_preprocessing_start(self):
         """处理预处理开始"""
         self.show_global_progress("正在启动数据预处理...")
-        show_data_preprocessing_dialog(self.root)
+        self.data_preprocessor.show_classification_dialog(self.root)
 
     def handle_start_training(self):
         """处理开始训练"""
