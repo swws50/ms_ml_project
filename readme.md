@@ -1,235 +1,627 @@
-# 诊断分析工具 / Diagnostic Analysis Tool
+🔬 诊断分析工具 - 智能质谱数据分析系统
+======================
 
-*[English version below / 英文版本在下方]*
+_[English version below / 英文版本在下方]_
+📖 项目简介
+-------
 
-## 中文说明
+基于机器学习的质谱数据分析系统，专为疾病诊断设计。系统采用智能峰发现技术，自动提取最优特征，支持多种分类算法，提供端到端的数据分析解决方案。
 
-### 📋 项目简介
+**当前版本**: v1.8.6.4  
+**最新更新**: 2025年8月29日
+🌟 核心特性
+-------
 
-这是一个用于质谱数据分析和疾病诊断的机器学习工具。该工具可以处理原始质谱数据，训练多种机器学习模型，并对未知样本进行分类预测（HC vs LC）。
+### 🧠 智能分析
 
-### 🎯 主要功能
+* **智能峰发现**: 集成 pyOpenMS 专业质谱分析库，自动发现最优特征峰
+* **ML导向算法**: 基于机器学习友好性评分的共识峰选择
+* **动态归一化**: 全局扫描自动确定归一化因子
 
-- **数据预处理**: 自动提取47个m/z值的峰值强度
-- **模型训练**: 支持多种机器学习算法（随机森林、逻辑回归、神经网络、PLS回归等）
-- **性能评估**: 生成准确率、混淆矩阵、ROC曲线等评估图表
-- **样本预测**: 对新样本进行HC/LC分类预测
-- **可视化界面**: 友好的图形用户界面，支持进度跟踪和帮助系统
+### 🎯 分类预测
 
-### 📁 文件结构
+* **多算法支持**: 随机森林、逻辑回归、神经网络、PLS回归等
+* **智能预测**: 自动适配训练特征，支持任意类别名称
+* **性能评估**: 混淆矩阵、ROC曲线、交叉验证等完整评估体系
 
-```
-project_folder/
-├── main.py                    # 主程序入口和GUI界面
-├── config.py                  # 配置文件和常量定义
-├── utils.py                   # 工具函数和日志系统
-├── data_processing.py         # 数据处理模块
-├── model_training.py          # 模型训练和预测模块
-├── visualization.py           # 可视化和图表生成
-├── help_system.py            # 帮助系统和进度跟踪
-├── requirements.txt          # 依赖包列表
-└── README.md                 # 说明文档
-```
+### 🎨 用户界面
 
-### 🛠️ 安装要求
+* **模块化设计**: 数据预处理、模型训练、结果展示、样本预测独立面板
+* **实时进度**: 六步骤进度指示器，训练状态实时跟踪
+* **统一图标**: 主窗口和子窗口图标一致性管理
 
-**Python版本**: 3.8或更高版本
+### 🔄 灵活处理
 
-**依赖包**:
-```bash
-pip install -r requirements.txt
-```
+* **文件夹分类**: 支持文件夹选择进行数据分类（推荐）
+* **传统命名**: 兼容HC/LC文件命名规则
+* **自定义类别**: 支持任意类别名称，不限于HC/LC
 
-主要依赖包括:
-- numpy >= 1.21.0
-- pandas >= 1.3.0
-- scikit-learn >= 1.0.0
-- matplotlib >= 3.5.0
-- tkinter (通常随Python安装)
+📁 项目架构
+-------
 
-### 🚀 使用方法
+    诊断分析工具/
+    ├── main.py                    # 🎮 程序入口和主界面管理器
+    ├── split_version/             # 📦 模块化核心组件
+    │   ├── data_processing.py     # 🔧 数据预处理模块
+    │   ├── data_preprocessor.py   # 📂 文件分类对话框
+    │   ├── model_training.py      # 🤖 模型训练引擎
+    │   ├── model_predictor.py     # 🔮 样本预测模块
+    │   ├── feature_detector.py    # 🎯 特征检测与处理
+    │   ├── ui_components.py       # 🎨 UI组件库
+    │   ├── visualization.py       # 📊 图表生成模块
+    │   ├── help_system.py         # ❓ 帮助系统和向导
+    │   ├── config.py              # ⚙️ 配置管理
+    │   ├── data_store.py          # 💾 数据存储管理
+    │   ├── utils.py               # 🛠️ 工具函数库
+    │   └── output_manager.py      # 📤 输出文件管理
+    ├── requirements.txt           # 📋 依赖包列表
+    └── README.md                  # 📚 使用说明
 
-#### 1. 启动程序
-```bash
-python main.py
-```
+🛠️ 环境配置
+--------
 
-#### 2. 使用流程
+### 系统要求
 
-**步骤1: 数据预处理**
-- 点击菜单 "数据预处理" → "选择处理文件"
-- 选择原始的txt格式质谱数据文件
-- 等待处理完成，生成 `LC_MAX.xlsx` 文件
+* **Python版本**: 3.8 或更高版本
+* **操作系统**: Windows / macOS / Linux
+* **内存**: 建议 4GB 以上（大数据集处理）
 
-**步骤2: 加载数据**
-- 点击 "选择归一化excel文件" 按钮
-- 选择步骤1生成的 `LC_MAX.xlsx` 文件
+### 依赖安装
 
-**步骤3: 选择模型**
-- 从菜单 "模型选择" 中选择机器学习算法
-- 推荐选项:
-  - `LogisticRegressionCV`: 适合小数据集
-  - `RandomForestClassifier`: 适合大数据集
-  - `PLSRegression`: 适合高维数据
+    # 安装所有依赖包
+    pip install -r requirements.txt
 
-**步骤4: 训练模型**
-- 点击 "开始分析" 按钮
-- 等待训练完成（约1-3分钟，进行500轮交叉验证）
+### 核心依赖
 
-**步骤5: 查看结果**
-- 查看生成的评估图表（准确率、混淆矩阵、ROC曲线等）
-- 检查模型性能指标
+    numpy >= 1.21.0          # 数值计算
+    pandas >= 1.3.0          # 数据处理
+    scikit-learn >= 1.0.0    # 机器学习算法
+    matplotlib >= 3.5.0      # 图表绘制
+    customtkinter >= 5.0.0   # 现代GUI界面
+    pyopenms >= 3.0.0        # 质谱数据专业处理
+    joblib >= 1.1.0          # 模型序列化
 
-**步骤6: 预测新样本**
-- 点击 "选择要检测的txt文件" 按钮
-- 选择要预测的未知样本文件
-- 查看预测结果（HC或LC）和置信度
+🚀 快速开始
+-------
 
-### 📊 输出文件
+### 启动程序
 
-程序运行后会生成以下文件:
-- `LC_MAX.xlsx`: 处理后的特征矩阵
-- `best_model.joblib`: 最佳模型文件
-- `*.png`: 各种评估图表
-- `*.csv` / `*.npy`: 训练结果数据
+    python main.py
 
-### 💡 提示和技巧
+### 核心工作流程
 
-1. **数据格式**: 确保输入的txt文件为两列格式（m/z值和强度）
-2. **样本命名**: 文件名前两个字符应为类别标签（HC或LC）
-3. **内存使用**: 大数据集可能需要较多内存，建议关闭其他程序
-4. **帮助系统**: 首次使用时会显示使用向导，也可通过菜单访问
+    graph TD
+        A[启动程序] --> B[数据预处理]
+        B --> C[选择文件夹分类]
+        C --> D[智能峰发现]
+        D --> E[选择ML算法]
+        E --> F[模型训练]
+        F --> G[性能评估]
+        G --> H[预测新样本]
 
-### 🐛 常见问题
+📋 详细使用指南
+---------
 
-**问题**: 无法保存文件
-**解决**: 检查文件是否被其他程序打开，或选择其他保存位置
+### 步骤1: 数据预处理 📂
 
-**问题**: 训练过程中出错
-**解决**: 检查数据格式是否正确，确保有足够的不同类别样本
+**文件夹分类模式（推荐）**
 
-**问题**: 预测结果异常
-**解决**: 确保模型已正确训练，输入样本格式与训练数据一致
+1. 点击**数据预处理面板**的"选择数据文件夹"
+2. 选择包含原始质谱数据的文件夹
+3. 在分类对话框中为每个类别选择对应文件夹
+4. 输入自定义类别名称（如"健康"、"患病"）
+5. 确认分类，等待处理完成
 
----
+**传统命名模式**
 
-## English Version
+* 文件名以类别标识开头（如 `HC001.txt`, `LC002.txt`）
+* 直接选择包含所有文件的文件夹进行处理
 
-### 📋 Project Overview
+### 步骤2: 智能特征提取 🎯
 
-This is a machine learning tool for mass spectrometry data analysis and disease diagnosis. The tool can process raw mass spectrometry data, train various machine learning models, and perform classification predictions on unknown samples (HC vs LC).
+**智能峰发现模式（默认）**
 
-### 🎯 Key Features
+* 使用 pyOpenMS 自动发现质谱峰
+* 应用ML导向共识峰算法筛选最优特征
+* 自动选择50个最具区分性的特征
 
-- **Data Preprocessing**: Automatically extract peak intensities for 47 m/z values
-- **Model Training**: Support multiple machine learning algorithms (Random Forest, Logistic Regression, Neural Networks, PLS Regression, etc.)
-- **Performance Evaluation**: Generate evaluation charts including accuracy, confusion matrix, ROC curves
-- **Sample Prediction**: Classify new samples as HC/LC
-- **Visualization Interface**: User-friendly GUI with progress tracking and help system
+**关键参数**（config.py中可调）:
+    MAX_FEATURES = 50           # 最大特征数量
+    MIN_OCCURRENCE_RATE = 0.2   # 最小出现频率（20%）
+    MIN_FOLD_CHANGE = 1.3       # 最小倍数变化（30%差异）
 
-### 📁 File Structure
+### 步骤3: 模型训练 🤖
 
-```
-project_folder/
-├── main.py                    # Main entry point and GUI interface
-├── config.py                  # Configuration and constants
-├── utils.py                   # Utility functions and logging
-├── data_processing.py         # Data processing module
-├── model_training.py          # Model training and prediction
-├── visualization.py           # Visualization and chart generation
-├── help_system.py            # Help system and progress tracking
-├── requirements.txt          # Dependencies list
-└── README.md                 # Documentation
-```
+1. 点击"选择归一化excel文件"，加载预处理结果
+2. 从**模型选择**菜单选择算法：
+   * `LogisticRegressionCV`: 小数据集首选
+   * `RandomForestClassifier`: 大数据集推荐
+   * `PLSRegression`: 高维数据专用
+   * `MLPClassifier`: 复杂模式识别
+3. 点击"开始分析"启动训练（500轮交叉验证）
 
-### 🛠️ Installation Requirements
+### 步骤4: 性能评估 📊
 
-**Python Version**: 3.8 or higher
+训练完成后自动生成：
 
-**Dependencies**:
-```bash
-pip install -r requirements.txt
-```
+* **准确率统计**: 平均准确率和标准偏差
+* **混淆矩阵**: 分类结果详细展示
+* **ROC曲线**: AUC值和诊断能力评估
+* **特征重要性**: 关键m/z值贡献分析
 
-Key dependencies include:
-- numpy >= 1.21.0
-- pandas >= 1.3.0
-- scikit-learn >= 1.0.0
-- matplotlib >= 3.5.0
-- tkinter (usually included with Python)
+### 步骤5: 样本预测 🔮
 
-### 🚀 Usage Instructions
+1. 点击"选择要检测的txt文件"
+2. 选择未知样本文件
+3. 系统自动匹配训练特征并给出预测结果
+4. 查看分类结果和置信度评估
 
-#### 1. Launch the Program
-```bash
-python main.py
-```
+### 步骤6: 结果导出 📄
 
-#### 2. Workflow
+* **报告生成**: 支持病人信息录入和诊断报告打印
+* **结果保存**: 自动保存所有训练结果和图表文件
+* **批量预测**: 支持多个样本的批量分析
 
-**Step 1: Data Preprocessing**
-- Click menu "数据预处理" → "选择处理文件"
-- Select raw txt format mass spectrometry data files
-- Wait for processing to complete, generates `LC_MAX.xlsx` file
+📊 输出文件结构
+---------
 
-**Step 2: Load Data**
-- Click "选择归一化excel文件" button
-- Select the `LC_MAX.xlsx` file generated in Step 1
+    outputs/
+    ├── data/                      # 📁 数据文件
+    │   ├── normalized_ms_data.csv # 归一化特征矩阵
+    │   └── intelligent_normalization_factor.txt # 动态归一化因子
+    ├── models/                    # 🤖 模型文件
+    │   └── best_model.joblib      # 最优训练模型
+    ├── results/                   # 📈 训练结果
+    │   ├── Con_matrix_SVM.csv     # 混淆矩阵统计
+    │   ├── Fscore_SVM.csv         # F1分数统计
+    │   ├── 2C_auc_SVM.csv         # AUC值统计
+    │   └── PLS_optimal_thresholds.csv # PLS最优阈值
+    └── charts/                    # 📊 评估图表
+        ├── Training and Test Balanced Accuracy.png
+        ├── Weighted Average Precision, Recall, and F1-score.png
+        ├── Mean Confusion Matrix.png
+        ├── Mean ROC Curve.png
+        └── PLS_optimal_thresholds.png
 
-**Step 3: Select Model**
-- Choose a machine learning algorithm from "模型选择" menu
-- Recommended options:
-  - `LogisticRegressionCV`: Good for small datasets
-  - `RandomForestClassifier`: Good for large datasets
-  - `PLSRegression`: Good for high-dimensional data
+⚙️ 高级配置
+-------
 
-**Step 4: Train Model**
-- Click "开始分析" button
-- Wait for training completion (about 1-3 minutes, 500 cross-validation rounds)
+### 智能峰发现参数调整
 
-**Step 5: View Results**
-- Examine generated evaluation charts (accuracy, confusion matrix, ROC curves, etc.)
-- Check model performance metrics
+编辑 `config.py` 文件中的关键参数：
+    # 特征选择控制
+    MAX_FEATURES = 50              # 最大特征数量（30-100）
+    MIN_OCCURRENCE_RATE = 0.2      # 最小出现频率（0.15-0.3）
+    MIN_FOLD_CHANGE = 1.3          # 最小倍数变化（1.2-1.5）
 
-**Step 6: Predict New Samples**
-- Click "选择要检测的txt文件" button
-- Select unknown sample files for prediction
-- View prediction results (HC or LC) and confidence scores
+    # 峰检测参数
+    SIGNAL_TO_NOISE = 1.0          # 信噪比阈值
+    SPACING_DIFFERENCE = 1.5       # 峰间距要求
+    MZ_TOLERANCE = 0.2             # m/z匹配容差
 
-### 📊 Output Files
+### 推荐参数配置
 
-The program generates the following files:
-- `LC_MAX.xlsx`: Processed feature matrix
-- `best_model.joblib`: Best model file
-- `*.png`: Various evaluation charts
-- `*.csv` / `*.npy`: Training result data
+| 研究类型    | MAX_FEATURES | MIN_OCCURRENCE_RATE | MIN_FOLD_CHANGE | 适用场景      |
+| ------- | ------------ | ------------------- | --------------- | --------- |
+| **保守型** | 30           | 0.3                 | 1.5             | 小样本、高精度要求 |
+| **标准型** | 50           | 0.2                 | 1.3             | 一般研究、平衡性能 |
+| **探索型** | 100          | 0.15                | 1.2             | 大样本、特征发现  |
 
-### 💡 Tips and Tricks
+🎯 算法选择指南
+---------
 
-1. **Data Format**: Ensure input txt files are in two-column format (m/z values and intensities)
-2. **Sample Naming**: First two characters of filename should be class labels (HC or LC)
-3. **Memory Usage**: Large datasets may require more memory, consider closing other programs
-4. **Help System**: Usage wizard displays on first run, also accessible through menu
+### 推荐算法对比
 
-### 🐛 Troubleshooting
+| 算法                         | 适用数据量 | 训练速度 | 解释性 | 精度  | 推荐场景         |
+| -------------------------- | ----- | ---- | --- | --- | ------------ |
+| **LogisticRegressionCV**   | 小-中   | 快    | 高   | 中-高 | 临床验证、特征重要性分析 |
+| **RandomForestClassifier** | 中-大   | 中    | 中   | 高   | 大规模筛查、稳定性优先  |
+| **PLSRegression**          | 小-中   | 快    | 中   | 中-高 | 质谱数据首选、高维数据  |
+| **MLPClassifier**          | 大     | 慢    | 低   | 高   | 复杂模式识别、非线性关系 |
 
-**Issue**: Cannot save files
-**Solution**: Check if files are open in other programs, or choose a different save location
+### 选择建议
 
-**Issue**: Error during training
-**Solution**: Verify data format is correct, ensure sufficient samples of different classes
+* **首次使用**: 推荐 `PLSRegression`（专为质谱数据优化）
+* **小数据集** (<100样本): `LogisticRegressionCV`
+* **大数据集** (>500样本): `RandomForestClassifier`
+* **追求精度**: `MLPClassifier`（需要大样本）
 
-**Issue**: Abnormal prediction results
-**Solution**: Ensure model is properly trained, input sample format matches training data
+🛠️ 故障排除
+--------
 
-### 📄 License
+### 常见问题解决
+
+#### 安装问题
+
+**问题**: pyOpenMS安装失败  
+**解决**:
+    # Windows
+    conda install -c conda-forge pyopenms
+
+    # macOS/Linux  
+    pip install pyopenms
+
+**问题**: CustomTkinter界面异常  
+**解决**: 确保Python版本3.8+，更新所有依赖包
+
+#### 数据处理问题
+
+**问题**: "未发现任何有效峰"  
+**解决**:
+
+* 检查输入文件格式（两列：m/z值和强度）
+* 降低`SIGNAL_TO_NOISE`参数值
+* 确保数据不全为零
+
+**问题**: "未识别出共识特征峰"  
+**解决**:
+
+* 降低`MIN_OCCURRENCE_RATE`和`MIN_FOLD_CHANGE`参数
+* 增加样本数量确保足够的类别覆盖
+* 检查两类样本是否有明显差异
+
+**问题**: "特征值不匹配的bug"  
+**解决**: 重新完整执行"数据预处理→模型训练→样本预测"流程
+
+#### 性能问题
+
+**问题**: 训练过程界面冻结  
+**说明**: 正常现象，500轮交叉验证需要1-3分钟 **建议**: 耐心等待或选择更快的算法
+
+**问题**: 内存不足  
+**解决**:
+
+* 关闭其他程序释放内存
+* 减少`MAX_FEATURES`和`TRAINING_ITERATIONS`参数
+* 处理更小的数据集
+
+🔄 版本更新历史
+---------
+
+### v1.8.6.4 (当前版本)
+
+* 修复子窗口图标显示问题
+* 完善UI模块化架构
+* 统一图标管理系统
+
+### v1.8.1 (重要更新)
+
+* UI面板集成，4列布局优化
+* 数据预处理面板独立化
+* 修复布局重叠问题
+
+### v1.7.0 (架构重构)
+
+* 模块化重构，代码拆分为多个专门模块
+* 修复硬编码路径bug
+* 统一类别映射管理
+
+### v1.6.0 (文件夹分类)
+
+* 文件夹选择替代文件命名规则
+* 支持任意类别名称
+* 实时预览分类结果
+
+### v1.5.0 (智能峰发现)
+
+* 集成pyOpenMS专业质谱分析
+* ML导向共识峰算法
+* 动态归一化系统
+
+🔧 开发者信息
+--------
+
+### 代码架构
+
+    # 主要模块关系
+    MainGUIManager -> 协调所有组件
+    ├── DataPreprocessor -> 数据预处理和文件分类
+    ├── TrainingUI -> 模型训练界面逻辑  
+    ├── PredictionManager -> 样本预测和模型信息
+    ├── HelpSystem -> 帮助系统和进度跟踪
+    └── UI Components -> 模块化界面组件
+        ├── ControlPanel -> 操作控制面板
+        ├── ResultPanel -> 训练结果显示
+        ├── PredictionPanel -> 预测结果面板
+        ├── VisualizationPanel -> 图表显示面板
+        └── InfoPanel -> 运行日志面板
+
+### 关键技术特性
+
+* **模块化设计**: 功能拆分，易于维护扩展
+* **数据持久化**: data_store模块统一管理运行时数据
+* **错误处理**: 装饰器模式统一异常处理
+* **界面组件化**: BasePanel基础类提供通用功能
+* **进度跟踪**: 六步骤指示器引导用户操作
+
+💡 使用技巧
+-------
+
+### 数据准备建议
+
+1. **文件命名**: 使用有意义的文件名便于分类识别
+2. **数据质量**: 确保原始质谱数据信噪比良好
+3. **样本平衡**: 尽量保持两类样本数量接近
+
+### 参数调优策略
+
+1. **起始参数**: 使用默认配置进行首次分析
+2. **性能优化**: 根据结果调整特征数量和阈值
+3. **交叉验证**: 多次运行验证结果稳定性
+
+### 工作流程优化
+
+1. **批量处理**: 一次处理多个同类样本提高效率
+2. **结果备份**: 重要结果及时导出备份
+3. **模型复用**: 训练好的模型可以重复用于预测
+
+📞 技术支持
+-------
+
+### 获取帮助
+
+* **内置帮助**: 程序内"使用向导"详细指导
+* **悬停提示**: 界面元素悬停显示操作说明
+* **日志系统**: 运行信息面板实时显示操作状态
+
+### 报告问题
+
+如遇到技术问题，请记录：
+
+1. 错误消息的完整文本
+2. 操作步骤和输入文件
+3. 系统环境（Python版本、操作系统）
+4. 程序日志中的相关信息
+
+* * *
+
+English Version
+---------------
+
+🔬 Diagnostic Analysis Tool - Intelligent Mass Spectrometry Data Analysis System
+================================================================================
+
+📖 Project Overview
+-------------------
+
+A machine learning-based mass spectrometry data analysis system designed for disease diagnosis. The system uses intelligent peak discovery technology to automatically extract optimal features, supports multiple classification algorithms, and provides end-to-end data analysis solutions.
+
+**Current Version**: v1.8.6.4  
+**Last Updated**: August 29, 2025
+🌟 Core Features
+----------------
+
+### 🧠 Intelligent Analysis
+
+* **Smart Peak Discovery**: Integrated pyOpenMS professional mass spectrometry analysis library for automatic optimal feature peak discovery
+* **ML-Oriented Algorithm**: Consensus peak selection based on machine learning friendliness scoring
+* **Dynamic Normalization**: Global scanning to automatically determine normalization factors
+
+### 🎯 Classification Prediction
+
+* **Multi-Algorithm Support**: Random Forest, Logistic Regression, Neural Networks, PLS Regression, etc.
+* **Smart Prediction**: Automatic adaptation to training features, supports arbitrary category names
+* **Performance Evaluation**: Complete evaluation system including confusion matrix, ROC curves, cross-validation
+
+### 🎨 User Interface
+
+* **Modular Design**: Independent panels for data preprocessing, model training, result display, and sample prediction
+* **Real-time Progress**: Six-step progress indicator with real-time training status tracking
+* **Unified Icons**: Consistent icon management for main and sub-windows
+
+### 🔄 Flexible Processing
+
+* **Folder Classification**: Support folder selection for data classification (recommended)
+* **Traditional Naming**: Compatible with HC/LC file naming conventions
+* **Custom Categories**: Support arbitrary category names, not limited to HC/LC
+
+📁 Project Structure
+--------------------
+
+    Diagnostic Analysis Tool/
+    ├── main.py                    # 🎮 Program entry and main interface manager
+    ├── split_version/             # 📦 Modular core components
+    │   ├── data_processing.py     # 🔧 Data preprocessing module
+    │   ├── data_preprocessor.py   # 📂 File classification dialog
+    │   ├── model_training.py      # 🤖 Model training engine
+    │   ├── model_predictor.py     # 🔮 Sample prediction module
+    │   ├── feature_detector.py    # 🎯 Feature detection and processing
+    │   ├── ui_components.py       # 🎨 UI component library
+    │   ├── visualization.py       # 📊 Chart generation module
+    │   ├── help_system.py         # ❓ Help system and wizard
+    │   ├── config.py              # ⚙️ Configuration management
+    │   ├── data_store.py          # 💾 Data storage management
+    │   ├── utils.py               # 🛠️ Utility functions library
+    │   └── output_manager.py      # 📤 Output file management
+    ├── requirements.txt           # 📋 Dependencies list
+    └── README.md                  # 📚 Usage documentation
+
+🛠️ Environment Setup
+---------------------
+
+### System Requirements
+
+* **Python Version**: 3.8 or higher
+* **Operating System**: Windows / macOS / Linux
+* **Memory**: Recommended 4GB+ (for large dataset processing)
+
+### Dependencies Installation
+
+    # Install all dependencies
+    pip install -r requirements.txt
+
+### Core Dependencies
+
+    numpy >= 1.21.0          # Numerical computation
+    pandas >= 1.3.0          # Data processing
+    scikit-learn >= 1.0.0    # Machine learning algorithms
+    matplotlib >= 3.5.0      # Chart plotting
+    customtkinter >= 5.0.0   # Modern GUI interface
+    pyopenms >= 3.0.0        # Mass spectrometry data professional processing
+    joblib >= 1.1.0          # Model serialization
+
+🚀 Quick Start
+--------------
+
+### Launch Program
+
+    python main.py
+
+### Core Workflow
+
+    graph TD
+        A[Launch Program] --> B[Data Preprocessing]
+        B --> C[Folder Classification]
+        C --> D[Smart Peak Discovery]
+        D --> E[Select ML Algorithm]
+        E --> F[Model Training]
+        F --> G[Performance Evaluation]
+        G --> H[Predict New Samples]
+
+📋 Detailed Usage Guide
+-----------------------
+
+### Step 1: Data Preprocessing 📂
+
+**Folder Classification Mode (Recommended)**
+
+1. Click "Select Data Folder" in the **Data Preprocessing Panel**
+2. Choose folder containing raw mass spectrometry data
+3. Select corresponding folders for each category in the classification dialog
+4. Enter custom category names (e.g., "Healthy", "Disease")
+5. Confirm classification and wait for processing completion
+
+**Traditional Naming Mode**
+
+* File names start with category identifiers (e.g., `HC001.txt`, `LC002.txt`)
+* Directly select folder containing all files for processing
+
+### Step 2: Smart Feature Extraction 🎯
+
+**Smart Peak Discovery Mode (Default)**
+
+* Uses pyOpenMS to automatically discover mass spectrometry peaks
+* Applies ML-oriented consensus peak algorithm to filter optimal features
+* Automatically selects 50 most discriminative features
+
+**Key Parameters** (adjustable in config.py):
+    MAX_FEATURES = 50           # Maximum number of features
+    MIN_OCCURRENCE_RATE = 0.2   # Minimum occurrence frequency (20%)
+    MIN_FOLD_CHANGE = 1.3       # Minimum fold change (30% difference)
+
+### Step 3: Model Training 🤖
+
+1. Click "Select Normalized Excel File" to load preprocessing results
+2. Choose algorithm from **Model Selection** menu:
+   * `LogisticRegressionCV`: First choice for small datasets
+   * `RandomForestClassifier`: Recommended for large datasets
+   * `PLSRegression`: Specialized for high-dimensional data
+   * `MLPClassifier`: For complex pattern recognition
+3. Click "Start Analysis" to begin training (500 cross-validation rounds)
+
+### Step 4: Performance Evaluation 📊
+
+Automatically generates after training completion:
+
+* **Accuracy Statistics**: Mean accuracy and standard deviation
+* **Confusion Matrix**: Detailed classification results display
+* **ROC Curves**: AUC values and diagnostic capability assessment
+* **Feature Importance**: Key m/z value contribution analysis
+
+### Step 5: Sample Prediction 🔮
+
+1. Click "Select txt File to Detect"
+2. Choose unknown sample files
+3. System automatically matches training features and provides prediction results
+4. View classification results and confidence assessment
+
+### Step 6: Results Export 📄
+
+* **Report Generation**: Support patient information entry and diagnostic report printing
+* **Results Saving**: Automatically save all training results and chart files
+* **Batch Prediction**: Support batch analysis of multiple samples
+
+🔧 Advanced Features
+--------------------
+
+### Intelligent Peak Discovery Technology
+
+* **Professional Library**: Based on pyOpenMS, the industry standard for mass spectrometry analysis
+* **Automatic Feature Selection**: No need for manual m/z value presetting
+* **ML-Friendly Algorithm**: Optimizes features specifically for machine learning performance
+
+### Dynamic Normalization System
+
+* **Global Scanning**: Two-round processing, first scan for global maximum intensity values
+* **Scientific Normalization**: Uses actual data maximum values as normalization factors
+* **Factor Preservation**: Automatically saves normalization information to ensure prediction consistency
+
+### Smart Prediction Adaptation
+
+* **Automatic Detection**: Automatically recognizes training methods and features during prediction
+* **Feature Matching**: Automatically extracts feature m/z values from training data CSV
+* **Normalization Sync**: Processes prediction samples using the same normalization factors as training
+
+⚠️ Important Notes
+------------------
+
+### Current Limitations
+
+1. **Isotope Processing**: Peak extraction section has not yet implemented isotope processing, currently using the simplest implementation
+2. **Workflow Dependency**: Must complete the entire "Peak Mode Selection → Model Training" workflow before predicting unknown samples, otherwise feature value mismatch bugs will occur
+3. **Interface Blocking**: During training, the entire GUI interface is frozen and cannot be operated (training takes 1-3 minutes)
+4. **Normalization Factor**: External CSV files (already normalized) cannot correctly infer original normalization factors
+
+### Known Issues
+
+* **UI Component Reset**: Due to initial design flaws, entire panels need to be recreated during reset
+* **Visualization Panel**: Uses "replacement" rather than "update" mode for display
+
+📈 Performance Expectations
+---------------------------
+
+### Typical Processing Times
+
+* **Data Preprocessing**: 30 seconds - 2 minutes (depends on file count)
+* **Model Training**: 1-3 minutes (500 rounds cross-validation)
+* **Sample Prediction**: 1-5 seconds per sample
+* **Chart Generation**: 10-30 seconds
+
+### Resource Requirements
+
+* **CPU**: Multi-core recommended for training acceleration
+* **Memory**: 2-8GB depending on dataset size
+* **Storage**: 100MB-1GB for results and models
+
+🔄 Migration and Compatibility
+------------------------------
+
+### Backward Compatibility
+
+* ✅ All original functions work normally
+* ✅ User operation flow unchanged
+* ✅ Launch method unchanged: `python main.py`
+* ✅ Configuration file format unchanged
+
+### Version Migration
+
+* **From v1.5 and earlier**: Automatic migration, no manual intervention required
+* **Configuration Files**: Automatically preserved and upgraded
+* **Data Files**: Full compatibility, existing processed data can be directly used
+
+📄 License
+----------
 
 This project is for research and educational purposes. Please cite appropriately if used in academic work.
-
-### 🤝 Contributing
+🤝 Contributing
+---------------
 
 Contributions are welcome! Please feel free to submit issues and enhancement requests.
+📞 Support
+----------
 
-### 📞 Support
+For questions and support, please refer to the built-in help system or contact the development team.
 
-For questions and support, please refer to the in-built help system or contact the development team.
+* * *
+
+_This tool represents the latest advancement in automated mass spectrometry analysis, combining professional-grade algorithms with user-friendly interfaces to democratize access to sophisticated analytical capabilities._
