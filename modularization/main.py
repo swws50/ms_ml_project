@@ -33,6 +33,8 @@ class MainGUIManager:
         self.help_system = None
         self.exact_selection = DEFAULT_MODEL
 
+        self._operation_cancelled = False  # 简单的终止标志
+
         # 业务逻辑管理器
         self.data_preprocessor = DataPreprocessor()
         self.training_ui = None
@@ -125,10 +127,17 @@ class MainGUIManager:
         menu_container = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
         menu_container.pack(side="left", padx=20, pady=15)
         
-        # 项目管理按钮
-        project_btn = ctk.CTkButton(menu_container, text="重置进度", width=100, height=35,
-                                command=self.handle_reset_progress)
-        project_btn.pack(side="left", padx=5)
+        # 将重置按钮改为动态按钮
+        self.action_btn = ctk.CTkButton(
+            menu_container, 
+            text="重置进度", 
+            width=100, 
+            height=35,
+            command=self._handle_action_button
+        )
+        self.action_btn.pack(side="left", padx=5)
+        
+        self._is_operation_running = False
         
         # 新增：打印按钮
         print_btn = ctk.CTkButton(menu_container, text="打印报告", width=100, height=35,
@@ -139,7 +148,23 @@ class MainGUIManager:
         help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
                                 command=self.help_system.show_wizard)
         help_btn.pack(side="left", padx=5)
-        
+
+    def _handle_action_button(self):
+        """处理动态按钮点击"""
+        if self._is_operation_running:
+            # 只有显示"终止训练"时才能终止
+            if self.action_btn.cget("text") == "终止训练":
+                response = messagebox.askyesno("确认终止", "确定要终止训练吗？\n终止后将自动重置系统。")
+                if response:
+                    self._operation_cancelled = True
+                    self.action_btn.configure(state="disabled")  # 禁用防止重复点击
+                    log_message("用户请求终止训练", "WARNING")
+                    self.root.after(1000, self.handle_reset_progress)
+            # 如果是禁用状态就不响应
+        else:
+            # 非运行时作为重置按钮
+            self.handle_reset_progress()
+
     def handle_print_report(self):
         """处理打印报告"""
         self.print_manager.show_print_dialog(self.root)
@@ -249,9 +274,16 @@ class MainGUIManager:
     
     def handle_reset_progress(self):
         """完整重置到初始状态"""
+
+        # 设置取消标志
+        self._operation_cancelled = True
+        
         try:
             log_message("开始重置系统...", "INFO")
             
+            # 0. 先重置按钮状态，避免UI销毁问题
+            self._is_operation_running = False
+            self.action_btn.configure(text="重置进度", state="normal")
             # 1. 重置数据存储
             data_store.clear_all_data()
             
@@ -261,7 +293,7 @@ class MainGUIManager:
             self.help_system.current_step_index = 0
             self.help_system.update_progress_display()
             self.help_system.hide_all_tips()
-            
+
             # 3. 重置UI面板
             self.ui_panels['result'].reset_results()
             self.ui_panels['prediction'].update_result("状态：等待选择文件")
@@ -284,9 +316,11 @@ class MainGUIManager:
             self.exact_selection = DEFAULT_MODEL
             clear_log()
             
+            self._operation_cancelled = False
             log_message("系统已完全重置", "SUCCESS")
         
         except Exception as e:
+            self._operation_cancelled = False
             log_message(f"重置失败: {str(e)}", "ERROR")
 
     def show_global_progress(self, message="处理中..."):
@@ -302,33 +336,79 @@ class MainGUIManager:
         """隐藏全局进度条"""
         self.global_progress.hide()
 
+    def _set_operation_running(self, running: bool, operation_name: str = "", allow_termination: bool = False):
+        """设置操作运行状态"""
+        self._is_operation_running = running
+        
+        if running:
+            if allow_termination:
+                # 可终止的操作（如训练）
+                self.action_btn.configure(text="终止训练", state="normal")
+                log_message(f"开始{operation_name}，可点击终止按钮取消", "INFO")
+            else:
+                # 不可终止的操作（如预处理、预测）
+                self.action_btn.configure(text="重置进度", state="disabled")
+                log_message(f"开始{operation_name}，请等待完成", "INFO")
+        else:
+            self.action_btn.configure(text="重置进度", state="normal")
+            self._operation_cancelled = False
+
     def _handle_preprocessing_start(self):
-        """处理预处理开始"""
-        self.show_global_progress("正在启动数据预处理...")
-        self.data_preprocessor.show_classification_dialog(self.root)
+        """处理预处理开始 - 不支持终止"""
+        self._set_operation_running(True, "数据预处理", allow_termination=False)
+        
+        try:
+            self.show_global_progress("正在启动数据预处理...")
+            self.data_preprocessor.show_classification_dialog(self.root)
+        finally:
+            self._set_operation_running(False)
 
     def handle_start_training(self):
-        """处理开始训练"""
-        control_panel = self.ui_panels['control']
-        result_panel = self.ui_panels['result']
+        """处理开始训练 - 支持终止功能"""
+        self._set_operation_running(True, "模型训练", allow_termination=True) 
         
-        # 重置结果显示
-        result_panel.reset_results()
+        try:
+            control_panel = self.ui_panels['control']
+            result_panel = self.ui_panels['result']
+            
+            # 重置结果显示
+            result_panel.reset_results()
+            
+            # 显示全局进度条
+            self.show_global_progress("开始模型训练...")
+            
+            # 使用训练UI进行训练
+            self.training_ui.train_with_ui_feedback(
+                self.exact_selection,
+                self.global_progress.status_label,
+                self.global_progress.progress_bar,
+                result_panel.components['train_accuracy'],
+                result_panel.components['test_accuracy'],
+                result_panel.components['model_status'],
+                self.root
+            )
+        except InterruptedError:
+            log_message("训练被终止", "WARNING")
+            # 确保UI状态正确显示终止结果
+            if 'result' in self.ui_panels:
+                self.ui_panels['result'].components['model_status'].configure(
+                    text='模型保存状态: 训练被终止', 
+                    text_color='orange'
+                )
+        finally:
+            self._set_operation_running(False)
+
+    def handle_predict_file(self):
+        """处理文件预测 - 不支持终止"""
+        self._set_operation_running(True, "文件预测", allow_termination=False)
         
-        # 显示全局进度条
-        self.show_global_progress("开始模型训练...")
-        
-        # 使用训练UI进行训练
-        self.training_ui.train_with_ui_feedback(
-            self.exact_selection,
-            self.global_progress.status_label,
-            self.global_progress.progress_bar,
-            result_panel.components['train_accuracy'],
-            result_panel.components['test_accuracy'],
-            result_panel.components['model_status'],
-            self.root
-        )
-    
+        try:
+            prediction_panel = self.ui_panels['prediction']
+            self.prediction_manager.open_file_dialog(prediction_panel.components['result_label'])
+        finally:
+            self._set_operation_running(False)
+                        
+                  
     def update_training_results(self, train_acc, test_acc, model_status, score=None):
         """更新训练结果（供训练模块调用）"""
         if self.ui_panels['result']:

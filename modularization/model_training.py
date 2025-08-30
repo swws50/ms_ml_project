@@ -278,7 +278,11 @@ class TrainingUI:
             root: 根窗口
         """
         def progress_callback(progress, message):
-            # 添加空值检查
+            # 检查终止标志
+            if hasattr(root, 'gui_manager') and root.gui_manager._operation_cancelled:
+                raise InterruptedError("操作被用户终止")
+            
+            # 原有的UI更新逻辑
             if progress_label:
                 progress_label.configure(text=message)
             if progress_bar:
@@ -327,7 +331,13 @@ class TrainingUI:
             )
             
             log_message("所有任务完成！")
-            
+
+        except InterruptedError:
+            log_message("训练过程被终止", "WARNING")
+            status_label.configure(text='模型保存状态: 训练被终止', text_color='orange')
+            if progress_bar:
+                progress_bar.set(0)
+                    
         except Exception as e:
             error_msg = f"训练过程中出现错误: {str(e)}"
             log_message(error_msg, "ERROR")

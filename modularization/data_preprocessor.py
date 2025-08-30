@@ -276,6 +276,10 @@ class DataPreprocessor:
             if not response:
                 return
         
+        # 在开始实际处理前，重新设置按钮状态
+        if self.root and hasattr(self.root, 'gui_manager'):
+            self.root.gui_manager._set_operation_running(True, "数据预处理", allow_termination=False)
+
         # 更新类别名称
         self.class_0_name = class_0_name_var.get()
         self.class_1_name = class_1_name_var.get()
@@ -415,6 +419,7 @@ class DataPreprocessor:
         """清理进度显示界面 - 隐藏全局进度条"""  
         if self.root and hasattr(self.root, 'gui_manager'):
             self.root.gui_manager.hide_global_progress()
+            self.root.gui_manager._set_operation_running(False)
         
     def _update_progress(self, progress: float, message: str):
         """更新进度显示"""
