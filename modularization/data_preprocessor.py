@@ -67,12 +67,11 @@ class DataPreprocessor:
         # 图标
         set_window_icon(self.classification_window)
 
-        # 窗口置顶和焦点设置
-        self.classification_window.attributes('-topmost', True)
+        # 窗口焦点设置
+        self.classification_window.transient(self.root)
         self.classification_window.focus_force()
         self.classification_window.lift()
         self.classification_window.grab_set()
-        self.classification_window.after(1000, lambda: self.classification_window.attributes('-topmost', False))
         
         # 创建UI组件
         self._create_classification_ui()
@@ -199,7 +198,10 @@ class DataPreprocessor:
 
     def _select_class_folder(self, class_index, class_0_name_var, class_1_name_var):
         """选择类别文件夹"""
-        folder_path = filedialog.askdirectory(title=f"选择类别{class_index}文件夹")
+        folder_path = filedialog.askdirectory(
+            title=f"选择类别{class_index}文件夹",
+            parent=self.classification_window
+        )
         if folder_path:
             txt_files = []
             for file in os.listdir(folder_path):
@@ -455,15 +457,96 @@ class DataPreprocessor:
         # 合并所有峰数据
         all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
         log_message(f"总计发现 {len(all_peaks_df)} 个峰候选")
+        self._update_progress(0.40, "阶段2: 数据合并完成")  # 新增
         
-        # 发现共识峰
-        consensus_peaks = self._find_consensus_peaks(all_peaks_df)
-        log_message(f"识别出 {len(consensus_peaks)} 个共识特征峰")
+        # 获取动态类别映射
+        _, reverse_mapping = get_class_mapping()
+        class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
+        
+        log_message(f"使用类别: {class_0_name}, {class_1_name}")
+        
+        # 统计信息
+        class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
+        class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
+        
+        # 按m/z分组分析
+        all_peaks_df = all_peaks_df.copy()
+        all_peaks_df['mz_group'] = np.round(all_peaks_df['mz'] / 0.2) * 0.2
+        self._update_progress(0.45, "阶段2: 数据分组完成")  # 新增
+        
+        consensus_peaks = []
+        unique_groups = all_peaks_df['mz_group'].unique()
+        total_groups = len(unique_groups)
+        
+        for i, mz_group in enumerate(unique_groups):
+            group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
+            
+            class_0_data = group_data[group_data['class'] == class_0_name]
+            class_1_data = group_data[group_data['class'] == class_1_name]
+            
+            # 计算出现频率
+            class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
+            class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
+            
+            class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
+            class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
+            
+            # 过滤条件
+            if (class_0_occurrence_rate < MIN_OCCURRENCE_RATE or 
+                class_1_occurrence_rate < MIN_OCCURRENCE_RATE):
+                continue
+            
+            if len(class_0_data) < 2 or len(class_1_data) < 2:
+                continue
+            
+            # 计算统计指标
+            consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
+            class_0_intensity_mean = class_0_data['intensity'].mean()
+            class_1_intensity_mean = class_1_data['intensity'].mean()
+            
+            # 计算区分性
+            fold_change = max(class_0_intensity_mean, class_1_intensity_mean) / (
+                min(class_0_intensity_mean, class_1_intensity_mean) + 1e-6)
+            
+            if fold_change >= MIN_FOLD_CHANGE:
+                coverage_score = (class_0_occurrence_rate + class_1_occurrence_rate) / 2
+                ml_score = fold_change * coverage_score
+                
+                consensus_peaks.append({
+                    'consensus_mz': consensus_mz,
+                    'peak_id': f'Peak_{len(consensus_peaks):03d}',
+                    'class_0_occurrence_rate': class_0_occurrence_rate,
+                    'class_1_occurrence_rate': class_1_occurrence_rate,
+                    'class_0_mean': class_0_intensity_mean,
+                    'class_1_mean': class_1_intensity_mean,
+                    'fold_change': fold_change,
+                    'ml_score': ml_score
+                })
+            
+            # 每处理100个分组更新一次进度 (45% - 60%)
+            if i % 100 == 0 or i == total_groups - 1:
+                progress = 0.45 + (i + 1) / total_groups * 0.15
+                self._update_progress(progress, f"阶段2: 分析峰群 {i+1}/{total_groups}")
+        
+        consensus_df = pd.DataFrame(consensus_peaks)
+        
+        if not consensus_df.empty:
+            # 按ML友好性得分排序
+            consensus_df = consensus_df.sort_values('ml_score', ascending=False)
+            self._update_progress(0.62, "阶段2: 特征排序完成")  # 新增
+            
+            # 限制特征数量
+            if len(consensus_df) > MAX_FEATURES:
+                original_count = len(consensus_df)
+                consensus_df = consensus_df.head(MAX_FEATURES)
+                log_message(f"从 {original_count} 个候选中选择了top {MAX_FEATURES} 个特征")
+        
+        log_message(f"识别出 {len(consensus_df)} 个共识特征峰")
         
         # 更新进度到66%
         self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
         
-        return consensus_peaks
+        return consensus_df
     
     def _phase3_build_matrix(self, file_paths: List[str], 
                            consensus_peaks: pd.DataFrame) -> pd.DataFrame:
@@ -734,7 +817,12 @@ class DataPreprocessor:
             
             # 保存新文件
             log_message("正在保存处理结果...", "INFO")
-            feature_matrix.iloc[:, 1:].to_csv(output_path, index=True, float_format='%.8f')
+            feature_matrix.iloc[:, 1:].to_csv(
+            output_path, 
+            index=True, 
+            float_format='%.8f',
+            encoding='utf-8-sig'  # 添加UTF-8 BOM，确保中文正确显示
+        )
             log_message(f"数据处理完成，结果已保存为 {os.path.abspath(output_path)}", "SUCCESS")
             return True
             
