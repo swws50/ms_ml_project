@@ -4,12 +4,8 @@
 *.joblib
 *.json
 主题测试.py
+outputs/
+__pycache__/
 *.pyc
 data-analysis.py
-split_version/intelligent_normalization_factor.txt
-split_version/outputs/data/intelligent_normalization_factor.txt
-split_version/outputs/charts/Mean Confusion Matrix.png
-split_version/outputs/charts/Mean ROC Curve.png
-split_version/outputs/charts/PLS_optimal_thresholds.png
-split_version/outputs/charts/Training and Test Balanced Accuracy.png
-split_version/outputs/charts/Weighted Average Precision, Recall, and F1-score.png
+
