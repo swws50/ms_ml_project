@@ -53,20 +53,10 @@ class MainGUIManager:
         # 添加打印管理器
         self.print_manager = PrintManager()
 
-    def create_gui_components(self):
-        """ 
-        创建GUI界面 - 使用模块化UI组件
-        """
-        # 设置主题和窗口
+        # 全局GUI组件
         self._setup_window()
-        
-        # 初始化业务逻辑管理器
         self._init_managers()
-        
-        # 创建UI布局
         self._create_layout()
-        
-        # 设置全局引用和初始化
         self._finalize_setup()
     
     def _setup_window(self):
@@ -357,14 +347,7 @@ class MainGUIManager:
 # 保持原有的便捷函数（向后兼容）
 
 
-def create_gui():
-    """创建GUI - 使用模块化UI组件"""
+if __name__ == "__main__":
     root = ctk.CTk()
     gui_manager = MainGUIManager(root)
-    gui_manager.create_gui_components()
-    return root
-
-
-if __name__ == "__main__":
-    root = create_gui()
     root.mainloop()
