@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 # 本地模块导入 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_class_mapping, save_normalization_factor
+    MIN_FOLD_CHANGE, get_class_mapping
 )
 import data_store
 from output_manager import output_manager

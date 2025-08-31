@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 # 本地模块导入 
-from config import OUTPUT_FILES, MZ_TOLERANCE, get_normalization_factor
+from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
 from utils import log_message
 
@@ -99,23 +99,15 @@ class FeatureDetector:
         返回:
             float: 归一化因子
         """
-        # 优先使用配置管理中的统一函数
-        factor = get_normalization_factor()
+        import data_store
+        factor = data_store.get_normalization_factor()
         
-        # 如果是默认值，尝试从训练数据推断
-        try:
-            max_training_value = df.iloc[1:, :].max().max()  # 跳过class行
-            
-            if 0.8 <= max_training_value <= 1.2:
-                log_message("训练数据已归一化，使用配置文件的因子", "INFO")
-            else:
-                log_message("使用训练数据最大值作为归一化因子", "INFO")
-                factor = max_training_value
-                
-        except Exception as e:
-            log_message(f"推断归一化因子失败: {str(e)}，使用默认值", "WARNING")
-        
-        log_message(f"最终使用归一化因子: {factor:.2f}", "INFO")
+        # 如果没有预处理生成的因子
+        if factor is None:
+            log_message("无法确定归一化因子，请先进行数据预处理", "ERROR")
+            raise ValueError("无法确定归一化因子，请先进行数据预处理")
+        else:
+            log_message(f"使用预处理生成的归一化因子: {factor:.2f}", "INFO")
         return factor
     
     def process_prediction_sample(self, file_path, training_mz_values=None, normalization_factor=None):

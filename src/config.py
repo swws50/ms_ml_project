@@ -62,7 +62,6 @@ DEFAULT_MODEL = "PLSRegression"
 TRAINING_ITERATIONS = 500
 TEST_SIZE = 0.2
 MZ_TOLERANCE = 0.2
-NORMALIZATION_FACTOR = 871.7725  # 默认归一化因子（作为后备值）
 
 # 文件路径配置（使用输出管理器）
 
@@ -151,50 +150,3 @@ def get_class_mapping(labels=None):
         return default_forward, default_reverse
 
 
-def get_normalization_factor():
-    """
-    获取归一化因子
-
-    优先级：
-    1. 智能方法保存的归一化因子文件
-    2. 默认归一化因子
-
-    返回:
-        float: 归一化因子
-    """
-
-    # 尝试读取智能方法的归一化因子
-    normalization_file = OUTPUT_FILES['normalization_factor']
-    if os.path.exists(normalization_file):
-        try:
-            with open(normalization_file, 'r') as f:
-                factor = float(f.read().strip())
-            return factor
-        except Exception:
-            pass
-
-    # 返回默认值
-    return NORMALIZATION_FACTOR
-
-
-def save_normalization_factor(factor):
-    """
-    保存归一化因子到文件
-
-    参数:
-        factor: 要保存的归一化因子
-    """
-    try:
-        # 修复：使用输出管理器的正确路径
-        normalization_file = OUTPUT_FILES['normalization_factor']
-
-        # 确保目录存在
-        os.makedirs(os.path.dirname(normalization_file), exist_ok=True)
-
-        with open(normalization_file, 'w') as f:
-            f.write(str(factor))
-
-        log_message(
-            f"归一化因子已保存到: {normalization_file}, 值: {factor:.2f}", "SUCCESS")
-    except Exception as e:
-        log_message(f"保存归一化因子失败: {str(e)}", "WARNING")

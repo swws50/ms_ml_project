@@ -12,7 +12,7 @@ from tkinter import messagebox, filedialog
 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_class_mapping, save_normalization_factor
+    MIN_FOLD_CHANGE, get_class_mapping
 )
 import data_store
 from utils import log_message, create_backup_filename, set_window_icon
@@ -736,8 +736,8 @@ class DataPreprocessor:
             self.global_max_intensity = 1.0
         
         log_message(f"全局最大强度值: {self.global_max_intensity:.2f}")
-        save_normalization_factor(self.global_max_intensity)
-    
+        data_store.set_normalization_factor(self.global_max_intensity)  # 改为直接保存到data_store
+        
     def _build_normalized_matrix(self, file_paths: List[str], 
                                consensus_peaks: pd.DataFrame) -> pd.DataFrame:
         """构建归一化特征矩阵"""

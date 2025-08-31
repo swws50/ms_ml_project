@@ -13,6 +13,9 @@ _file_classification = {
     'class_1_files': []
 }
 
+# 归一化因子 - 仅在预处理完成后存在
+_normalization_factor = None
+
 _training_data = {
     'row': None,      # 特征数据
     'column': None,   # 标签数据  
@@ -85,6 +88,26 @@ def has_file_classification():
     """
     return (len(_file_classification['class_0_files']) > 0 or 
             len(_file_classification['class_1_files']) > 0)
+
+
+# 归一化相关函数
+def set_normalization_factor(factor):
+    """设置归一化因子（仅在预处理时调用）"""
+    global _normalization_factor
+    _normalization_factor = float(factor) if factor is not None else None
+
+def get_normalization_factor():
+    """获取归一化因子，如果未设置返回None"""
+    return _normalization_factor
+
+def has_normalization_factor():
+    """检查是否有归一化因子"""
+    return _normalization_factor is not None
+
+def clear_normalization_factor():
+    """清空归一化因子"""
+    global _normalization_factor
+    _normalization_factor = None
 
 # 训练数据相关函数 
 def set_training_data(row, column, df):
