@@ -182,6 +182,8 @@ class DataPreprocessor:
         preview_text = ctk.CTkTextbox(preview_frame, height=120)
         preview_text.pack(fill='both', expand=True, padx=10, pady=5)
         
+        # 保存预览文本框的引用
+        self.preview_text_widget = preview_text
         return preview_text
     
     def _create_action_buttons(self, class_0_name_var, class_1_name_var, preview_text):
@@ -221,19 +223,22 @@ class DataPreprocessor:
     
     def _update_preview(self, preview_text, class_0_name_var, class_1_name_var):
         """更新预览信息"""
-        if not hasattr(self, 'preview_text_widget'):
-            # 找到预览文本框（如果没有传入）
-            for widget in self.classification_window.winfo_children():
-                if isinstance(widget, ctk.CTkFrame):
-                    for child in widget.winfo_children():
-                        if isinstance(child, ctk.CTkTextbox):
-                            preview_text = child
-                            self.preview_text_widget = preview_text
-                            break
-        else:
-            preview_text = self.preview_text_widget
+        # 使用保存的引用或传入的参数
+        if preview_text is None:
+            preview_text = getattr(self, 'preview_text_widget', None)
         
-        if preview_text:
+        # 检查widget是否有效
+        if preview_text is None:
+            return
+            
+        try:
+            # 检查widget是否仍然存在
+            if not preview_text.winfo_exists():
+                return
+        except:
+            return
+        
+        try:
             preview_text.delete("1.0", "end")
             
             if self.class_0_files:
@@ -254,7 +259,11 @@ class DataPreprocessor:
             
             if not self.class_0_files and not self.class_1_files:
                 preview_text.insert("end", "请选择文件夹以预览分类结果")
-    
+                
+        except Exception:
+            # 静默处理错误，避免崩溃
+            pass 
+        
     def _cancel_classification(self):
         """取消分类"""
         if self.classification_window:
