@@ -240,6 +240,7 @@ def clear_all_data():
     clear_training_data()
     clear_model()
     clear_prediction_results()
+    clear_normalization_factor()
     
 # 状态检查函数 
 def get_system_status():
