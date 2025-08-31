@@ -5,7 +5,6 @@ import os
 import time
 
 # 第三方库导入 
-import customtkinter as ctk
 import numpy as np
 import pandas as pd
 import pyopenms as oms

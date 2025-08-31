@@ -4,7 +4,6 @@
 import os
 
 # 第三方库导入 
-import customtkinter as ctk
 import numpy as np
 import tqdm
 from joblib import dump
