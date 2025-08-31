@@ -138,6 +138,14 @@ class MainGUIManager:
         self.action_btn.pack(side="left", padx=5)
         
         self._is_operation_running = False
+
+        # 归一化开关（替换按钮）
+        self.normalize_switch = ctk.CTkSwitch(
+            menu_container, text="归一化", width=80,
+            command=self._toggle_normalization
+        )
+        self.normalize_switch.pack(side="left", padx=5)
+        self.normalize_switch.select()  # 默认开启
         
         # 新增：打印按钮
         print_btn = ctk.CTkButton(menu_container, text="打印报告", width=100, height=35,
@@ -165,6 +173,31 @@ class MainGUIManager:
             # 非运行时作为重置按钮
             self.handle_reset_progress()
 
+    def _toggle_normalization(self):
+        """切换归一化状态"""
+        new_state = self.normalize_switch.get()
+        data_store.set_normalization_enabled(new_state)
+        status = "启用" if new_state else "禁用"
+        log_message(f"归一化已{status}")
+        self.ui_panels['control'].update_normalization_status()
+        self.ui_panels['prediction'].update_normalization_status()
+
+    def _detect_normalization_factor(self, df):
+        """检测归一化因子"""
+
+        if data_store.is_normalization_enabled():
+            # 归一化模式：必须有归一化因子
+            factor = data_store.get_normalization_factor()
+            if factor is None:
+                log_message("归一化模式下无法获取归一化因子，请先进行数据预处理", "ERROR")
+                raise ValueError("归一化模式下无法获取归一化因子，请先进行数据预处理")
+            log_message(f"归一化模式：使用归一化因子 {factor:.2f}", "INFO")
+            return factor
+        else:
+            # 非归一化模式：不需要归一化因子
+            log_message("非归一化模式：使用原始强度值", "INFO")
+            return None  # 返回None表示不需要归一化
+            
     def handle_print_report(self):
         """处理打印报告"""
         self.print_manager.show_print_dialog(self.root)
@@ -302,6 +335,10 @@ class MainGUIManager:
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
             self.ui_panels['preprocessing'].update_status("等待开始预处理")
+            self.normalize_switch.select()  # 重置为开启状态
+            data_store.set_normalization_enabled(True)  # 重置data_store状态
+            self.ui_panels['control'].update_normalization_status()
+            self.ui_panels['prediction'].update_normalization_status()
             
             # 4. 重置可视化面板
             old_viz = self.ui_panels['visualization'].frame

@@ -7,7 +7,7 @@ from tkinter import messagebox
 # 本地模块导入 
 from config import MODEL_CONFIGS
 from utils import log_message
-
+import data_store
 
 class ProgressComponent:
     """简化的进度组件，直接集成在UI组件模块中"""
@@ -193,7 +193,21 @@ class ControlPanel(BasePanel):
         # 文件状态标签
         self.components['file_status'] = ctk.CTkLabel(self.frame, text="文件未选择")
         self.components['file_status'].grid(row=1, column=1, padx=10, pady=5, sticky='w')
-    
+
+         # 添加归一化状态显示
+        self.components['norm_status'] = ctk.CTkLabel(
+            self.frame, text="归一化: 开", 
+            font=ctk.CTkFont(size=10), text_color="green"
+        )
+        self.components['norm_status'].grid(row=0, column=1, padx=5, pady=5, sticky='w')
+
+    def update_normalization_status(self):
+        """更新归一化状态显示"""
+        enabled = data_store.is_normalization_enabled()
+        text = "归一化: 开" if enabled else "归一化: 关"
+        color = "green" if enabled else "orange"
+        self.components['norm_status'].configure(text=text, text_color=color)
+
     def _create_model_controls(self):
         """创建模型选择控件"""
         # 模型选择下拉菜单
@@ -358,13 +372,14 @@ class PredictionPanel(BasePanel):
     def _create_buttons(self):
         """创建预测相关按钮"""
         container = self.components['button_container']
+        container.grid_columnconfigure(0, weight=1)
         
         # 单文件预测按钮
         self.components['predict_button'] = ctk.CTkButton(
             container, text="选择要检测的txt文件", width=180, height=35,
             command=self._on_predict_file
         )
-        self.components['predict_button'].pack(pady=(0, 10), fill='x')
+        self.components['predict_button'].grid(row=0, column=0, padx=5, pady=(0, 10), sticky='ew')
         self.add_hover_tip(self.components['predict_button'], "select_predict_file")
         
         # 模型信息按钮
@@ -372,20 +387,38 @@ class PredictionPanel(BasePanel):
             container, text="查看模型详情", width=180, height=35,
             command=self._on_model_info
         )
-        self.components['model_info_button'].pack(pady=(0, 10), fill='x')
+        self.components['model_info_button'].grid(row=1, column=0, padx=5, pady=(0, 10), sticky='ew')
         self.add_hover_tip(self.components['model_info_button'], "model_info")
 
     
     def _create_result_display(self):
         """创建结果显示区域"""
         container = self.components['result_container']
+
+        # 配置结果容器的网格
+        container.grid_rowconfigure(1, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        # 添加归一化状态显示
+        self.components['norm_status'] = ctk.CTkLabel(
+            container, text="数据模式: 归一化", 
+            font=ctk.CTkFont(size=10), text_color="blue"
+        )
+        self.components['norm_status'].grid(row=0, column=0, padx=5, pady=2, sticky='w')
         
         self.components['result_label'] = ctk.CTkLabel(
             container, text='状态：等待选择文件',
             justify='left', anchor='nw'
         )
-        self.components['result_label'].pack(fill='both', expand=True, padx=5, pady=5)
+        self.components['result_label'].grid(row=1, column=0, padx=5, pady=5, sticky='nsew')
     
+    def update_normalization_status(self):
+        """更新归一化状态显示"""
+        enabled = data_store.is_normalization_enabled()
+        text = "数据模式: 归一化" if enabled else "数据模式: 原始"
+        color = "blue" if enabled else "orange"
+        self.components['norm_status'].configure(text=text, text_color=color)
+        
     def _on_predict_file(self):
         """单文件预测回调"""
         if 'on_predict_file' in self.callbacks:

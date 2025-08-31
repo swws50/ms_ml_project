@@ -107,8 +107,10 @@ class PredictionManager:
             threshold = 0.5
             log_message("未找到PLS阈值文件，使用默认阈值0.5", "WARNING")
         
-        # 转换为概率
-        prob1 = 1 / (1 + np.exp(-(raw_value - threshold) * 10))
+        # 转换为概率，避免数值溢出
+        diff = (raw_value - threshold) * 10
+        diff = np.clip(diff, -500, 500)  # 限制范围避免溢出
+        prob1 = 1 / (1 + np.exp(-diff))
         probs = np.array([1 - prob1, prob1])
         pred = 1 if raw_value > threshold else 0
         
@@ -229,14 +231,21 @@ class PredictionManager:
         # 构建概率文本
         prob_text = f"{class_names[0]}={probabilities[0]:.4f}, {class_names[1]}={probabilities[1]:.4f}"
         
+        # 获取归一化状态
+        norm_status = "已归一化" if data_store.is_normalization_enabled() else "原始数据"
+        norm_factor = result['normalization_factor']
+
         # 构建完整结果文本
         result_text = f"预测结果: {result['predicted_class']}\n"
         result_text += f"类别概率: {prob_text}\n"
         result_text += f"置信度: {result['confidence_level']} ({result['max_probability']:.4f})\n"
         result_text += f"预测样本: {result['file_name']}\n"
         result_text += f"特征数量: {result['n_features']}\n"
-        result_text += f"归一化因子: {result['normalization_factor']:.1f}"
-        
+        result_text += f"数据模式: {norm_status}"
+        # 只在归一化启用时显示归一化因子
+        if data_store.is_normalization_enabled() and norm_factor:
+            result_text += f"\n归一化因子: {norm_factor:.1f}"
+            
         return result_text
     
     # UI交互相关 

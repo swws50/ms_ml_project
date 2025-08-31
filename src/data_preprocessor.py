@@ -12,7 +12,7 @@ from tkinter import messagebox, filedialog
 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_class_mapping
+    MIN_FOLD_CHANGE, get_class_mapping, get_output_paths
 )
 import data_store
 from utils import log_message, create_backup_filename, set_window_icon
@@ -345,13 +345,19 @@ class DataPreprocessor:
             success = self._save_results(feature_matrix)
             
             if success:
+                # 获取当前的输出路径和归一化状态
+                from config import get_output_paths
+                current_paths = get_output_paths()
+                output_path = current_paths['processed_data']
+                norm_status = "已归一化" if data_store.is_normalization_enabled() else "未归一化"
                 log_message("智能峰发现处理完成！", "SUCCESS")
                 messagebox.showinfo("处理完成", 
-                                  f"智能峰发现完成！\n"
-                                  f"• 发现 {len(consensus_peaks)} 个特征峰\n"
-                                  f"• 处理 {len(file_paths)} 个样本\n"
-                                  f"• 结果已保存为 {OUTPUT_FILES['processed_data']}")
-            else:
+                          f"智能峰发现完成！\n"
+                          f"• 发现 {len(consensus_peaks)} 个特征峰\n"
+                          f"• 处理 {len(file_paths)} 个样本\n"
+                          f"• 数据状态: {norm_status}\n"
+                          f"• 结果已保存为 {os.path.basename(output_path)}") 
+            else:    
                 self._handle_save_failure()
                 
         except Exception as e:
@@ -735,7 +741,7 @@ class DataPreprocessor:
             log_message("警告：未找到任何有效强度值", "WARNING")
             self.global_max_intensity = 1.0
         
-        log_message(f"全局最大强度值: {self.global_max_intensity:.2f}")
+        log_message(f"将全局最大强度值: {self.global_max_intensity:.2f}作为归一化因子")
         data_store.set_normalization_factor(self.global_max_intensity)  # 改为直接保存到data_store
         
     def _build_normalized_matrix(self, file_paths: List[str], 
@@ -794,7 +800,12 @@ class DataPreprocessor:
             # 选择最接近的峰
             best_match_idx = mz_diff[mz_diff <= MZ_TOLERANCE].idxmin()
             raw_intensity = peaks_df.loc[best_match_idx, 'intensity']
-            return raw_intensity / normalization_factor
+            
+            # 检查是否启用归一化
+            if data_store.is_normalization_enabled():
+                return raw_intensity / normalization_factor
+            else:
+                return raw_intensity
         else:
             return 0.0
     
@@ -811,10 +822,12 @@ class DataPreprocessor:
     
     def _save_results(self, feature_matrix: pd.DataFrame) -> bool:
         """保存结果文件"""
-        output_path = OUTPUT_FILES['processed_data']
+        # 动态获取当前的输出路径
+        current_paths = get_output_paths()
+        output_path = current_paths['processed_data']
         
         try:
-            # 检查文件是否已存在，创建备份
+            # 检查当前要保存的文件是否已存在（而不是检查固定的normalized文件）
             if os.path.exists(output_path):
                 log_message("发现已存在的文件，正在创建备份...", "INFO")
                 backup_path = create_backup_filename(output_path)
@@ -827,12 +840,15 @@ class DataPreprocessor:
             # 保存新文件
             log_message("正在保存处理结果...", "INFO")
             feature_matrix.iloc[:, 1:].to_csv(
-            output_path, 
-            index=True, 
-            float_format='%.8f',
-            encoding='utf-8-sig'  # 添加UTF-8 BOM，确保中文正确显示
-        )
-            log_message(f"数据处理完成，结果已保存为 {os.path.abspath(output_path)}", "SUCCESS")
+                output_path, 
+                index=True, 
+                float_format='%.8f',
+                encoding='utf-8-sig'
+            )
+            
+            # 获取归一化状态用于日志
+            norm_status = "已归一化" if data_store.is_normalization_enabled() else "原始数据"
+            log_message(f"数据处理完成，{norm_status}结果已保存为 {os.path.abspath(output_path)}", "SUCCESS")
             return True
             
         except PermissionError:
