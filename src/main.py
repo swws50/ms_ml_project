@@ -86,33 +86,31 @@ class MainGUIManager:
         self.prediction_manager = PredictionManager(self.help_system)
     
     def _create_layout(self):
-        """创建UI布局"""
-        # 创建顶部菜单栏 - row=0
-        self._create_menu_bar()
-        
-        # 创建进度指示器 - row=1 
-        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)
-        
+        """创建新的4x4网格布局"""
+        # 配置主窗口网格权重 - 4列4行
+        self.root.grid_rowconfigure(0, weight=0)    # 菜单栏
+        self.root.grid_rowconfigure(1, weight=0)    # 进度指示器  
+        self.root.grid_rowconfigure(2, weight=0)    # 主要面板行 - 减小权重
+        self.root.grid_rowconfigure(3, weight=0)    # 进度条行
+        self.root.grid_rowconfigure(4, weight=1)    # 可视化和日志行 - 增加权重
+        self.root.grid_rowconfigure(5, weight=0)    # 额外行，
 
-        # 配置网格权重 
-        self.root.grid_rowconfigure(3, minsize=30, weight=0)  # 进度条行限制高度
-        self.root.grid_rowconfigure(4, weight=1)  # 下方面板区域可扩展
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         self.root.grid_columnconfigure(3, weight=1)
 
-        # 先创建面板 - row=2
-        self._create_ui_panels()
-
-        # 后创建进度条 - row=3
-        self._create_global_progress()
+        # 创建各个组件
+        self._create_menu_bar()                    # row=0
+        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)  # row=1
+        self._create_ui_panels()                   # row=2,4
+        self._create_global_progress()             # row=3
 
     def _create_global_progress(self):
         """创建全局进度组件"""
         # 进度容器放在row=3
         self.progress_container = ctk.CTkFrame(self.root, fg_color="transparent", height=25)
-        self.progress_container.grid(row=3, column=0, columnspan=4, sticky='ew', padx=20, pady=2)
+        self.progress_container.grid(row=3, column=0, columnspan=3, sticky='ew', padx=20, pady=2)  # 只跨3列
         self.progress_container.grid_columnconfigure(0, weight=1)
         
         self.global_progress = ProgressComponent(self.progress_container, width=200, show_label=True)
@@ -203,16 +201,14 @@ class MainGUIManager:
         self.print_manager.show_print_dialog(self.root)
                
     def _create_ui_panels(self):
-        """使用UI组件创建各个面板"""
-        # 上方面板在row=2
-        # 0. 预处理面板
+        """创建新网格布局的UI面板"""
+        #第2行：预处理、控制、结果、预测（上半部分）
         preprocessing_callbacks = {
-            'on_start_preprocessing':self._handle_preprocessing_start
+            'on_start_preprocessing': self._handle_preprocessing_start
         }
         self.ui_panels['preprocessing'] = PreprocessingPanel(self.root, self.help_system, preprocessing_callbacks)
-        self.ui_panels['preprocessing'].create_panel(2, column=0)
+        self.ui_panels['preprocessing'].create_panel(row=2, column=0)
 
-        # 1. 控制面板 
         control_callbacks = {
             'on_file_select': self.handle_file_select,
             'on_model_select': self.handle_model_select,
@@ -221,24 +217,25 @@ class MainGUIManager:
         self.ui_panels['control'] = ControlPanel(self.root, self.help_system, control_callbacks)
         self.ui_panels['control'].create_panel(row=2, column=1)
         
-        # 2. 结果面板 
         self.ui_panels['result'] = ResultPanel(self.root, self.help_system)
         self.ui_panels['result'].create_panel(row=2, column=2)
         
-        # 3. 预测面板 
         prediction_callbacks = {
             'on_predict_file': self.handle_predict_file,
             'on_model_info': self.handle_model_info,
         }
         self.ui_panels['prediction'] = PredictionPanel(self.root, self.help_system, prediction_callbacks)
-        self.ui_panels['prediction'].create_panel(row=2, column=3)
-        # 4. 可视化面板 
-        self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-        self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
+        self.ui_panels['prediction'].create_panel(row=2, column=3, rowspan=3)  # 跨2行
         
-        # 5. 信息面板 
+        # 第4行：可视化（3列）+ 日志（1列）
+        self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
+        self.ui_panels['visualization'].create_panel(row=4, column=0, rowspan=2, columnspan=3)
+        
+         # 第5行：信息面板（1列）
+         # 信息面板放在第5行第4列
+        
         self.ui_panels['info'] = InfoPanel(self.root, self.help_system)
-        self.ui_panels['info'].create_panel(row=4, column=2, columnspan=2)
+        self.ui_panels['info'].create_panel(row=5, column=3)
     
     def _finalize_setup(self):
         """完成设置"""

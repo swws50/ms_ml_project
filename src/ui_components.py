@@ -63,7 +63,7 @@ class BasePanel:
         self.components = {}  # 存储面板内的组件引用
         self.progress_component = None
     
-    def create_frame(self, row, column, sticky='nsew', padx=5, pady=5, columnspan=1, **kwargs):
+    def create_frame(self, row, column, sticky='nsew', padx=5, pady=5, columnspan=1, rowspan=1, **kwargs):
         """创建基础框架"""
         # 从kwargs中分离grid参数和CTkFrame参数
         grid_params = {
@@ -77,7 +77,11 @@ class BasePanel:
         # 如果有columnspan参数，添加到grid_params中
         if columnspan > 1:
             grid_params['columnspan'] = columnspan
-        
+
+         # 如果有rowspan参数，添加到grid_params中  
+        if rowspan > 1:
+            grid_params['rowspan'] = rowspan
+            
         # 创建CTkFrame（不传递grid参数）
         self.frame = ctk.CTkFrame(self.parent, corner_radius=10, **kwargs)
         
@@ -115,7 +119,6 @@ class PreprocessingPanel(BasePanel):
         self.create_title()
         
         # 配置网格权重
-        self.frame.grid_rowconfigure(1, weight=1)
         self.frame.grid_columnconfigure(0, weight=1)
         
         self._create_panel_content()
@@ -124,12 +127,16 @@ class PreprocessingPanel(BasePanel):
     
     def _create_panel_content(self):
         """创建面板内容"""
+
+        self.frame.grid_rowconfigure(1, weight=0)  # 按钮行不扩展
+        self.frame.grid_rowconfigure(2, weight=1)  # 空行不扩展  
+        self.frame.grid_rowconfigure(3, weight=0)  # 状态行不扩展
         # 主按钮
         self.components['preprocess_button'] = ctk.CTkButton(
-            self.frame, text="数据预处理", width=180, height=35,
+            self.frame, text="数据预处理", width=150, height=35,
             command=self._on_start_preprocessing
         )
-        self.components['preprocess_button'].grid(row=1, column=0, padx=10, pady=5, sticky='ew')
+        self.components['preprocess_button'].grid(row=1, column=0, padx=5, pady=2, sticky='ew')
         self.add_hover_tip(self.components['preprocess_button'], "start_preprocessing")
         
         # 状态显示
@@ -137,7 +144,7 @@ class PreprocessingPanel(BasePanel):
             self.frame, text="状态：等待开始预处理",
             justify='left', anchor='nw'
         )
-        self.components['status_label'].grid(row=2, column=0, padx=10, pady=5, sticky='ew')
+        self.components['status_label'].grid(row=2, column=0, padx=5, pady=2, sticky='ew')
 
 
     def _on_start_preprocessing(self):
@@ -341,10 +348,10 @@ class PredictionPanel(BasePanel):
         self.callbacks = callbacks or {}
         self.current_model_selection = None
 
-    def create_panel(self, row, column):
+    def create_panel(self, row, column, rowspan=1):
         """创建完整的预测面板"""
         # 创建基础框架
-        self.create_frame(row, column)
+        self.create_frame(row, column, rowspan=rowspan)
         
         # 配置主网格
         self.frame.grid_rowconfigure(1, weight=0)  # 模型设置区域 - 固定高度
@@ -547,10 +554,10 @@ class VisualizationPanel(BasePanel):
     def __init__(self, parent, help_system=None):
         super().__init__(parent, "模型评估结果", help_system)
     
-    def create_panel(self, row, column, columnspan=2):
+    def create_panel(self, row, column, rowspan=2, columnspan=2):
         """创建完整的可视化面板"""
         # 修改：将columnspan传递给create_frame
-        self.create_frame(row, column, sticky='nsew', columnspan=columnspan)
+        self.create_frame(row, column, sticky='nsew', rowspan=rowspan, columnspan=columnspan)
         
         # 配置网格权重
         self.frame.grid_rowconfigure(1, weight=1)
