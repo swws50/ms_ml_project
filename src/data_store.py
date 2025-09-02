@@ -13,6 +13,13 @@ _file_classification = {
     'class_1_files': []
 }
 
+# 归一化因子 
+_normalization_settings = {
+    'factor': None,      # 归一化因子（预处理时产生）
+    'enabled': True      # 是否启用归一化
+}
+_normalization_factor = None
+
 _training_data = {
     'row': None,      # 特征数据
     'column': None,   # 标签数据  
@@ -85,6 +92,30 @@ def has_file_classification():
     """
     return (len(_file_classification['class_0_files']) > 0 or 
             len(_file_classification['class_1_files']) > 0)
+
+
+# 归一化相关函数
+def set_normalization_factor(factor):
+    """设置归一化因子（仅在预处理时调用）"""
+    global _normalization_factor
+    _normalization_settings['factor'] = float(factor) if factor is not None else None
+def get_normalization_factor():
+    """获取归一化因子"""
+    return _normalization_settings['factor']
+
+def set_normalization_enabled(enabled):
+    """设置是否启用归一化"""
+    global _normalization_settings
+    _normalization_settings['enabled'] = bool(enabled)
+
+def is_normalization_enabled():
+    """检查是否启用归一化"""
+    return _normalization_settings['enabled']
+
+def clear_normalization_settings():
+    """清空归一化设置"""
+    global _normalization_settings
+    _normalization_settings = {'factor': None, 'enabled': True}
 
 # 训练数据相关函数 
 def set_training_data(row, column, df):
@@ -217,7 +248,8 @@ def clear_all_data():
     clear_training_data()
     clear_model()
     clear_prediction_results()
-    
+    clear_normalization_settings()
+
 # 状态检查函数 
 def get_system_status():
     """

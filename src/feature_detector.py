@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 # 本地模块导入 
-from config import OUTPUT_FILES, MZ_TOLERANCE, get_normalization_factor
+from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
 from utils import log_message
 
@@ -90,33 +90,20 @@ class FeatureDetector:
         return None
     
     def _detect_normalization_factor(self, df):
-        """
-        检测归一化因子
+        """检测归一化因子"""
         
-        参数:
-            df: 训练数据DataFrame
-            
-        返回:
-            float: 归一化因子
-        """
-        # 优先使用配置管理中的统一函数
-        factor = get_normalization_factor()
-        
-        # 如果是默认值，尝试从训练数据推断
-        try:
-            max_training_value = df.iloc[1:, :].max().max()  # 跳过class行
-            
-            if 0.8 <= max_training_value <= 1.2:
-                log_message("训练数据已归一化，使用配置文件的因子", "INFO")
-            else:
-                log_message("使用训练数据最大值作为归一化因子", "INFO")
-                factor = max_training_value
-                
-        except Exception as e:
-            log_message(f"推断归一化因子失败: {str(e)}，使用默认值", "WARNING")
-        
-        log_message(f"最终使用归一化因子: {factor:.2f}", "INFO")
-        return factor
+        if data_store.is_normalization_enabled():
+            # 归一化模式：必须有归一化因子
+            factor = data_store.get_normalization_factor()
+            if factor is None:
+                log_message("归一化模式下无法获取归一化因子，请先进行数据预处理", "ERROR")
+                raise ValueError("归一化模式下无法获取归一化因子，请先进行数据预处理")
+            log_message(f"归一化模式：使用归一化因子 {factor:.2f}", "INFO")
+            return factor
+        else:
+            # 非归一化模式：不需要归一化因子
+            log_message("非归一化模式：使用原始强度值", "INFO")
+            return None  # 返回None表示不需要归一化
     
     def process_prediction_sample(self, file_path, training_mz_values=None, normalization_factor=None):
         """
@@ -183,11 +170,15 @@ class FeatureDetector:
         
         if not filtered_df.empty:
             max_intensity = filtered_df.iloc[:, 1].max()
-            normalized_intensity = max_intensity / normalization_factor
+            
+           # 根据归一化因子决定是否归一化
+            if normalization_factor is not None:
+                return max_intensity / normalization_factor  # 归一化
+            else:
+                return max_intensity  # 原始值
         else:
-            normalized_intensity = 0.0
+            return 0.0
         
-        return normalized_intensity
     
     def validate_sample_file(self, file_path):
         """

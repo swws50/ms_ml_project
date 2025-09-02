@@ -107,8 +107,10 @@ class PredictionManager:
             threshold = 0.5
             log_message("未找到PLS阈值文件，使用默认阈值0.5", "WARNING")
         
-        # 转换为概率
-        prob1 = 1 / (1 + np.exp(-(raw_value - threshold) * 10))
+        # 转换为概率，避免数值溢出
+        diff = (raw_value - threshold) * 10
+        diff = np.clip(diff, -500, 500)  # 限制范围避免溢出
+        prob1 = 1 / (1 + np.exp(-diff))
         probs = np.array([1 - prob1, prob1])
         pred = 1 if raw_value > threshold else 0
         
@@ -229,14 +231,21 @@ class PredictionManager:
         # 构建概率文本
         prob_text = f"{class_names[0]}={probabilities[0]:.4f}, {class_names[1]}={probabilities[1]:.4f}"
         
+        # 获取归一化状态
+        norm_status = "已归一化" if data_store.is_normalization_enabled() else "原始数据"
+        norm_factor = result['normalization_factor']
+
         # 构建完整结果文本
         result_text = f"预测结果: {result['predicted_class']}\n"
         result_text += f"类别概率: {prob_text}\n"
         result_text += f"置信度: {result['confidence_level']} ({result['max_probability']:.4f})\n"
         result_text += f"预测样本: {result['file_name']}\n"
         result_text += f"特征数量: {result['n_features']}\n"
-        result_text += f"归一化因子: {result['normalization_factor']:.1f}"
-        
+        result_text += f"数据模式: {norm_status}"
+        # 只在归一化启用时显示归一化因子
+        if data_store.is_normalization_enabled() and norm_factor:
+            result_text += f"\n归一化因子: {norm_factor:.1f}"
+            
         return result_text
     
     # UI交互相关 
@@ -271,20 +280,17 @@ class PredictionManager:
         result_text = self.format_prediction_result(result)
         
         if result["success"]:
-            result_label.configure(
-                text=result_text,
-                text_color=result["confidence_color"],
-                font=ctk.CTkFont(size=12, weight="bold")
-            )
+            result_label.delete("1.0", "end")
+            result_label.insert("1.0", result_text)
+            result_label.configure(text_color=result["confidence_color"])
             
             # 通知帮助系统
             if self.help_system:
                 self.help_system.complete_step("predict_sample")
         else:
-            result_label.configure(
-                text=result_text,
-                text_color='red'
-            )
+            result_label.delete("1.0", "end")
+            result_label.insert("1.0", result_text)
+            result_label.configure(text_color='red')
         # 保存最新预测结果到data_store    
         prediction_data = {
             "filename": result.get("file_name", ""),
@@ -523,6 +529,41 @@ class PredictionManager:
                 progress_callback(progress, f"预测进度: {i+1}/{total_files}")
         
         return results
+
+    def scan_available_models(self, model_directory="models"):
+        """扫描可用的模型文件"""
+        available_models = ["自动检测"]  # 默认选项
+        
+        # 检查模型目录
+        if os.path.exists(model_directory):
+            for file in os.listdir(model_directory):
+                if file.endswith('.joblib'):
+                    model_name = os.path.splitext(file)[0]  # 去掉扩展名
+                    available_models.append(model_name)
+        
+        # 检查默认的best_model.joblib
+        if os.path.exists(OUTPUT_FILES['best_model']):
+            available_models.append("最近训练模型")
+        
+        return available_models
+
+    def load_specific_model(self, model_name):
+        """加载指定的模型"""
+        if model_name == "自动检测":
+            return self.load_model()  # 使用现有逻辑
+        elif model_name == "最近训练模型":
+            return self.load_model()  # 使用现有逻辑
+        else:
+            # 加载指定的模型文件
+            model_path = f"models/{model_name}.joblib"
+            try:
+                self.model = load(model_path)
+                log_message(f"已加载模型: {model_name}", "INFO")
+                return True
+            except Exception as e:
+                log_message(f"加载模型失败 {model_name}: {str(e)}", "ERROR")
+                return False
+
 
 
 # 使用示例 

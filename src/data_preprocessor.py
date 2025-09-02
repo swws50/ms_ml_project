@@ -12,7 +12,7 @@ from tkinter import messagebox, filedialog
 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_class_mapping, save_normalization_factor
+    MIN_FOLD_CHANGE, get_class_mapping, get_output_paths
 )
 import data_store
 from utils import log_message, create_backup_filename, set_window_icon
@@ -37,11 +37,454 @@ class DataPreprocessor:
         self.class_0_name = "类别0"
         self.class_1_name = "类别1"
 
+    # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
         """显示文件分类对话框"""
         self.root = parent_root
         self._create_classification_window()
     
+    def process_classified_files(self, root):
+        """主处理函数"""
+        self.root = root
+        classification = data_store.get_file_classification()
+        file_paths = classification['class_0_files'] + classification['class_1_files']
+        
+        if not file_paths:
+            log_message("未找到已分类的文件", "WARNING")
+            messagebox.showerror("错误", "未找到已分类的文件，请先进行文件分类")
+            return
+        
+        self._execute_processing(file_paths)
+
+    # 第二部分：核心三阶段处理流程
+    def _execute_processing(self, file_paths: List[str]):
+        """执行数据处理"""
+        # 创建进度显示
+        self._create_progress_ui()
+        
+        try:
+            log_message("开始智能峰发现处理...")
+            
+            # 阶段1: 峰发现
+            log_message(" 阶段1：从所有文件中发现峰 ")
+            all_peaks_data = self._phase1_discover_peaks(file_paths)
+            
+            if not all_peaks_data:
+                raise ValueError("未从任何文件中发现有效峰")
+            
+            # 阶段2: 共识峰识别
+            log_message(" 阶段2：识别共识特征峰 ")
+            consensus_peaks = self._phase2_consensus_peaks(all_peaks_data)
+            
+            if consensus_peaks.empty:
+                raise ValueError("未识别出共识特征峰")
+            
+            # 阶段3: 特征矩阵构建
+            log_message(" 阶段3：构建最终特征矩阵 ")
+            feature_matrix = self._phase3_build_matrix(file_paths, consensus_peaks)
+            
+            # 保存结果
+            self._save_and_notify_results(feature_matrix, consensus_peaks, file_paths)
+                
+        except Exception as e:
+            log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
+            messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
+        finally:
+            self._cleanup_progress_ui()
+  
+    def _phase1_discover_peaks(self, file_paths: List[str]) -> List[pd.DataFrame]:
+        """阶段1: 峰发现"""
+        self._update_progress(0, "阶段1: 峰发现中...")
+        
+        all_peaks_data = []
+        for index, file_path in enumerate(file_paths):
+            peaks_df = self._discover_peaks_from_file(file_path)
+            if not peaks_df.empty:
+                all_peaks_data.append(peaks_df)
+                log_message(f"文件 {os.path.basename(file_path)}: 发现 {len(peaks_df)} 个峰")
+            
+            # 更新进度 (0-33%)
+            progress = (index + 1) / len(file_paths) * 0.33
+            message = f"峰发现: {index+1}/{len(file_paths)} ({progress:.0%})"
+            self._update_progress(progress, message)
+        
+        return all_peaks_data
+    
+    def _phase2_consensus_peaks(self, all_peaks_data: List[pd.DataFrame]) -> pd.DataFrame:
+        """阶段2: 共识峰识别"""
+        self._update_progress(0.33, "阶段2: 特征选择中...")
+        
+        # 合并所有峰数据
+        all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
+        log_message(f"总计发现 {len(all_peaks_df)} 个峰候选")
+        self._update_progress(0.40, "阶段2: 数据合并完成")  # 新增
+        
+        # 获取动态类别映射
+        _, reverse_mapping = get_class_mapping()
+        class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
+        
+        log_message(f"使用类别: {class_0_name}, {class_1_name}")
+        
+        # 统计信息
+        class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
+        class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
+        
+        # 按m/z分组分析
+        all_peaks_df = all_peaks_df.copy()
+        all_peaks_df['mz_group'] = np.round(all_peaks_df['mz'] / 0.2) * 0.2
+        self._update_progress(0.45, "阶段2: 数据分组完成")  # 新增
+        
+        consensus_peaks = []
+        unique_groups = all_peaks_df['mz_group'].unique()
+        total_groups = len(unique_groups)
+        
+        for i, mz_group in enumerate(unique_groups):
+            group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
+            
+            class_0_data = group_data[group_data['class'] == class_0_name]
+            class_1_data = group_data[group_data['class'] == class_1_name]
+            
+            # 检查是否通过选择标准
+            if self._passes_selection_criteria(class_0_data, class_1_data, class_0_files, class_1_files):
+                peak_info = self._calculate_peak_metrics(group_data, class_0_data, class_1_data, len(consensus_peaks))
+                consensus_peaks.append(peak_info)
+            
+            # 每处理100个分组更新一次进度 (45% - 60%)
+            if i % 100 == 0 or i == total_groups - 1:
+                progress = 0.45 + (i + 1) / total_groups * 0.15
+                self._update_progress(progress, f"阶段2: 分析峰群 {i+1}/{total_groups}")
+        
+        consensus_df = pd.DataFrame(consensus_peaks)
+        
+        if not consensus_df.empty:
+            # 按ML友好性得分排序
+            consensus_df = consensus_df.sort_values('ml_score', ascending=False)
+            self._update_progress(0.62, "阶段2: 特征排序完成")  # 新增
+            
+            # 限制特征数量
+            if len(consensus_df) > MAX_FEATURES:
+                original_count = len(consensus_df)
+                consensus_df = consensus_df.head(MAX_FEATURES)
+                log_message(f"从 {original_count} 个候选中选择了top {MAX_FEATURES} 个特征")
+        
+        log_message(f"识别出 {len(consensus_df)} 个共识特征峰")
+        
+        # 更新进度到66%
+        if data_store.is_normalization_enabled():
+            # 归一化模式：进度到66%，还有阶段3
+            self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
+        else:
+            # 非归一化模式：进度到66%，准备直接跳到矩阵构建
+            self._update_progress(0.66, "阶段2: 特征选择完成，准备构建原始矩阵...")
+        
+        return consensus_df
+    
+    def _phase3_build_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame) -> pd.DataFrame:
+        normalization_enabled = data_store.is_normalization_enabled()
+        
+        if normalization_enabled:
+            self._scan_global_max_intensity(file_paths)
+            start_progress, progress_range = 0.83, 0.17
+        else:
+            self.global_max_intensity = 1.0
+            start_progress, progress_range = 0.66, 0.34
+        
+        return self._build_unified_matrix(file_paths, consensus_peaks, 
+                                        normalization_enabled, start_progress, progress_range)
+
+
+    # 第三部分：核心算法方法
+    def _discover_peaks_from_file(self, file_path: str) -> pd.DataFrame:
+        """从单个文件中发现峰（复制原有逻辑）"""
+        log_message(f"处理文件: {os.path.basename(file_path)}")
+        
+        try:
+            # 读取数据
+            raw_data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['mz', 'intensity'])
+            
+            if raw_data.empty:
+                return pd.DataFrame()
+            
+            # 基本清理
+            raw_data = raw_data[raw_data['intensity'] > 0]
+            raw_data = raw_data.sort_values('mz').reset_index(drop=True)
+            
+            # pyOpenMS峰拾取
+            spectrum = oms.MSSpectrum()
+            mz_array = raw_data['mz'].values.astype(float)
+            intensity_array = raw_data['intensity'].values.astype(float)
+            spectrum.set_peaks([mz_array, intensity_array])
+            spectrum.sortByPosition()
+            
+            picker = oms.PeakPickerHiRes()
+            picker_param = picker.getDefaults()
+            picker_param.setValue("signal_to_noise", 1.0)
+            picker.setParameters(picker_param)
+            
+            picked_spectrum = oms.MSSpectrum()
+            picker.pick(spectrum, picked_spectrum)
+            
+            if picked_spectrum.size() == 0:
+                log_message("未发现峰", "WARNING")
+                return pd.DataFrame()
+            
+            # 提取峰信息
+            peak_mz, peak_intensity = picked_spectrum.get_peaks()
+            
+            # 构建结果
+            file_id = os.path.splitext(os.path.basename(file_path))[0]
+            file_class = self._get_file_classification(file_path)
+            
+            results = pd.DataFrame({
+                'mz': peak_mz,
+                'intensity': peak_intensity,
+                'file_id': file_id,
+                'class': file_class
+            })
+            
+            # 缓存结果
+            self.all_file_peaks_cache[file_id] = results
+            
+            return results
+            
+        except Exception as e:
+            log_message(f"处理文件 {file_path} 时出错: {str(e)}", "ERROR")
+            return pd.DataFrame()
+    
+    def _scan_global_max_intensity(self, file_paths: List[str]):
+        """扫描全局最大强度值 - 仅在归一化模式下调用"""
+        log_message("扫描全局最大强度值用于归一化...")
+        self.global_max_intensity = 0.0
+        
+        for i, file_path in enumerate(file_paths):
+            file_id = os.path.splitext(os.path.basename(file_path))[0]
+            
+            # 使用缓存或重新发现峰
+            if file_id in self.all_file_peaks_cache:
+                peaks_df = self.all_file_peaks_cache[file_id]
+            else:
+                peaks_df = self._discover_peaks_from_file(file_path)
+            
+            if not peaks_df.empty:
+                file_max = peaks_df['intensity'].max()
+                self.global_max_intensity = max(self.global_max_intensity, file_max)
+            
+            # 更新进度 (66% - 83%)
+            progress = 0.66 + (i + 1) / len(file_paths) * 0.17
+            message = f"扫描最大值: {i+1}/{len(file_paths)} ({progress:.0%})"
+            self._update_progress(progress, message)
+        
+        if self.global_max_intensity == 0:
+            log_message("警告：未找到任何有效强度值", "WARNING")
+            self.global_max_intensity = 1.0
+        
+        log_message(f"全局最大强度值: {self.global_max_intensity:.2f}")
+        data_store.set_normalization_factor(self.global_max_intensity)
+
+    def _build_unified_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame,
+                            apply_normalization: bool, start_progress: float, 
+                            progress_range: float) -> pd.DataFrame:
+        """统一的特征矩阵构建方法"""
+        
+        # 构建基础矩阵结构
+        feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" 
+                                   for _, peak in consensus_peaks.iterrows()]
+        all_results = pd.DataFrame(
+            pd.Series(feature_names, index=feature_names), 
+            columns=['m/z']
+        )
+        
+        # 处理每个文件
+        for i, file_path in enumerate(file_paths):
+            file_id = os.path.splitext(os.path.basename(file_path))[0]
+            file_class = self._get_file_classification(file_path)
+            peaks_df = self.all_file_peaks_cache.get(file_id, pd.DataFrame())
+            
+            # 提取所有特征值
+            file_results = [file_class] + [
+                self._extract_intensity(peaks_df, peak['consensus_mz'], apply_normalization)
+                for _, peak in consensus_peaks.iterrows()
+            ]
+            
+            # 添加到矩阵
+            file_series = pd.Series(file_results, index=feature_names)
+            file_df = pd.DataFrame(file_series, columns=[file_id])
+            all_results = pd.concat([all_results, file_df], axis=1)
+            
+            # 动态进度更新
+            progress = start_progress + (i + 1) / len(file_paths) * progress_range
+            mode_text = "归一化处理" if apply_normalization else "原始数据处理"
+            self._update_progress(progress, f"{mode_text}: {i+1}/{len(file_paths)}")
+        
+        return all_results
+    
+    def _extract_intensity(self, peaks_df: pd.DataFrame, 
+                      target_mz: float, 
+                      apply_normalization: bool) -> float:
+        """统一的强度提取方法 - 根据模式决定是否归一化"""
+        if peaks_df.empty:
+            return 0.0
+        
+        # 在容差范围内查找
+        mz_diff = np.abs(peaks_df['mz'] - target_mz)
+        matches = peaks_df[mz_diff <= MZ_TOLERANCE]
+        
+        if not matches.empty:
+            # 选择最接近的峰
+            best_match_idx = mz_diff[mz_diff <= MZ_TOLERANCE].idxmin()
+            raw_intensity = peaks_df.loc[best_match_idx, 'intensity']
+            
+            # 根据模式决定是否归一化
+            if apply_normalization and self.global_max_intensity > 0:
+                return raw_intensity / self.global_max_intensity
+            else:
+                return raw_intensity
+        else:
+            return 0.0  
+
+    def _passes_selection_criteria(self, class_0_data, class_1_data, 
+                                 class_0_files, class_1_files) -> bool:
+        """检查峰是否通过选择标准"""
+        # 计算出现频率
+        class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
+        class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
+        
+        class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
+        class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
+        
+        # 检查最小出现频率
+        if (class_0_occurrence_rate < MIN_OCCURRENCE_RATE or 
+            class_1_occurrence_rate < MIN_OCCURRENCE_RATE):
+            return False
+        
+        # 检查最小样本数
+        if len(class_0_data) < 2 or len(class_1_data) < 2:
+            return False
+        
+        # 检查折叠变化
+        class_0_mean = class_0_data['intensity'].mean()
+        class_1_mean = class_1_data['intensity'].mean()
+        fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
+        
+        return fold_change >= MIN_FOLD_CHANGE
+    
+    def _calculate_peak_metrics(self, group_data, class_0_data, class_1_data, peak_index) -> dict:
+        """计算峰的统计指标"""
+        consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
+        class_0_mean = class_0_data['intensity'].mean()
+        class_1_mean = class_1_data['intensity'].mean()
+        
+        fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
+        
+        # 简化出现频率计算
+        class_0_occurrence = class_0_data['file_id'].nunique() / data_store.get_file_classification()['class_0_files'].__len__()
+        class_1_occurrence = class_1_data['file_id'].nunique() / data_store.get_file_classification()['class_1_files'].__len__()
+        
+        coverage_score = (class_0_occurrence + class_1_occurrence) / 2
+        ml_score = fold_change * coverage_score
+        
+        return {
+            'consensus_mz': consensus_mz,
+            'peak_id': f'Peak_{peak_index:03d}',
+            'class_0_occurrence_rate': class_0_occurrence,
+            'class_1_occurrence_rate': class_1_occurrence,
+            'class_0_mean': class_0_mean,
+            'class_1_mean': class_1_mean,
+            'fold_change': fold_change,
+            'ml_score': ml_score
+        }
+
+    # 第四部分：数据处理和保存
+    def _get_file_classification(self, file_path: str) -> str:
+        """获取文件分类"""
+        classification = data_store.get_file_classification()
+        
+        if file_path in classification['class_0_files']:
+            return classification['class_0_name']
+        elif file_path in classification['class_1_files']:
+            return classification['class_1_name']
+        else:
+            return "UNKNOWN"
+    
+    def _save_results(self, feature_matrix: pd.DataFrame) -> bool:
+        """保存结果文件"""
+        # 动态获取当前的输出路径
+        current_paths = get_output_paths()
+        output_path = current_paths['processed_data']
+        
+        try:
+            # 检查当前要保存的文件是否已存在（而不是检查固定的normalized文件）
+            if os.path.exists(output_path):
+                log_message("发现已存在的文件，正在创建备份...", "INFO")
+                backup_path = create_backup_filename(output_path)
+                try:
+                    os.rename(output_path, backup_path)
+                    log_message(f"备份完成: {os.path.abspath(backup_path)}", "SUCCESS")
+                except Exception as e:
+                    log_message(f"无法重命名已有文件: {str(e)}，将尝试直接保存新文件", "WARNING")
+            
+            # 保存新文件
+            log_message("正在保存处理结果...", "INFO")
+            feature_matrix.iloc[:, 1:].to_csv(
+                output_path, 
+                index=True, 
+                float_format='%.8f',
+                encoding='utf-8-sig'
+            )
+            
+            # 获取归一化状态用于日志
+            norm_status = "已归一化" if data_store.is_normalization_enabled() else "原始数据"
+            log_message(f"数据处理完成，{norm_status}结果已保存为 {os.path.abspath(output_path)}", "SUCCESS")
+            return True
+            
+        except PermissionError:
+            log_message("无法保存文件，可能是文件已被打开或没有写入权限", "ERROR")
+            return False
+        except Exception as e:
+            log_message(f"保存文件时出错: {str(e)}", "ERROR")
+            return False
+
+    def _save_and_notify_results(self, feature_matrix, consensus_peaks, file_paths):
+        """保存结果并显示通知"""
+        success = self._save_results(feature_matrix)
+        
+        if success:
+            current_paths = get_output_paths()
+            norm_status = "已归一化" if data_store.is_normalization_enabled() else "未归一化"
+            log_message("智能峰发现处理完成！", "SUCCESS")
+            messagebox.showinfo("处理完成", 
+                            f"智能峰发现完成！\n"
+                            f"• 发现 {len(consensus_peaks)} 个特征峰\n"
+                            f"• 处理 {len(file_paths)} 个样本\n"
+                            f"• 数据状态: {norm_status}\n"
+                            f"• 结果已保存为 {os.path.basename(current_paths['processed_data'])}")
+        else:
+            self._handle_save_failure()
+            
+    def _handle_save_failure(self):
+        """处理保存失败的情况"""
+        from tkinter import filedialog
+        
+        response = messagebox.askyesno("权限错误", 
+                                     "无法保存文件到当前位置。\n"
+                                     "是否选择其他位置保存文件？")
+        if response:
+            save_path = filedialog.asksaveasfilename(
+                defaultextension=".csv",
+                filetypes=[("CSV files", "*.csv")],
+                initialfile="normalized_ms_data.csv"
+            )
+            if save_path:
+                try:
+                    # 这里需要重新获取feature_matrix，简化处理
+                    log_message("用户选择了新的保存位置", "INFO")
+                    messagebox.showinfo("提示", "请重新运行数据预处理以保存到新位置")
+                except Exception as e:
+                    log_message(f"保存到新位置时出错: {str(e)}", "ERROR")
+                    messagebox.showerror("保存失败", f"保存文件时出错:\n{str(e)}")
+
+
+    # 第五部分：GUI相关方法
     def _create_classification_window(self):
         """创建文件分类窗口"""
         # 检查是否已有窗口打开
@@ -315,112 +758,7 @@ class DataPreprocessor:
         file_paths = self.class_0_files + self.class_1_files
         self._execute_processing(file_paths)
 
-    def _execute_processing(self, file_paths: List[str]):
-        """执行数据处理"""
-        # 创建进度显示
-        self._create_progress_ui()
-        
-        try:
-            log_message("开始智能峰发现处理...")
-            
-            # 阶段1: 峰发现
-            log_message(" 阶段1：从所有文件中发现峰 ")
-            all_peaks_data = self._phase1_discover_peaks(file_paths)
-            
-            if not all_peaks_data:
-                raise ValueError("未从任何文件中发现有效峰")
-            
-            # 阶段2: 共识峰识别
-            log_message(" 阶段2：识别共识特征峰 ")
-            consensus_peaks = self._phase2_consensus_peaks(all_peaks_data)
-            
-            if consensus_peaks.empty:
-                raise ValueError("未识别出共识特征峰")
-            
-            # 阶段3: 特征矩阵构建
-            log_message(" 阶段3：构建最终特征矩阵 ")
-            feature_matrix = self._phase3_build_matrix(file_paths, consensus_peaks)
-            
-            # 保存结果
-            success = self._save_results(feature_matrix)
-            
-            if success:
-                log_message("智能峰发现处理完成！", "SUCCESS")
-                messagebox.showinfo("处理完成", 
-                                  f"智能峰发现完成！\n"
-                                  f"• 发现 {len(consensus_peaks)} 个特征峰\n"
-                                  f"• 处理 {len(file_paths)} 个样本\n"
-                                  f"• 结果已保存为 {OUTPUT_FILES['processed_data']}")
-            else:
-                self._handle_save_failure()
-                
-        except Exception as e:
-            log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
-            messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
-        finally:
-            self._cleanup_progress_ui()
 
-    def process_classified_files(self, root):
-        """
-        主处理函数 - 保持与原版本完全相同的调用接口
-        
-        Args:
-            root: GUI根窗口，用于进度显示
-        """
-        self.root = root
-        
-        # 获取分类文件
-        classification = data_store.get_file_classification()
-        file_paths = classification['class_0_files'] + classification['class_1_files']
-        
-        if not file_paths:
-            log_message("未找到已分类的文件", "WARNING")
-            messagebox.showerror("错误", "未找到已分类的文件，请先进行文件分类")
-            return
-        
-        # 创建进度显示
-        self._create_progress_ui()
-        
-        try:
-            log_message("开始智能峰发现处理...")
-            
-            # 阶段1: 峰发现
-            log_message(" 阶段1：从所有文件中发现峰 ")
-            all_peaks_data = self._phase1_discover_peaks(file_paths)
-            
-            if not all_peaks_data:
-                raise ValueError("未从任何文件中发现有效峰")
-            
-            # 阶段2: 共识峰识别
-            log_message(" 阶段2：识别共识特征峰 ")
-            consensus_peaks = self._phase2_consensus_peaks(all_peaks_data)
-            
-            if consensus_peaks.empty:
-                raise ValueError("未识别出共识特征峰")
-            
-            # 阶段3: 特征矩阵构建
-            log_message(" 阶段3：构建最终特征矩阵 ")
-            feature_matrix = self._phase3_build_matrix(file_paths, consensus_peaks)
-            
-            # 保存结果
-            success = self._save_results(feature_matrix)
-            
-            if success:
-                log_message("智能峰发现处理完成！", "SUCCESS")
-                messagebox.showinfo("处理完成", 
-                                  f"智能峰发现完成！\n"
-                                  f"• 发现 {len(consensus_peaks)} 个特征峰\n"
-                                  f"• 处理 {len(file_paths)} 个样本\n"
-                                  f"• 结果已保存为 {OUTPUT_FILES['processed_data']}")
-            else:
-                self._handle_save_failure()
-                
-        except Exception as e:
-            log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
-            messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
-        finally:
-            self._cleanup_progress_ui()
-    
     def _create_progress_ui(self):
         """创建进度显示界面"""
         if self.root and hasattr(self.root, 'gui_manager'):
@@ -440,429 +778,5 @@ class DataPreprocessor:
         
         if self.root:
             self.root.update()
-    
-    def _phase1_discover_peaks(self, file_paths: List[str]) -> List[pd.DataFrame]:
-        """阶段1: 峰发现"""
-        self._update_progress(0, "阶段1: 峰发现中...")
-        
-        all_peaks_data = []
-        for index, file_path in enumerate(file_paths):
-            peaks_df = self._discover_peaks_from_file(file_path)
-            if not peaks_df.empty:
-                all_peaks_data.append(peaks_df)
-                log_message(f"文件 {os.path.basename(file_path)}: 发现 {len(peaks_df)} 个峰")
-            
-            # 更新进度 (0-33%)
-            progress = (index + 1) / len(file_paths) * 0.33
-            message = f"峰发现: {index+1}/{len(file_paths)} ({progress:.0%})"
-            self._update_progress(progress, message)
-        
-        return all_peaks_data
-    
-    def _phase2_consensus_peaks(self, all_peaks_data: List[pd.DataFrame]) -> pd.DataFrame:
-        """阶段2: 共识峰识别"""
-        self._update_progress(0.33, "阶段2: 特征选择中...")
-        
-        # 合并所有峰数据
-        all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
-        log_message(f"总计发现 {len(all_peaks_df)} 个峰候选")
-        self._update_progress(0.40, "阶段2: 数据合并完成")  # 新增
-        
-        # 获取动态类别映射
-        _, reverse_mapping = get_class_mapping()
-        class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
-        
-        log_message(f"使用类别: {class_0_name}, {class_1_name}")
-        
-        # 统计信息
-        class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
-        class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
-        
-        # 按m/z分组分析
-        all_peaks_df = all_peaks_df.copy()
-        all_peaks_df['mz_group'] = np.round(all_peaks_df['mz'] / 0.2) * 0.2
-        self._update_progress(0.45, "阶段2: 数据分组完成")  # 新增
-        
-        consensus_peaks = []
-        unique_groups = all_peaks_df['mz_group'].unique()
-        total_groups = len(unique_groups)
-        
-        for i, mz_group in enumerate(unique_groups):
-            group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
-            
-            class_0_data = group_data[group_data['class'] == class_0_name]
-            class_1_data = group_data[group_data['class'] == class_1_name]
-            
-            # 计算出现频率
-            class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
-            class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
-            
-            class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
-            class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
-            
-            # 过滤条件
-            if (class_0_occurrence_rate < MIN_OCCURRENCE_RATE or 
-                class_1_occurrence_rate < MIN_OCCURRENCE_RATE):
-                continue
-            
-            if len(class_0_data) < 2 or len(class_1_data) < 2:
-                continue
-            
-            # 计算统计指标
-            consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
-            class_0_intensity_mean = class_0_data['intensity'].mean()
-            class_1_intensity_mean = class_1_data['intensity'].mean()
-            
-            # 计算区分性
-            fold_change = max(class_0_intensity_mean, class_1_intensity_mean) / (
-                min(class_0_intensity_mean, class_1_intensity_mean) + 1e-6)
-            
-            if fold_change >= MIN_FOLD_CHANGE:
-                coverage_score = (class_0_occurrence_rate + class_1_occurrence_rate) / 2
-                ml_score = fold_change * coverage_score
-                
-                consensus_peaks.append({
-                    'consensus_mz': consensus_mz,
-                    'peak_id': f'Peak_{len(consensus_peaks):03d}',
-                    'class_0_occurrence_rate': class_0_occurrence_rate,
-                    'class_1_occurrence_rate': class_1_occurrence_rate,
-                    'class_0_mean': class_0_intensity_mean,
-                    'class_1_mean': class_1_intensity_mean,
-                    'fold_change': fold_change,
-                    'ml_score': ml_score
-                })
-            
-            # 每处理100个分组更新一次进度 (45% - 60%)
-            if i % 100 == 0 or i == total_groups - 1:
-                progress = 0.45 + (i + 1) / total_groups * 0.15
-                self._update_progress(progress, f"阶段2: 分析峰群 {i+1}/{total_groups}")
-        
-        consensus_df = pd.DataFrame(consensus_peaks)
-        
-        if not consensus_df.empty:
-            # 按ML友好性得分排序
-            consensus_df = consensus_df.sort_values('ml_score', ascending=False)
-            self._update_progress(0.62, "阶段2: 特征排序完成")  # 新增
-            
-            # 限制特征数量
-            if len(consensus_df) > MAX_FEATURES:
-                original_count = len(consensus_df)
-                consensus_df = consensus_df.head(MAX_FEATURES)
-                log_message(f"从 {original_count} 个候选中选择了top {MAX_FEATURES} 个特征")
-        
-        log_message(f"识别出 {len(consensus_df)} 个共识特征峰")
-        
-        # 更新进度到66%
-        self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
-        
-        return consensus_df
-    
-    def _phase3_build_matrix(self, file_paths: List[str], 
-                           consensus_peaks: pd.DataFrame) -> pd.DataFrame:
-        """阶段3: 构建特征矩阵"""
-        self._update_progress(0.66, "阶段3: 构建特征矩阵...")
-        log_message("构建动态归一化特征矩阵...")
-        
-        # 第一轮: 扫描全局最大强度值
-        self._scan_global_max_intensity(file_paths)
-        
-        # 第二轮: 构建归一化特征矩阵
-        feature_matrix = self._build_normalized_matrix(file_paths, consensus_peaks)
-        
-        return feature_matrix
-    
-    def _discover_peaks_from_file(self, file_path: str) -> pd.DataFrame:
-        """从单个文件中发现峰（复制原有逻辑）"""
-        log_message(f"处理文件: {os.path.basename(file_path)}")
-        
-        try:
-            # 读取数据
-            raw_data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['mz', 'intensity'])
-            
-            if raw_data.empty:
-                return pd.DataFrame()
-            
-            # 基本清理
-            raw_data = raw_data[raw_data['intensity'] > 0]
-            raw_data = raw_data.sort_values('mz').reset_index(drop=True)
-            
-            # pyOpenMS峰拾取
-            spectrum = oms.MSSpectrum()
-            mz_array = raw_data['mz'].values.astype(float)
-            intensity_array = raw_data['intensity'].values.astype(float)
-            spectrum.set_peaks([mz_array, intensity_array])
-            spectrum.sortByPosition()
-            
-            picker = oms.PeakPickerHiRes()
-            picker_param = picker.getDefaults()
-            picker_param.setValue("signal_to_noise", 1.0)
-            picker.setParameters(picker_param)
-            
-            picked_spectrum = oms.MSSpectrum()
-            picker.pick(spectrum, picked_spectrum)
-            
-            if picked_spectrum.size() == 0:
-                log_message("未发现峰", "WARNING")
-                return pd.DataFrame()
-            
-            # 提取峰信息
-            peak_mz, peak_intensity = picked_spectrum.get_peaks()
-            
-            # 构建结果
-            file_id = os.path.splitext(os.path.basename(file_path))[0]
-            file_class = self._get_file_classification(file_path)
-            
-            results = pd.DataFrame({
-                'mz': peak_mz,
-                'intensity': peak_intensity,
-                'file_id': file_id,
-                'class': file_class
-            })
-            
-            # 缓存结果
-            self.all_file_peaks_cache[file_id] = results
-            
-            return results
-            
-        except Exception as e:
-            log_message(f"处理文件 {file_path} 时出错: {str(e)}", "ERROR")
-            return pd.DataFrame()
-    
-    def _find_consensus_peaks(self, all_peaks_df: pd.DataFrame) -> pd.DataFrame:
-        """发现共识峰（复制原有逻辑）"""
-        if all_peaks_df.empty:
-            return pd.DataFrame()
-        
-        # 获取动态类别映射
-        _, reverse_mapping = get_class_mapping()
-        class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
-        
-        log_message(f"使用类别: {class_0_name}, {class_1_name}")
-        
-        # 统计信息
-        class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
-        class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
-        
-        # 按m/z分组分析
-        all_peaks_df = all_peaks_df.copy()
-        all_peaks_df['mz_group'] = np.round(all_peaks_df['mz'] / 0.2) * 0.2
-        
-        consensus_peaks = []
-        
-        for mz_group in all_peaks_df['mz_group'].unique():
-            group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
-            
-            class_0_data = group_data[group_data['class'] == class_0_name]
-            class_1_data = group_data[group_data['class'] == class_1_name]
-            
-            # 计算出现频率
-            class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
-            class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
-            
-            class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
-            class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
-            
-            # 过滤条件
-            if (class_0_occurrence_rate < MIN_OCCURRENCE_RATE or 
-                class_1_occurrence_rate < MIN_OCCURRENCE_RATE):
-                continue
-            
-            if len(class_0_data) < 2 or len(class_1_data) < 2:
-                continue
-            
-            # 计算统计指标
-            consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
-            class_0_intensity_mean = class_0_data['intensity'].mean()
-            class_1_intensity_mean = class_1_data['intensity'].mean()
-            
-            # 计算区分性
-            fold_change = max(class_0_intensity_mean, class_1_intensity_mean) / (
-                min(class_0_intensity_mean, class_1_intensity_mean) + 1e-6)
-            
-            if fold_change >= MIN_FOLD_CHANGE:
-                coverage_score = (class_0_occurrence_rate + class_1_occurrence_rate) / 2
-                ml_score = fold_change * coverage_score
-                
-                consensus_peaks.append({
-                    'consensus_mz': consensus_mz,
-                    'peak_id': f'Peak_{len(consensus_peaks):03d}',
-                    'class_0_occurrence_rate': class_0_occurrence_rate,
-                    'class_1_occurrence_rate': class_1_occurrence_rate,
-                    'class_0_mean': class_0_intensity_mean,
-                    'class_1_mean': class_1_intensity_mean,
-                    'fold_change': fold_change,
-                    'ml_score': ml_score
-                })
-        
-        consensus_df = pd.DataFrame(consensus_peaks)
-        
-        if not consensus_df.empty:
-            # 按ML友好性得分排序
-            consensus_df = consensus_df.sort_values('ml_score', ascending=False)
-            
-            # 限制特征数量
-            if len(consensus_df) > MAX_FEATURES:
-                original_count = len(consensus_df)
-                consensus_df = consensus_df.head(MAX_FEATURES)
-                log_message(f"从 {original_count} 个候选中选择了top {MAX_FEATURES} 个特征")
-        
-        return consensus_df
-    
-    def _scan_global_max_intensity(self, file_paths: List[str]):
-        """扫描全局最大强度值"""
-        log_message("第一轮：扫描全局最大强度值...")
-        self.global_max_intensity = 0.0
-        
-        for i, file_path in enumerate(file_paths):
-            file_id = os.path.splitext(os.path.basename(file_path))[0]
-            
-            # 使用缓存或重新发现峰
-            if file_id in self.all_file_peaks_cache:
-                peaks_df = self.all_file_peaks_cache[file_id]
-            else:
-                peaks_df = self._discover_peaks_from_file(file_path)
-            
-            if not peaks_df.empty:
-                file_max = peaks_df['intensity'].max()
-                self.global_max_intensity = max(self.global_max_intensity, file_max)
-            
-            # 更新进度 (66% - 83%)
-            progress = 0.66 + (i + 1) / len(file_paths) * 0.17
-            message = f"扫描最大值: {i+1}/{len(file_paths)} ({progress:.0%})"
-            self._update_progress(progress, message)
-        
-        if self.global_max_intensity == 0:
-            log_message("警告：未找到任何有效强度值", "WARNING")
-            self.global_max_intensity = 1.0
-        
-        log_message(f"全局最大强度值: {self.global_max_intensity:.2f}")
-        save_normalization_factor(self.global_max_intensity)
-    
-    def _build_normalized_matrix(self, file_paths: List[str], 
-                               consensus_peaks: pd.DataFrame) -> pd.DataFrame:
-        """构建归一化特征矩阵"""
-        log_message("第二轮：构建归一化特征矩阵...")
-        
-        # 构建基础矩阵结构
-        feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" 
-                                   for _, peak in consensus_peaks.iterrows()]
-        feature_series = pd.Series(data=feature_names, index=feature_names)
-        all_results = pd.DataFrame(feature_series, columns=['m/z'])
-        
-        for i, file_path in enumerate(file_paths):
-            file_id = os.path.splitext(os.path.basename(file_path))[0]
-            file_class = self._get_file_classification(file_path)
-            
-            # 使用缓存的峰数据
-            peaks_df = self.all_file_peaks_cache.get(file_id, pd.DataFrame())
-            
-            # 创建文件结果列
-            file_results = [file_class]  # 第一行：类别标签
-            
-            # 后续行：对每个共识峰提取并归一化特征值
-            for _, consensus_peak in consensus_peaks.iterrows():
-                target_mz = consensus_peak['consensus_mz']
-                normalized_intensity = self._extract_normalized_intensity(
-                    peaks_df, target_mz, self.global_max_intensity)
-                file_results.append(normalized_intensity)
-            
-            # 将结果添加到总矩阵中
-            file_series = pd.Series(file_results, index=feature_names)
-            file_df = pd.DataFrame(file_series, columns=[file_id])
-            all_results = pd.concat([all_results, file_df], axis=1)
-            
-            # 更新进度 (83% - 100%)
-            progress = 0.83 + (i + 1) / len(file_paths) * 0.17
-            message = f"归一化处理: {i+1}/{len(file_paths)} ({progress:.0%})"
-            self._update_progress(progress, message)
-        
-        log_message(f"动态归一化特征矩阵完成: {all_results.shape}")
-        return all_results
-    
-    def _extract_normalized_intensity(self, peaks_df: pd.DataFrame, 
-                                    target_mz: float, 
-                                    normalization_factor: float) -> float:
-        """提取归一化强度值"""
-        if peaks_df.empty:
-            return 0.0
-        
-        # 在容差范围内查找
-        mz_diff = np.abs(peaks_df['mz'] - target_mz)
-        matches = peaks_df[mz_diff <= MZ_TOLERANCE]
-        
-        if not matches.empty:
-            # 选择最接近的峰
-            best_match_idx = mz_diff[mz_diff <= MZ_TOLERANCE].idxmin()
-            raw_intensity = peaks_df.loc[best_match_idx, 'intensity']
-            return raw_intensity / normalization_factor
-        else:
-            return 0.0
-    
-    def _get_file_classification(self, file_path: str) -> str:
-        """获取文件分类"""
-        classification = data_store.get_file_classification()
-        
-        if file_path in classification['class_0_files']:
-            return classification['class_0_name']
-        elif file_path in classification['class_1_files']:
-            return classification['class_1_name']
-        else:
-            return "UNKNOWN"
-    
-    def _save_results(self, feature_matrix: pd.DataFrame) -> bool:
-        """保存结果文件"""
-        output_path = OUTPUT_FILES['processed_data']
-        
-        try:
-            # 检查文件是否已存在，创建备份
-            if os.path.exists(output_path):
-                log_message("发现已存在的文件，正在创建备份...", "INFO")
-                backup_path = create_backup_filename(output_path)
-                try:
-                    os.rename(output_path, backup_path)
-                    log_message(f"备份完成: {os.path.abspath(backup_path)}", "SUCCESS")
-                except Exception as e:
-                    log_message(f"无法重命名已有文件: {str(e)}，将尝试直接保存新文件", "WARNING")
-            
-            # 保存新文件
-            log_message("正在保存处理结果...", "INFO")
-            feature_matrix.iloc[:, 1:].to_csv(
-            output_path, 
-            index=True, 
-            float_format='%.8f',
-            encoding='utf-8-sig'  # 添加UTF-8 BOM，确保中文正确显示
-        )
-            log_message(f"数据处理完成，结果已保存为 {os.path.abspath(output_path)}", "SUCCESS")
-            return True
-            
-        except PermissionError:
-            log_message("无法保存文件，可能是文件已被打开或没有写入权限", "ERROR")
-            return False
-        except Exception as e:
-            log_message(f"保存文件时出错: {str(e)}", "ERROR")
-            return False
-    
-    def _handle_save_failure(self):
-        """处理保存失败的情况"""
-        from tkinter import filedialog
-        
-        response = messagebox.askyesno("权限错误", 
-                                     "无法保存文件到当前位置。\n"
-                                     "是否选择其他位置保存文件？")
-        if response:
-            save_path = filedialog.asksaveasfilename(
-                defaultextension=".csv",
-                filetypes=[("CSV files", "*.csv")],
-                initialfile="normalized_ms_data.csv"
-            )
-            if save_path:
-                try:
-                    # 这里需要重新获取feature_matrix，简化处理
-                    log_message("用户选择了新的保存位置", "INFO")
-                    messagebox.showinfo("提示", "请重新运行数据预处理以保存到新位置")
-                except Exception as e:
-                    log_message(f"保存到新位置时出错: {str(e)}", "ERROR")
-                    messagebox.showerror("保存失败", f"保存文件时出错:\n{str(e)}")
-
-
+  
 

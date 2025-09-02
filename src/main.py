@@ -86,33 +86,31 @@ class MainGUIManager:
         self.prediction_manager = PredictionManager(self.help_system)
     
     def _create_layout(self):
-        """创建UI布局"""
-        # 创建顶部菜单栏 - row=0
-        self._create_menu_bar()
-        
-        # 创建进度指示器 - row=1 
-        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)
-        
+        """创建新的4x4网格布局"""
+        # 配置主窗口网格权重 - 4列4行
+        self.root.grid_rowconfigure(0, weight=0)    # 菜单栏
+        self.root.grid_rowconfigure(1, weight=0)    # 进度指示器  
+        self.root.grid_rowconfigure(2, weight=0)    # 主要面板行 - 减小权重
+        self.root.grid_rowconfigure(3, weight=0)    # 进度条行
+        self.root.grid_rowconfigure(4, weight=1)    # 可视化和日志行 - 增加权重
+        self.root.grid_rowconfigure(5, weight=0)    # 额外行，
 
-        # 配置网格权重 
-        self.root.grid_rowconfigure(3, minsize=30, weight=0)  # 进度条行限制高度
-        self.root.grid_rowconfigure(4, weight=1)  # 下方面板区域可扩展
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_columnconfigure(2, weight=1)
         self.root.grid_columnconfigure(3, weight=1)
 
-        # 先创建面板 - row=2
-        self._create_ui_panels()
-
-        # 后创建进度条 - row=3
-        self._create_global_progress()
+        # 创建各个组件
+        self._create_menu_bar()                    # row=0
+        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)  # row=1
+        self._create_ui_panels()                   # row=2,4
+        self._create_global_progress()             # row=3
 
     def _create_global_progress(self):
         """创建全局进度组件"""
         # 进度容器放在row=3
         self.progress_container = ctk.CTkFrame(self.root, fg_color="transparent", height=25)
-        self.progress_container.grid(row=3, column=0, columnspan=4, sticky='ew', padx=20, pady=2)
+        self.progress_container.grid(row=3, column=0, columnspan=3, sticky='ew', padx=20, pady=2)  # 只跨3列
         self.progress_container.grid_columnconfigure(0, weight=1)
         
         self.global_progress = ProgressComponent(self.progress_container, width=200, show_label=True)
@@ -138,6 +136,14 @@ class MainGUIManager:
         self.action_btn.pack(side="left", padx=5)
         
         self._is_operation_running = False
+
+        # 归一化开关（替换按钮）
+        self.normalize_switch = ctk.CTkSwitch(
+            menu_container, text="归一化", width=80,
+            command=self._toggle_normalization
+        )
+        self.normalize_switch.pack(side="left", padx=5)
+        self.normalize_switch.select()  # 默认开启
         
         # 新增：打印按钮
         print_btn = ctk.CTkButton(menu_container, text="打印报告", width=100, height=35,
@@ -165,21 +171,44 @@ class MainGUIManager:
             # 非运行时作为重置按钮
             self.handle_reset_progress()
 
+    def _toggle_normalization(self):
+        """切换归一化状态"""
+        new_state = self.normalize_switch.get()
+        data_store.set_normalization_enabled(new_state)
+        status = "启用" if new_state else "禁用"
+        log_message(f"归一化已{status}")
+        self.ui_panels['control'].update_normalization_status()
+        self.ui_panels['prediction'].update_normalization_status()
+
+    def _detect_normalization_factor(self, df):
+        """检测归一化因子"""
+
+        if data_store.is_normalization_enabled():
+            # 归一化模式：必须有归一化因子
+            factor = data_store.get_normalization_factor()
+            if factor is None:
+                log_message("归一化模式下无法获取归一化因子，请先进行数据预处理", "ERROR")
+                raise ValueError("归一化模式下无法获取归一化因子，请先进行数据预处理")
+            log_message(f"归一化模式：使用归一化因子 {factor:.2f}", "INFO")
+            return factor
+        else:
+            # 非归一化模式：不需要归一化因子
+            log_message("非归一化模式：使用原始强度值", "INFO")
+            return None  # 返回None表示不需要归一化
+            
     def handle_print_report(self):
         """处理打印报告"""
         self.print_manager.show_print_dialog(self.root)
                
     def _create_ui_panels(self):
-        """使用UI组件创建各个面板"""
-        # 上方面板在row=2
-        # 0. 预处理面板
+        """创建新网格布局的UI面板"""
+        #第2行：预处理、控制、结果、预测（上半部分）
         preprocessing_callbacks = {
-            'on_start_preprocessing':self._handle_preprocessing_start
+            'on_start_preprocessing': self._handle_preprocessing_start
         }
         self.ui_panels['preprocessing'] = PreprocessingPanel(self.root, self.help_system, preprocessing_callbacks)
-        self.ui_panels['preprocessing'].create_panel(2, column=0)
+        self.ui_panels['preprocessing'].create_panel(row=2, column=0)
 
-        # 1. 控制面板 
         control_callbacks = {
             'on_file_select': self.handle_file_select,
             'on_model_select': self.handle_model_select,
@@ -188,25 +217,25 @@ class MainGUIManager:
         self.ui_panels['control'] = ControlPanel(self.root, self.help_system, control_callbacks)
         self.ui_panels['control'].create_panel(row=2, column=1)
         
-        # 2. 结果面板 
         self.ui_panels['result'] = ResultPanel(self.root, self.help_system)
         self.ui_panels['result'].create_panel(row=2, column=2)
         
-        # 3. 预测面板 
         prediction_callbacks = {
             'on_predict_file': self.handle_predict_file,
             'on_model_info': self.handle_model_info,
         }
         self.ui_panels['prediction'] = PredictionPanel(self.root, self.help_system, prediction_callbacks)
-        self.ui_panels['prediction'].create_panel(row=2, column=3)
+        self.ui_panels['prediction'].create_panel(row=2, column=3, rowspan=3)  # 跨2行
         
-        # 4. 可视化面板 
+        # 第4行：可视化（3列）+ 日志（1列）
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-        self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
+        self.ui_panels['visualization'].create_panel(row=4, column=0, rowspan=2, columnspan=3)
         
-        # 5. 信息面板 
+         # 第5行：信息面板（1列）
+         # 信息面板放在第5行第4列
+        
         self.ui_panels['info'] = InfoPanel(self.root, self.help_system)
-        self.ui_panels['info'].create_panel(row=4, column=2, columnspan=2)
+        self.ui_panels['info'].create_panel(row=5, column=3)
     
     def _finalize_setup(self):
         """完成设置"""
@@ -263,17 +292,13 @@ class MainGUIManager:
         if self.help_system:
             self.help_system.advance_step("train_model")
     
-    def handle_predict_file(self):
-        """处理文件预测"""
-        prediction_panel = self.ui_panels['prediction']
-        self.prediction_manager.open_file_dialog(prediction_panel.components['result_label'])
     
     def handle_model_info(self):
         """处理模型信息查看"""
         self.prediction_manager.show_model_info_window(self.root)
     
     def handle_reset_progress(self):
-        """完整重置到初始状态"""
+        """完整重置到初始状态 - 修复TclError问题"""
 
         # 设置取消标志
         self._operation_cancelled = True
@@ -281,20 +306,33 @@ class MainGUIManager:
         try:
             log_message("开始重置系统...", "INFO")
             
-            # 0. 先重置按钮状态，避免UI销毁问题
+            # 0. 先重置按钮状态，避免UI锁死问题
             self._is_operation_running = False
             self.action_btn.configure(text="重置进度", state="normal")
-            # 1. 重置数据存储
+            
+            # 1. 安全销毁可视化面板 - 添加存在性检查
+            try:
+                if hasattr(self, 'ui_panels') and 'visualization' in self.ui_panels:
+                    viz_panel = self.ui_panels['visualization']
+                    if viz_panel and hasattr(viz_panel, 'frame') and viz_panel.frame.winfo_exists():
+                        viz_panel.frame.destroy()
+            except Exception as e:
+                log_message(f"销毁可视化面板时出错: {e}", "WARNING")
+            
+            # 2. 强制更新UI，确保销毁操作完成
+            self.root.update_idletasks()
+            
+            # 3. 重置数据存储
             data_store.clear_all_data()
             
-            # 2. 重置帮助系统进度
+            # 4. 重置帮助系统进度
             for step in self.help_system.steps:
                 step['completed'] = False
             self.help_system.current_step_index = 0
             self.help_system.update_progress_display()
             self.help_system.hide_all_tips()
 
-            # 3. 重置UI面板
+            # 5. 重置UI面板
             self.ui_panels['result'].reset_results()
             self.ui_panels['prediction'].update_result("状态：等待选择文件")
             self.ui_panels['control'].update_file_status("文件未选择")
@@ -302,16 +340,21 @@ class MainGUIManager:
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
             self.ui_panels['preprocessing'].update_status("等待开始预处理")
+            self.normalize_switch.select()  # 重置为开启状态
+            data_store.set_normalization_enabled(True)  # 重置data_store状态
+            self.ui_panels['control'].update_normalization_status()
+            self.ui_panels['prediction'].update_normalization_status()
             
-            # 4. 重置可视化面板
-            old_viz = self.ui_panels['visualization'].frame
-            old_viz.destroy()
-            self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-            self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
-            self.root.visualization_container = self.ui_panels['visualization'].get_container()
-            self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
+            # 6. 重新创建可视化面板
+            try:
+                self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
+                self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
+                self.root.visualization_container = self.ui_panels['visualization'].get_container()
+                self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
+            except Exception as e:
+                log_message(f"重新创建可视化面板时出错: {e}", "ERROR")
             
-            # 5. 隐藏进度条并重置模型选择
+            # 7. 隐藏进度条并重置模型选择
             self.hide_global_progress()
             self.exact_selection = DEFAULT_MODEL
             clear_log()
@@ -404,7 +447,7 @@ class MainGUIManager:
         
         try:
             prediction_panel = self.ui_panels['prediction']
-            self.prediction_manager.open_file_dialog(prediction_panel.components['result_label'])
+            self.prediction_manager.open_file_dialog(prediction_panel.components['result_textbox'])
         finally:
             self._set_operation_running(False)
                         

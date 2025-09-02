@@ -220,8 +220,22 @@ class ModelTrainer:
             
             # 保存最佳模型
             if self.best_model is not None:
-                dump(self.best_model, OUTPUT_FILES['best_model'])
-                log_message(f"最优模型已保存到文件，测试集分数: {self.best_score:.4f}")
+                from datetime import datetime
+                from config import output_manager
+                
+                # 生成带时间戳的文件名
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                model_type = type(self.best_model).__name__
+                norm_status = "normalized" if data_store.is_normalization_enabled() else "raw"
+                
+                filename = f"{model_type}_{norm_status}_{timestamp}.joblib"
+                model_path = output_manager.get_path('model', filename)
+                
+                # 保存模型
+                dump(self.best_model, model_path)
+                
+                log_message(f"模型已保存: {filename}")
+                log_message(f"测试集分数: {self.best_score:.4f}")
             
             # 保存PLS阈值（如果存在）
             if len(results['thresholds_used']) > 0:
