@@ -280,20 +280,17 @@ class PredictionManager:
         result_text = self.format_prediction_result(result)
         
         if result["success"]:
-            result_label.configure(
-                text=result_text,
-                text_color=result["confidence_color"],
-                font=ctk.CTkFont(size=12, weight="bold")
-            )
+            result_label.delete("1.0", "end")
+            result_label.insert("1.0", result_text)
+            result_label.configure(text_color=result["confidence_color"])
             
             # 通知帮助系统
             if self.help_system:
                 self.help_system.complete_step("predict_sample")
         else:
-            result_label.configure(
-                text=result_text,
-                text_color='red'
-            )
+            result_label.delete("1.0", "end")
+            result_label.insert("1.0", result_text)
+            result_label.configure(text_color='red')
         # 保存最新预测结果到data_store    
         prediction_data = {
             "filename": result.get("file_name", ""),
@@ -532,6 +529,41 @@ class PredictionManager:
                 progress_callback(progress, f"预测进度: {i+1}/{total_files}")
         
         return results
+
+    def scan_available_models(self, model_directory="models"):
+        """扫描可用的模型文件"""
+        available_models = ["自动检测"]  # 默认选项
+        
+        # 检查模型目录
+        if os.path.exists(model_directory):
+            for file in os.listdir(model_directory):
+                if file.endswith('.joblib'):
+                    model_name = os.path.splitext(file)[0]  # 去掉扩展名
+                    available_models.append(model_name)
+        
+        # 检查默认的best_model.joblib
+        if os.path.exists(OUTPUT_FILES['best_model']):
+            available_models.append("最近训练模型")
+        
+        return available_models
+
+    def load_specific_model(self, model_name):
+        """加载指定的模型"""
+        if model_name == "自动检测":
+            return self.load_model()  # 使用现有逻辑
+        elif model_name == "最近训练模型":
+            return self.load_model()  # 使用现有逻辑
+        else:
+            # 加载指定的模型文件
+            model_path = f"models/{model_name}.joblib"
+            try:
+                self.model = load(model_path)
+                log_message(f"已加载模型: {model_name}", "INFO")
+                return True
+            except Exception as e:
+                log_message(f"加载模型失败 {model_name}: {str(e)}", "ERROR")
+                return False
+
 
 
 # 使用示例 

@@ -2,8 +2,8 @@
 
 # 第三方库导入 
 import customtkinter as ctk
-from tkinter import messagebox
-
+from tkinter import messagebox, filedialog
+import os
 # 本地模块导入 
 from config import MODEL_CONFIGS
 from utils import log_message
@@ -339,86 +339,133 @@ class PredictionPanel(BasePanel):
     def __init__(self, parent, help_system=None, callbacks=None):
         super().__init__(parent, "样本预测", help_system)
         self.callbacks = callbacks or {}
-    
+        self.current_model_selection = None
+
     def create_panel(self, row, column):
         """创建完整的预测面板"""
         # 创建基础框架
         self.create_frame(row, column)
         
-        # 配置网格权重
-        self.frame.grid_rowconfigure(1, weight=1)
-        self.frame.grid_columnconfigure(0, weight=0)  # 按钮列不扩展
-        self.frame.grid_columnconfigure(1, weight=1)  # 结果列扩展
-        
+        # 配置主网格
+        self.frame.grid_rowconfigure(1, weight=0)  # 模型设置区域 - 固定高度
+        self.frame.grid_rowconfigure(2, weight=0)  # 操作按钮区域 - 固定高度  
+        self.frame.grid_rowconfigure(3, weight=1)  # 结果显示区域 - 可扩展
+        self.frame.grid_columnconfigure(0, weight=1)
+
         self.create_title()
         self._create_panel_layout()
         
         return self.frame
-    
-    def _create_panel_layout(self):
-        """创建面板布局"""
-        # 创建左侧按钮容器
-        self.components['button_container'] = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self.components['button_container'].grid(row=1, column=0, sticky='nsew', padx=(10, 5), pady=5)
 
-        # 创建右侧结果显示容器
-        self.components['result_container'] = ctk.CTkFrame(self.frame, fg_color="transparent")
-        self.components['result_container'].grid(row=1, column=1, sticky='nsew', padx=(5, 10), pady=5)
+    def _create_panel_layout(self):
+        """创建面板布局 - 三栏结构"""
+        # 配置主网格
+        self.frame.grid_rowconfigure(1, weight=0)  # 模型设置区域 - 固定高度
+        self.frame.grid_rowconfigure(2, weight=0)  # 操作按钮区域 - 固定高度  
+        self.frame.grid_rowconfigure(3, weight=1)  # 结果显示区域 - 可扩展
+        self.frame.grid_columnconfigure(0, weight=1)
+
+        # 创建三个区域
+        self._create_model_settings_area()
+        self._create_action_buttons_area() 
+        self._create_result_display_area()
         
-        # 创建按钮和结果显示
-        self._create_buttons()
-        self._create_result_display()
     
-    def _create_buttons(self):
-        """创建预测相关按钮"""
-        container = self.components['button_container']
-        container.grid_columnconfigure(0, weight=1)
+    def _create_model_settings_area(self):
+        """创建模型设置区域"""
+        settings_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
+        settings_frame.grid(row=1, column=0, sticky='ew', padx=10, pady=5)
+        settings_frame.grid_columnconfigure(1, weight=1)
+        settings_frame.grid_columnconfigure(3, weight=1)
         
-        # 单文件预测按钮
+        
+        
+        # 模型选择
+        ctk.CTkLabel(settings_frame, text="模型选择:", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, sticky='w', padx=5, pady=2
+        )
+        
+        self.components['model_select_button'] = ctk.CTkButton(
+            settings_frame, text="选择模型文件", width=150, height=28,
+            command=self._on_model_file_select
+        )
+        self.components['model_select_button'].grid(row=0, column=1, sticky='w', padx=5, pady=2)
+        
+        # 兼容性状态指示器（与模型选择对齐）
+        self.components['compatibility_status'] = ctk.CTkLabel(
+            settings_frame, text="兼容性: 未检测", 
+            font=ctk.CTkFont(size=10), text_color="gray"
+        )
+        self.components['compatibility_status'].grid(row=0, column=2, sticky='w', padx=15, pady=2)
+        
+        
+        # 归一化状态显示（与数据模式选择对齐）
+        self.components['norm_status'] = ctk.CTkLabel(
+            settings_frame, text="归一化", 
+            font=ctk.CTkFont(size=10), text_color="blue"
+        )
+        self.components['norm_status'].grid(row=0, column=3, sticky='e', padx=5, pady=2)
+
+
+    def _create_action_buttons_area(self):
+        """创建操作按钮区域"""
+        button_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
+        button_frame.grid(row=2, column=0, sticky='ew', padx=10, pady=5)
+        button_frame.grid_columnconfigure((0, 1), weight=1)
+        
+        # 预测按钮
         self.components['predict_button'] = ctk.CTkButton(
-            container, text="选择要检测的txt文件", width=180, height=35,
+            button_frame, text="选择要检测的txt文件", height=35,
             command=self._on_predict_file
         )
-        self.components['predict_button'].grid(row=0, column=0, padx=5, pady=(0, 10), sticky='ew')
+        self.components['predict_button'].grid(row=0, column=0, padx=5, pady=5, sticky='ew')
         self.add_hover_tip(self.components['predict_button'], "select_predict_file")
         
         # 模型信息按钮
         self.components['model_info_button'] = ctk.CTkButton(
-            container, text="查看模型详情", width=180, height=35,
+            button_frame, text="查看模型详情", height=35,
             command=self._on_model_info
         )
-        self.components['model_info_button'].grid(row=1, column=0, padx=5, pady=(0, 10), sticky='ew')
+        self.components['model_info_button'].grid(row=0, column=1, padx=5, pady=5, sticky='ew')
         self.add_hover_tip(self.components['model_info_button'], "model_info")
 
-    
-    def _create_result_display(self):
+
+    def _create_result_display_area(self):
         """创建结果显示区域"""
-        container = self.components['result_container']
-
-        # 配置结果容器的网格
-        container.grid_rowconfigure(1, weight=1)
-        container.grid_columnconfigure(0, weight=1)
-
-        # 添加归一化状态显示
-        self.components['norm_status'] = ctk.CTkLabel(
-            container, text="数据模式: 归一化", 
-            font=ctk.CTkFont(size=10), text_color="blue"
-        )
-        self.components['norm_status'].grid(row=0, column=0, padx=5, pady=2, sticky='w')
+        result_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
+        result_frame.grid(row=3, column=0, sticky='nsew', padx=10, pady=5)
+        result_frame.grid_rowconfigure(1, weight=1)
+        result_frame.grid_columnconfigure(0, weight=1)
         
-        self.components['result_label'] = ctk.CTkLabel(
-            container, text='状态：等待选择文件',
-            justify='left', anchor='nw'
+        # 结果标题和复制按钮
+        header_frame = ctk.CTkFrame(result_frame, fg_color="transparent")
+        header_frame.grid(row=0, column=0, sticky='ew', pady=(0, 5))
+        header_frame.grid_columnconfigure(0, weight=1)
+        
+        ctk.CTkLabel(header_frame, text="预测结果:", font=ctk.CTkFont(weight="bold")).grid(
+            row=0, column=0, sticky='w'
         )
-        self.components['result_label'].grid(row=1, column=0, padx=5, pady=5, sticky='nsew')
-    
+        
+        self.components['copy_button'] = ctk.CTkButton(
+            header_frame, text="复制结果", width=80, height=25,
+            command=self._copy_result_to_clipboard
+        )
+        self.components['copy_button'].grid(row=0, column=1, sticky='e')
+        
+        # 结果文本框 - 改为可选择的文本框
+        self.components['result_textbox'] = ctk.CTkTextbox(
+            result_frame, height=150, font=ctk.CTkFont(size=11)
+        )
+        self.components['result_textbox'].grid(row=1, column=0, sticky='nsew')
+        self.components['result_textbox'].insert("end", "状态：等待选择文件")
+
     def update_normalization_status(self):
         """更新归一化状态显示"""
         enabled = data_store.is_normalization_enabled()
-        text = "数据模式: 归一化" if enabled else "数据模式: 原始"
+        text = "归一化" if enabled else "原始数据"
         color = "blue" if enabled else "orange"
         self.components['norm_status'].configure(text=text, text_color=color)
-        
+            
     def _on_predict_file(self):
         """单文件预测回调"""
         if 'on_predict_file' in self.callbacks:
@@ -432,9 +479,67 @@ class PredictionPanel(BasePanel):
     
     def update_result(self, result_text, color='black'):
         """更新预测结果显示"""
-        self.components['result_label'].configure(text=result_text, text_color=color)
+        self.components['result_textbox'].delete("1.0", "end")
+        self.components['result_textbox'].insert("1.0", result_text)
+        self.components['result_textbox'].configure(text_color=color)
     
 
+    def _update_compatibility_status(self):
+        """更新兼容性状态显示"""
+        if self.current_model_selection:
+            if self.current_model_selection == "自动检测":
+                status = "兼容性: 自动匹配"
+                color = "blue"
+            else:
+                status = "兼容性: 手动选择"
+                color = "green"
+        else:
+            status = "兼容性: 未检测"
+            color = "gray"
+        
+        self.components['compatibility_status'].configure(text=status, text_color=color)
+
+    def _copy_result_to_clipboard(self):
+        """复制预测结果到剪贴板"""
+        try:
+            result_text = self.components['result_textbox'].get("1.0", "end-1c")
+            self.components['result_textbox'].clipboard_clear()
+            self.components['result_textbox'].clipboard_append(result_text)
+            log_message("预测结果已复制到剪贴板", "SUCCESS")
+            
+            # 临时改变按钮文字提示用户
+            original_text = self.components['copy_button'].cget("text")
+            self.components['copy_button'].configure(text="已复制!")
+            self.components['copy_button'].after(1500, lambda: self.components['copy_button'].configure(text=original_text))
+            
+        except Exception as e:
+            log_message(f"复制到剪贴板失败: {str(e)}", "ERROR")
+
+    def _on_model_file_select(self):
+        """打开文件对话框选择模型"""
+        from config import OUTPUT_FILES
+        
+        # 获取模型文件的目录路径
+        model_path = OUTPUT_FILES['best_model']
+        model_dir = os.path.dirname(model_path)
+        
+        # 如果模型目录不存在，使用当前目录
+        if not os.path.exists(model_dir):
+            model_dir = "."
+        
+        file_path = filedialog.askopenfilename(
+            title="选择模型文件",
+            filetypes=[("Joblib files", "*.joblib"), ("All files", "*.*")],
+            initialdir=model_dir,
+            initialfile="best_model.joblib"  # 默认文件名
+        )
+        
+        if file_path:
+            model_name = os.path.basename(file_path)
+            self.current_model_selection = file_path  # 存储完整路径
+            self.components['model_select_button'].configure(text=f"已选择: {model_name}")
+            self.components['compatibility_status'].configure(text="模型: 已选择", text_color="green")
+            log_message(f"选择模型文件: {model_name}")
 
 class VisualizationPanel(BasePanel):
     """可视化面板组件"""

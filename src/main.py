@@ -232,7 +232,6 @@ class MainGUIManager:
         }
         self.ui_panels['prediction'] = PredictionPanel(self.root, self.help_system, prediction_callbacks)
         self.ui_panels['prediction'].create_panel(row=2, column=3)
-        
         # 4. 可视化面板 
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
         self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
@@ -296,17 +295,13 @@ class MainGUIManager:
         if self.help_system:
             self.help_system.advance_step("train_model")
     
-    def handle_predict_file(self):
-        """处理文件预测"""
-        prediction_panel = self.ui_panels['prediction']
-        self.prediction_manager.open_file_dialog(prediction_panel.components['result_label'])
     
     def handle_model_info(self):
         """处理模型信息查看"""
         self.prediction_manager.show_model_info_window(self.root)
     
     def handle_reset_progress(self):
-        """完整重置到初始状态"""
+        """完整重置到初始状态 - 修复TclError问题"""
 
         # 设置取消标志
         self._operation_cancelled = True
@@ -314,20 +309,33 @@ class MainGUIManager:
         try:
             log_message("开始重置系统...", "INFO")
             
-            # 0. 先重置按钮状态，避免UI销毁问题
+            # 0. 先重置按钮状态，避免UI锁死问题
             self._is_operation_running = False
             self.action_btn.configure(text="重置进度", state="normal")
-            # 1. 重置数据存储
+            
+            # 1. 安全销毁可视化面板 - 添加存在性检查
+            try:
+                if hasattr(self, 'ui_panels') and 'visualization' in self.ui_panels:
+                    viz_panel = self.ui_panels['visualization']
+                    if viz_panel and hasattr(viz_panel, 'frame') and viz_panel.frame.winfo_exists():
+                        viz_panel.frame.destroy()
+            except Exception as e:
+                log_message(f"销毁可视化面板时出错: {e}", "WARNING")
+            
+            # 2. 强制更新UI，确保销毁操作完成
+            self.root.update_idletasks()
+            
+            # 3. 重置数据存储
             data_store.clear_all_data()
             
-            # 2. 重置帮助系统进度
+            # 4. 重置帮助系统进度
             for step in self.help_system.steps:
                 step['completed'] = False
             self.help_system.current_step_index = 0
             self.help_system.update_progress_display()
             self.help_system.hide_all_tips()
 
-            # 3. 重置UI面板
+            # 5. 重置UI面板
             self.ui_panels['result'].reset_results()
             self.ui_panels['prediction'].update_result("状态：等待选择文件")
             self.ui_panels['control'].update_file_status("文件未选择")
@@ -340,15 +348,16 @@ class MainGUIManager:
             self.ui_panels['control'].update_normalization_status()
             self.ui_panels['prediction'].update_normalization_status()
             
-            # 4. 重置可视化面板
-            old_viz = self.ui_panels['visualization'].frame
-            old_viz.destroy()
-            self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-            self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
-            self.root.visualization_container = self.ui_panels['visualization'].get_container()
-            self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
+            # 6. 重新创建可视化面板
+            try:
+                self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
+                self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
+                self.root.visualization_container = self.ui_panels['visualization'].get_container()
+                self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
+            except Exception as e:
+                log_message(f"重新创建可视化面板时出错: {e}", "ERROR")
             
-            # 5. 隐藏进度条并重置模型选择
+            # 7. 隐藏进度条并重置模型选择
             self.hide_global_progress()
             self.exact_selection = DEFAULT_MODEL
             clear_log()
@@ -441,7 +450,7 @@ class MainGUIManager:
         
         try:
             prediction_panel = self.ui_panels['prediction']
-            self.prediction_manager.open_file_dialog(prediction_panel.components['result_label'])
+            self.prediction_manager.open_file_dialog(prediction_panel.components['result_textbox'])
         finally:
             self._set_operation_running(False)
                         
