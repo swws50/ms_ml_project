@@ -38,29 +38,41 @@ class PredictionManager:
     
     # 模型加载相关 
     def load_model(self):
-        """
-        加载最佳模型
-        
-        返回:
-            bool: 是否成功加载模型
-        """
+        """智能加载模型"""
         try:
-            # 优先从data_store获取
-            self.model = data_store.get_best_model()
+            # 1. 优先使用用户手动选择的模型
+            if hasattr(self, 'temp_model_path') and self.temp_model_path:
+                self.model = load(self.temp_model_path)
+                log_message(f"使用用户选择的模型: {os.path.basename(self.temp_model_path)}", "INFO")
+                return True
             
-            if self.model is None:
-                # 从文件加载
-                model_path = OUTPUT_FILES['best_model']
-                if not os.path.exists(model_path):
-                    log_message(f"模型文件不存在: {model_path}", "ERROR")
-                    return False
-                
-                self.model = load(model_path)
-                log_message(f"从文件加载模型: {model_path}", "INFO")
-            else:
-                log_message("从数据存储模块获取模型", "INFO")
+            # 2. 使用最新训练的模型（内存中）
+            latest_model, latest_path = data_store.get_latest_trained_model()
+            if latest_model is not None:
+                self.model = latest_model
+                log_message("使用最新训练的模型（内存中）", "INFO")
+                return True
             
-            return True
+            # 3. 从最新的模型文件加载（如果内存中没有）
+            if latest_path and os.path.exists(latest_path):
+                self.model = load(latest_path)
+                log_message(f"从最新模型文件加载: {os.path.basename(latest_path)}", "INFO")
+                return True
+            
+            # 4. 扫描模型目录，找到最新的模型文件
+            model_dir = "output/models"  # 根据实际路径调整
+            if os.path.exists(model_dir):
+                model_files = [f for f in os.listdir(model_dir) if f.endswith('.joblib')]
+                if model_files:
+                    # 按时间戳排序，选择最新的
+                    latest_file = max(model_files)
+                    latest_model_path = os.path.join(model_dir, latest_file)
+                    self.model = load(latest_model_path)
+                    log_message(f"自动选择最新模型文件: {latest_file}", "INFO")
+                    return True
+            
+            log_message("未找到可用的模型文件", "ERROR")
+            return False
             
         except Exception as e:
             log_message(f"加载模型失败: {str(e)}", "ERROR")
@@ -446,44 +458,49 @@ class PredictionManager:
         
         return "\n".join(text_lines)
     
-    def show_model_info_window(self, parent=None):
-        """
-        显示模型信息窗口
-        
-        参数:
-            parent: 父窗口
-        """
-        # 检查是否已有窗口打开
+    def show_model_info_window(self, parent=None, model_path=None):
+        """显示模型信息窗口"""
         if self.info_window and self.info_window.winfo_exists():
             self.info_window.lift()
             self.info_window.focus_force()
             return
         
-        # 获取模型信息
+        # 如果指定了模型路径，临时加载该模型
+        original_model = self.model
+        if model_path:
+            try:
+                self.model = load(model_path)
+                log_message(f"临时加载模型用于信息查看: {os.path.basename(model_path)}", "INFO")
+            except Exception as e:
+                messagebox.showerror("错误", f"无法加载指定模型: {str(e)}")
+                return
+        
         info = self.get_model_info()
+        
+        # 恢复原模型
+        if model_path:
+            self.model = original_model
         
         if "error" in info:
             messagebox.showerror("错误", info["error"])
             return
         
-        # 创建窗口
+        # 创建窗口的代码保持不变...
         self.info_window = ctk.CTkToplevel(parent)
-        self.info_window.title(f"模型信息: {info['model_type']}")
+        model_name = os.path.basename(model_path) if model_path else info['model_type']
+        self.info_window.title(f"模型信息: {model_name}")
         self.info_window.geometry("600x400")
         
-        # 窗口置顶设置
         self._setup_info_window_properties()
         
-        # 创建文本框显示信息
         info_text = ctk.CTkTextbox(self.info_window, width=580, height=360)
         info_text.pack(fill='both', expand=True, padx=10, pady=10)
         
-        # 插入格式化的信息
         formatted_text = self.format_info_text(info)
         info_text.insert("end", formatted_text)
         
         log_message("模型信息窗口已打开", "INFO")
-    
+
     def _setup_info_window_properties(self):
         """设置信息窗口属性"""
         # 强力置顶方案

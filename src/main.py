@@ -295,8 +295,14 @@ class MainGUIManager:
     
     def handle_model_info(self):
         """处理模型信息查看"""
-        self.prediction_manager.show_model_info_window(self.root)
-    
+        prediction_panel = self.ui_panels['prediction']
+        selected_model_path = prediction_panel.current_model_selection
+        
+        if selected_model_path and selected_model_path != "自动检测":
+            self.prediction_manager.show_model_info_window(self.root, model_path=selected_model_path)
+        else:
+            self.prediction_manager.show_model_info_window(self.root)
+        
     def handle_reset_progress(self):
         """完整重置到初始状态 - 修复TclError问题"""
 
@@ -335,6 +341,7 @@ class MainGUIManager:
             # 5. 重置UI面板
             self.ui_panels['result'].reset_results()
             self.ui_panels['prediction'].update_result("状态：等待选择文件")
+            self.ui_panels['prediction'].reset_model_selection()
             self.ui_panels['control'].update_file_status("文件未选择")
             self.ui_panels['control'].enable_training(False)
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
@@ -348,7 +355,7 @@ class MainGUIManager:
             # 6. 重新创建可视化面板
             try:
                 self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-                self.ui_panels['visualization'].create_panel(row=4, column=0, columnspan=2)
+                self.ui_panels['visualization'].create_panel(row=4, column=0, rowspan=2, columnspan=3)
                 self.root.visualization_container = self.ui_panels['visualization'].get_container()
                 self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
             except Exception as e:
@@ -442,13 +449,22 @@ class MainGUIManager:
             self._set_operation_running(False)
 
     def handle_predict_file(self):
-        """处理文件预测 - 不支持终止"""
+        """处理文件预测"""
         self._set_operation_running(True, "文件预测", allow_termination=False)
         
         try:
             prediction_panel = self.ui_panels['prediction']
+            selected_model_path = prediction_panel.current_model_selection
+            
+            # 如果用户选择了特定模型，临时设置给预测管理器
+            if selected_model_path and selected_model_path != "自动检测":
+                self.prediction_manager.temp_model_path = selected_model_path
+            
             self.prediction_manager.open_file_dialog(prediction_panel.components['result_textbox'])
         finally:
+            # 清理临时模型路径
+            if hasattr(self.prediction_manager, 'temp_model_path'):
+                delattr(self.prediction_manager, 'temp_model_path')
             self._set_operation_running(False)
                         
                   

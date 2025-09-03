@@ -32,7 +32,7 @@ class OutputManager:
 
         log_message(f"输出目录已创建: {self.base_dir.absolute()}")
 
-    def get_path(self, category, filename):
+    def get_path(self, category, filename=None):
         """
         获取指定类别的文件保存路径
 
@@ -51,7 +51,15 @@ class OutputManager:
         }
 
         folder = category_map.get(category, 'results')  # 默认放在results
-        return self.base_dir / folder / filename
+        directory_path = self.base_dir / folder
+
+         # 确保目录存在
+        directory_path.mkdir(parents=True, exist_ok=True)
+        
+        if filename is None:
+            return str(directory_path.absolute())  # 返回目录路径
+        else:
+            return directory_path / filename  # 返回文件路径
 
     def save_file(self, content, category, filename, save_method='default'):
         """

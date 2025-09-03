@@ -79,7 +79,8 @@ def get_output_paths():
         # 数据文件
         'processed_data': output_manager.get_path('data', csv_filename),
         # 模型文件
-        'best_model': output_manager.get_path('model', 'best_model.joblib'),
+        # 于model_training.py中动态生成
+        # 'trained_model': output_manager.get_path('model', 'trained_model.joblib'),
 
         # 结果文件
         'confusion_matrix': output_manager.get_path('result', 'Con_matrix_SVM.csv'),
