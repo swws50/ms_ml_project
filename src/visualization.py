@@ -12,7 +12,7 @@ from PIL import Image
 
 # 本地模块导入 
 from config import get_class_mapping, OUTPUT_FILES
-from utils import log_message
+from utils import log_message, set_window_icon
 import data_store
 
 
@@ -151,6 +151,25 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         log_message(f"生成图表时出错: {str(e)}", "ERROR")
         return {}
 
+def show_large_image(parent, image_path, title="查看大图"):
+    """显示大图窗口"""
+    window = ctk.CTkToplevel(parent)
+    window.title(title)
+    window.grab_set()
+    set_window_icon(window)
+    # 加载并显示原图
+    image = Image.open(image_path)
+    ctk_image = ctk.CTkImage(light_image=image, size=image.size)
+    
+    label = ctk.CTkLabel(window, image=ctk_image, text="")
+    label.pack(padx=10, pady=10)
+    
+    # 居中显示窗口
+    window.update_idletasks()
+    x = (window.winfo_screenwidth() - window.winfo_reqwidth()) // 2
+    y = (window.winfo_screenheight() - window.winfo_reqheight()) // 2
+    window.geometry(f"+{x}+{y}")
+
 def create_visualization_tabs(root, generated_charts):
     """
     在GUI中创建可视化标签页显示图表
@@ -220,6 +239,12 @@ def create_visualization_tabs(root, generated_charts):
                 label = ctk.CTkLabel(image_frame, image=ctk_image, text="")
                 label.place(relx=0.5, rely=0.5, anchor='center')  # 精确居中
                 
+                # 添加点击事件
+                def on_click(event, path=chart_file):
+                    show_large_image(notebook.master, path, f"查看大图 - {tab_name}")
+                    
+                label.bind("<Button-1>", on_click)
+
                 log_message(f"已加载图表: {tab_name}")
 
             except Exception as e:
