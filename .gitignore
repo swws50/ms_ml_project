@@ -8,5 +8,4 @@ outputs/
 __pycache__/
 *.pyc
 data-analysis.py
-
 raw_data/
