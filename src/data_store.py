@@ -1,5 +1,6 @@
 # data_store.py - 简化后的数据存储模块
 import numpy as np
+import os
 """
 这个文件用来存储程序中需要共享的数据
 相当于一个"数据仓库"，所有模块都可以访问
@@ -28,7 +29,9 @@ _training_data = {
 
 _training_data_path = None
 
-_best_model = None    # 最佳模型
+# 训练好的模型
+_latest_trained_model = None  # 最新训练的模型（内存中）
+_latest_model_path = None     # 最新模型文件路径
 
 _latest_prediction = None
 
@@ -167,36 +170,18 @@ def get_training_data_path():
     """获取训练数据文件路径"""
     return _training_data_path
 
-# 模型相关函数 
-def set_best_model(model):
-    """设置最佳模型"""
-    global _best_model
-    _best_model = model
+# 模型相关函数
+def set_latest_trained_model(model, model_path):
+    """设置最新训练的模型"""
+    global _latest_trained_model, _latest_model_path
+    _latest_trained_model = model
+    _latest_model_path = model_path
 
-def get_best_model():
-    """获取最佳模型"""
-    return _best_model
+def get_latest_trained_model():
+    """获取最新训练的模型"""
+    return _latest_trained_model, _latest_model_path
 
-def has_best_model():
-    """检查是否有已训练的模型"""
-    return _best_model is not None
 
-def get_model_info():
-    """
-    获取模型基本信息
-    
-    返回:
-        dict: 模型信息字典
-    """
-    if not has_best_model():
-        return {'has_model': False}
-    
-    model = get_best_model()
-    return {
-        'has_model': True,
-        'model_type': type(model).__name__,
-        'model_params': model.get_params() if hasattr(model, 'get_params') else {}
-    }
 
 def set_latest_prediction(prediction_result):
     """保存最新预测结果"""
@@ -269,7 +254,27 @@ def get_system_status():
             }
         },
         'training_data': get_training_data_info(),
-        'model': get_model_info()
+        'model': get_latest_model_info()  # 改为新的函数
+    }
+
+def get_latest_model_info():
+    """
+    获取最新模型信息
+    
+    返回:
+        dict: 最新模型信息字典
+    """
+    latest_model, latest_path = get_latest_trained_model()
+    
+    if latest_model is None and latest_path is None:
+        return {'has_model': False}
+    
+    return {
+        'has_model': True,
+        'model_type': type(latest_model).__name__ if latest_model else 'Unknown',
+        'model_file': os.path.basename(latest_path) if latest_path else None,
+        'model_path': latest_path,
+        'is_in_memory': latest_model is not None
     }
 
 def is_ready_for_training():
@@ -289,19 +294,3 @@ def is_ready_for_training():
     else:
         return False, missing
 
-def is_ready_for_prediction():
-    """
-    检查是否准备好进行样本预测
-    
-    返回:
-        tuple: (是否准备好, 缺少的条件列表)
-    """
-    missing = []
-    
-    if not has_best_model():
-        missing.append("训练好的模型")
-    
-    if len(missing) == 0:
-        return True, []
-    else:
-        return False, missing

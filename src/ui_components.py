@@ -324,14 +324,15 @@ class ResultPanel(BasePanel):
         """更新测试集精度"""
         self.components['test_accuracy'].configure(text=f'平均测试集平衡精度: {accuracy:.4f}')
     
-    def update_model_status(self, status, score=None, color='green'):
-        """更新模型状态"""
-        if score is not None:
-            status_text = f'模型保存状态: {status} (分数: {score:.4f})'
-        else:
-            status_text = f'模型保存状态: {status}'
-        
-        self.components['model_status'].configure(text=status_text, text_color=color)
+    def update_model_status(self):
+        """更新模型状态显示"""
+        latest_model, latest_path = data_store.get_latest_trained_model()
+        if latest_path:
+            model_name = os.path.basename(latest_path)
+            self.components['model_status'].configure(
+                text=f"当前模型: {model_name}", 
+                text_color="green"
+            )
     
     def reset_results(self):
         """重置所有结果显示"""
@@ -363,6 +364,12 @@ class PredictionPanel(BasePanel):
         self._create_panel_layout()
         
         return self.frame
+    
+    def reset_model_selection(self):
+        """重置模型选择状态"""
+        self.current_model_selection = None
+        self.components['model_select_button'].configure(text="选择模型文件")
+        self.components['compatibility_status'].configure(text="兼容性: 未检测", text_color="gray")
 
     def _create_panel_layout(self):
         """创建面板布局 - 三栏结构"""
@@ -524,21 +531,15 @@ class PredictionPanel(BasePanel):
 
     def _on_model_file_select(self):
         """打开文件对话框选择模型"""
-        from config import OUTPUT_FILES
+        from output_manager import output_manager
         
         # 获取模型文件的目录路径
-        model_path = OUTPUT_FILES['best_model']
-        model_dir = os.path.dirname(model_path)
-        
-        # 如果模型目录不存在，使用当前目录
-        if not os.path.exists(model_dir):
-            model_dir = "."
+        model_dir = output_manager.get_path('model')
         
         file_path = filedialog.askopenfilename(
             title="选择模型文件",
             filetypes=[("Joblib files", "*.joblib"), ("All files", "*.*")],
-            initialdir=model_dir,
-            initialfile="best_model.joblib"  # 默认文件名
+            initialdir=model_dir
         )
         
         if file_path:

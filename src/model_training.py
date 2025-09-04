@@ -196,7 +196,6 @@ class ModelTrainer:
         log_message(f"训练完成！最优模型分数：{self.best_score:.4f}")
         
         # 保存最佳模型
-        data_store.set_best_model(self.best_model)
         log_message("最佳模型已保存到数据存储模块", "SUCCESS")
         
         # 保存训练结果
@@ -233,6 +232,8 @@ class ModelTrainer:
                 
                 # 保存模型
                 dump(self.best_model, model_path)
+                 # 设置为最新训练的模型（用于预测时的默认选择）
+                data_store.set_latest_trained_model(self.best_model, model_path)
                 
                 log_message(f"模型已保存: {filename}")
                 log_message(f"测试集分数: {self.best_score:.4f}")
