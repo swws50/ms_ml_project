@@ -508,7 +508,8 @@ class ProjectManagerDialog:
         self.dialog.geometry("500x400")
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        
+        set_window_icon(self.dialog)
+
         # 居中显示
         self.dialog.update_idletasks()
         x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
@@ -703,14 +704,14 @@ class ProjectSelectionDialog:
         self.parent = parent
         self.projects = projects
         self.selected_project = None
-        set_window_icon(self.parent)
         # 创建对话框
         self.dialog = ctk.CTkToplevel(parent)
         self.dialog.title(title)
         self.dialog.geometry("300x250")
         self.dialog.transient(parent)
         self.dialog.grab_set()
-        
+        set_window_icon(self.dialog)
+
         # 居中显示
         self.dialog.update_idletasks()
         x = (self.dialog.winfo_screenwidth() // 2) - (300 // 2)
@@ -718,7 +719,8 @@ class ProjectSelectionDialog:
         self.dialog.geometry(f"300x250+{x}+{y}")
         
         self._create_content()
-    
+        
+
     def _create_content(self):
         """创建对话框内容"""
         # 标题
