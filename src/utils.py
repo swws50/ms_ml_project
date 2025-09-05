@@ -1,40 +1,40 @@
 # utils.py - 工具函数和日志系统
 
-# 标准库导入 
+# 标准库导入
 import datetime
 import os
 
-# 第三方库导入 
+# 第三方库导入
 import customtkinter as ctk
-from tkinter import PhotoImage
-
+import tkinter as tk
+import sys
 
 # 全局变量
 info_text = None
 root = None
 
+
 def set_window_icon(window):
     """设置窗口图标 - 带稳定性保证"""
-    def _apply_icon():
-        if not window.winfo_exists():
-            return
-            
-        try:
-            from config import ICON_CONFIG
+    if not window.winfo_exists():
+        return
+    try:
+        from config import ICON_CONFIG
+        if sys.platform == "darwin":
+            icon = tk.PhotoImage(
+                file=str(ICON_CONFIG.get('app_icon_png', 'icon.png')))
+            window.iconphoto(False, icon)
+            # 保持引用防止被垃圾回收
+            window._icon_ref = icon
+        else:
             window.iconbitmap(ICON_CONFIG.get('app_icon_ico', 'icon.ico'))
-        except:
-            try:
-                window.iconbitmap('icon.ico')
-            except:
-                pass
-    
-    # 立即应用
-    _apply_icon()
-    
-    # 如果是CTkToplevel窗口，需要延迟加固
-    if isinstance(window, ctk.CTkToplevel):
-        window.after(50, _apply_icon)
-        window.after(200, _apply_icon)
+            # window.after(200, lambda: window.iconbitmap(
+            #    ICON_CONFIG.get('app_icon_ico', 'icon.ico')))
+            window.after(200, window.iconbitmap,
+                         ICON_CONFIG.get('app_icon_ico', 'icon.ico'))
+
+    except:
+        pass
 
 
 def set_global_widgets(info_widget, root_widget):
@@ -43,6 +43,7 @@ def set_global_widgets(info_widget, root_widget):
     info_text = info_widget
     root = root_widget
 
+
 def log_message(message, level="INFO"):
     """增强的日志函数，支持不同级别"""
     global info_text, root
@@ -50,7 +51,7 @@ def log_message(message, level="INFO"):
         # 使用简单符号
         if level == "ERROR":
             formatted_message = f"x 错误: {message}"
-        elif level == "WARNING": 
+        elif level == "WARNING":
             formatted_message = f"! 警告: {message}"
         elif level == "SUCCESS":
             formatted_message = f"√ 成功: {message}"
@@ -59,13 +60,14 @@ def log_message(message, level="INFO"):
         else:
             formatted_message = message
 
-        # CustomTkinter 的文本框使用 "end" 而不是 tkinter.END    
+        # CustomTkinter 的文本框使用 "end" 而不是 tkinter.END
         info_text.insert("end", formatted_message + "\n")
         info_text.see("end")  # 滚动到最后
         if root is not None:
             root.update()
     else:
         print(message)
+
 
 def clear_log():
     """清空日志信息"""
@@ -74,19 +76,19 @@ def clear_log():
         # CustomTkinter 使用不同的删除方法
         info_text.delete("1.0", "end")
 
+
 def create_backup_filename(original_path):
     """创建备份文件名"""
     current_date = datetime.datetime.now().strftime("%Y%m%d")
     base_name = os.path.splitext(original_path)[0]
     extension = os.path.splitext(original_path)[1]
-    
+
     backup_file_path = f'{base_name}-{current_date}{extension}'
-    
+
     # 如果备份文件也存在，添加编号
     counter = 1
     while os.path.exists(backup_file_path):
         backup_file_path = f'{base_name}-{current_date}_{counter}{extension}'
         counter += 1
-    
-    return backup_file_path
 
+    return backup_file_path

@@ -92,9 +92,7 @@ A machine learning-based mass spectrometry data analysis system designed for dis
 ```mermaid
     graph TD
         A[Launch Program] --> B[Data Preprocessing]
-        B --> C[Folder Classification]
-        C --> D[Smart Peak Discovery]
-        D --> E[Select ML Algorithm]
+        B --> E[Select ML Algorithm]
         E --> F[Model Training]
         F --> G[Performance Evaluation]
         G --> H[Predict New Samples]
