@@ -16,30 +16,25 @@ root = None
 
 def set_window_icon(window):
     """设置窗口图标 - 带稳定性保证"""
-    def _apply_icon():
-        if not window.winfo_exists():
-            return
-        try:
-            from config import ICON_CONFIG
-            if sys.platform == "darwin":
-                icon = tk.PhotoImage(
-                    file=str(ICON_CONFIG.get('app_icon_png', 'icon.png')))
-                window.iconphoto(False, icon)
-                # 保持引用防止被垃圾回收
-                window._icon_ref = icon
-            else:
-                window.iconbitmap(ICON_CONFIG.get('app_icon_ico', 'icon.ico'))
+    if not window.winfo_exists():
+        return
+    try:
+        from config import ICON_CONFIG
+        if sys.platform == "darwin":
+            icon = tk.PhotoImage(
+                file=str(ICON_CONFIG.get('app_icon_png', 'icon.png')))
+            window.iconphoto(False, icon)
+            # 保持引用防止被垃圾回收
+            window._icon_ref = icon
+        else:
+            window.iconbitmap(ICON_CONFIG.get('app_icon_ico', 'icon.ico'))
+            # window.after(200, lambda: window.iconbitmap(
+            #    ICON_CONFIG.get('app_icon_ico', 'icon.ico')))
+            window.after(200, window.iconbitmap,
+                         ICON_CONFIG.get('app_icon_ico', 'icon.ico'))
 
-        except:
-            pass
-
-    # 立即应用
-    _apply_icon()
-
-    # 如果是CTkToplevel窗口，需要延迟加固
-    if isinstance(window, ctk.CTkToplevel):
-        window.after(50, _apply_icon)
-        window.after(200, _apply_icon)
+    except:
+        pass
 
 
 def set_global_widgets(info_widget, root_widget):
