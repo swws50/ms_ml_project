@@ -62,12 +62,11 @@ class ProjectManager:
             log_message(f"切换项目失败: {e}", "ERROR")
             return False
     
-    def create_project(self, name, description="", template="通用项目"):
+    def create_project(self, name, description=""):
         """创建项目"""
         try:
             from output_manager import output_manager
             if output_manager.create_project(name, description):
-                self._apply_template(name, template)
                 self.refresh_projects()
                 log_message(f"项目 '{name}' 创建成功", "SUCCESS")
                 return True
@@ -90,28 +89,6 @@ class ProjectManager:
             log_message(f"删除项目失败: {e}", "ERROR")
             return False
     
-    def _apply_template(self, project_name, template):
-        """应用项目模板"""
-        # 这里可以根据不同模板创建不同的初始文件结构
-        templates = {
-            "强度预测": {
-                "description": "混凝土强度预测项目",
-                "default_model": "RandomForestRegressor"
-            },
-            "质量分析": {
-                "description": "产品质量分析项目", 
-                "default_model": "PLSRegression"
-            },
-            "回归分析": {
-                "description": "回归分析项目",
-                "default_model": "LinearRegression"
-            }
-        }
-        
-        if template in templates:
-            # 可以在这里创建模板特定的配置文件等
-            template_info = templates[template]
-            log_message(f"应用模板: {template}", "INFO")
 
 
 class ProjectCreationWizard:
@@ -162,21 +139,6 @@ class ProjectCreationWizard:
         self.desc_entry = ctk.CTkTextbox(desc_frame, height=80)
         self.desc_entry.pack(fill="x", pady=(5, 0))
         self.desc_entry.insert("1.0", "请输入项目描述（可选）")
-        
-        # 项目类型选择
-        template_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        template_frame.pack(fill="x", pady=(15, 5))
-        
-        ctk.CTkLabel(template_frame, text="项目类型:", 
-                    font=ctk.CTkFont(weight="bold")).pack(anchor="w")
-        
-        self.template_var = ctk.StringVar(value="通用项目")
-        template_menu = ctk.CTkOptionMenu(
-            template_frame, 
-            values=["通用项目", "强度预测", "质量分析", "回归分析"],
-            variable=self.template_var
-        )
-        template_menu.pack(fill="x", pady=(5, 0))
         
         # 选项设置
         options_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -234,15 +196,13 @@ class ProjectCreationWizard:
         if desc == "请输入项目描述（可选）":
             desc = ""
         
-        template = self.template_var.get()
         auto_switch = self.auto_switch_var.get()
         
         # 创建项目
-        if self.project_manager.create_project(name, desc, template):
+        if self.project_manager.create_project(name, desc):
             self.result = {
                 "name": name, 
                 "description": desc, 
-                "template": template,
                 "auto_switch": auto_switch
             }
             
@@ -515,8 +475,7 @@ class ProjectManagerDialog:
         # 清除选择状态（因为表格已重建）
         if hasattr(self, 'selected_project'):
             delattr(self, 'selected_project')
-        
-        self.table_frame.update_idletasks()
+
 
     def _center_dialog(self):
         """居中显示对话框"""
@@ -526,5 +485,3 @@ class ProjectManagerDialog:
         self.dialog.geometry(f"700x550+{x}+{y}")
 
 
-# 为了保持向后兼容性，导出主要类
-__all__ = ['ProjectManager', 'ProjectCreationWizard', 'ProjectManagerDialog']
