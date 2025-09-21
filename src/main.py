@@ -23,6 +23,8 @@ from ui_components import (
 from data_preprocessor import  DataPreprocessor
 from ui_components import ProgressComponent
 from print_manager import PrintManager
+# 在现有导入后添加
+from project_manager import ProjectManager
 
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
@@ -32,7 +34,7 @@ class MainGUIManager:
         self.root.gui_manager = self
         self.help_system = None
         self.exact_selection = DEFAULT_MODEL
-
+        self.project_manager = ProjectManager()
         self._operation_cancelled = False  # 简单的终止标志
 
         # 业务逻辑管理器
@@ -146,7 +148,7 @@ class MainGUIManager:
         self.normalize_switch.select()  # 默认开启
 
         project_btn = ctk.CTkButton(menu_container, text="项目管理", width=100, height=35,
-                           command=self._show_project_manager)
+                           command=lambda: self.project_manager.show_manager_dialog(self.root))
         project_btn.pack(side="left", padx=5)
         
         # 新增：打印按钮
@@ -204,15 +206,6 @@ class MainGUIManager:
         """处理打印报告"""
         self.print_manager.show_print_dialog(self.root)
 
-    def _show_project_manager(self):
-        """显示项目管理对话框"""
-        ProjectManagerDialog(self.root, self)
-
-    def _refresh_project_status(self):
-        """刷新项目状态显示"""
-        from output_manager import output_manager
-        current_project = output_manager.get_current_project()
-        log_message(f"当前项目: {current_project}")
                 
     def _create_ui_panels(self):
         """创建新网格布局的UI面板"""
@@ -494,271 +487,6 @@ class MainGUIManager:
         """显示预测结果（供预测模块调用）"""
         if self.ui_panels['prediction']:
             self.ui_panels['prediction'].update_result(result_text, color)
-
-class ProjectManagerDialog:
-    """项目管理对话框"""
-    
-    def __init__(self, parent, gui_manager):
-        self.parent = parent
-        self.gui_manager = gui_manager
-        
-        # 创建对话框窗口
-        self.dialog = ctk.CTkToplevel(parent)
-        self.dialog.title("项目管理")
-        self.dialog.geometry("500x400")
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
-        set_window_icon(self.dialog)
-
-        # 居中显示
-        self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (500 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (400 // 2)
-        self.dialog.geometry(f"500x400+{x}+{y}")
-        
-        self._create_dialog_content()
-        self._refresh_project_list()
-    
-    def _create_dialog_content(self):
-        """创建对话框内容"""
-        # 标题
-        title_label = ctk.CTkLabel(self.dialog, text="项目管理", 
-                                  font=ctk.CTkFont(size=18, weight="bold"))
-        title_label.pack(pady=10)
-        
-        # 当前项目显示
-        from output_manager import output_manager
-        current_project = output_manager.get_current_project()
-        self.current_label = ctk.CTkLabel(self.dialog, 
-                                         text=f"当前项目: {current_project}",
-                                         font=ctk.CTkFont(size=12, weight="bold"),
-                                         text_color="blue")
-        self.current_label.pack(pady=5)
-        
-        # 按钮框架
-        button_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
-        button_frame.pack(pady=10)
-        
-        # 创建项目按钮
-        create_btn = ctk.CTkButton(button_frame, text="创建项目", 
-                                  command=self._create_project)
-        create_btn.pack(side="left", padx=5)
-        
-        # 切换项目按钮
-        switch_btn = ctk.CTkButton(button_frame, text="切换项目", 
-                                  command=self._switch_project)
-        switch_btn.pack(side="left", padx=5)
-        
-        # 删除项目按钮
-        delete_btn = ctk.CTkButton(button_frame, text="删除项目", 
-                                  command=self._delete_project)
-        delete_btn.pack(side="left", padx=5)
-        
-        # 项目列表框架
-        list_frame = ctk.CTkFrame(self.dialog)
-        list_frame.pack(fill="both", expand=True, padx=20, pady=10)
-        
-        # 项目列表标题
-        list_title = ctk.CTkLabel(list_frame, text="所有项目:", 
-                                 font=ctk.CTkFont(size=14, weight="bold"))
-        list_title.pack(pady=5)
-        
-        # 项目列表（使用文本框显示）
-        self.project_textbox = ctk.CTkTextbox(list_frame, height=200)
-        self.project_textbox.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # 关闭按钮
-        close_btn = ctk.CTkButton(self.dialog, text="关闭", 
-                                 command=self.dialog.destroy)
-        close_btn.pack(pady=10)
-    
-    def _refresh_project_list(self):
-        """刷新项目列表显示"""
-        from output_manager import output_manager
-        
-        # 清空文本框
-        self.project_textbox.delete("1.0", "end")
-        
-        # 获取所有项目
-        all_projects = output_manager.get_all_projects()
-        current_project = output_manager.get_current_project()
-        
-        # 显示项目信息
-        for project_name in all_projects:
-            project_info = output_manager.get_project_info(project_name)
-            if project_info:
-                status = "[当前]" if project_info['is_current'] else "      "
-                created_date = project_info.get('created_date', '未知')
-                description = project_info.get('description', '无描述')
-                
-                # 统计文件数量
-                file_counts = project_info.get('file_counts', {})
-                total_files = sum(file_counts.values()) if file_counts else 0
-                
-                project_text = f"{status} {project_name}\n"
-                project_text += f"      创建时间: {created_date}\n"
-                project_text += f"      描述: {description}\n"
-                project_text += f"      文件总数: {total_files}\n"
-                project_text += f"      详情: data({file_counts.get('data', 0)}) "
-                project_text += f"models({file_counts.get('models', 0)}) "
-                project_text += f"results({file_counts.get('results', 0)}) "
-                project_text += f"charts({file_counts.get('charts', 0)})\n\n"
-                
-                self.project_textbox.insert("end", project_text)
-        
-        # 更新当前项目显示
-        self.current_label.configure(text=f"当前项目: {current_project}")
-    
-    def _create_project(self):
-        """创建新项目"""
-        # 获取项目名称
-        project_name = simpledialog.askstring(
-            "创建项目", 
-            "请输入项目名称:",
-            parent=self.dialog
-        )
-        
-        if not project_name:
-            return
-        
-        if not project_name.strip():
-            messagebox.showerror("错误", "项目名称不能为空")
-            return
-        
-        # 获取项目描述
-        description = simpledialog.askstring(
-            "项目描述", 
-            "请输入项目描述（可选）:",
-            parent=self.dialog
-        ) or ""
-        
-        # 创建项目
-        from output_manager import output_manager
-        if output_manager.create_project(project_name.strip(), description.strip()):
-            messagebox.showinfo("成功", f"项目 '{project_name}' 创建成功")
-            self._refresh_project_list()
-            self.gui_manager._refresh_project_status()
-        else:
-            messagebox.showerror("错误", f"项目 '{project_name}' 已存在")
-    
-    def _switch_project(self):
-        """切换项目"""
-        from output_manager import output_manager
-        
-        all_projects = output_manager.get_all_projects()
-        if len(all_projects) <= 1:
-            messagebox.showinfo("提示", "只有一个项目，无需切换")
-            return
-        
-        # 创建项目选择对话框
-        selection_dialog = ProjectSelectionDialog(self.dialog, all_projects, "选择要切换的项目")
-        self.dialog.wait_window(selection_dialog.dialog)
-        
-        if selection_dialog.selected_project:
-            selected_project = selection_dialog.selected_project
-            if output_manager.switch_project(selected_project):
-                messagebox.showinfo("成功", f"已切换到项目 '{selected_project}'")
-                self._refresh_project_list()
-                self.gui_manager._refresh_project_status()
-    
-    def _delete_project(self):
-        """删除项目"""
-        from output_manager import output_manager
-        
-        all_projects = output_manager.get_all_projects()
-        if len(all_projects) <= 1:
-            messagebox.showwarning("警告", "至少需要保留一个项目")
-            return
-        
-        # 选择要删除的项目
-        selection_dialog = ProjectSelectionDialog(self.dialog, all_projects, "选择要删除的项目")
-        self.dialog.wait_window(selection_dialog.dialog)
-        
-        if selection_dialog.selected_project:
-            selected_project = selection_dialog.selected_project
-            
-            # 确认删除
-            response = messagebox.askyesnocancel(
-                "确认删除", 
-                f"确定要删除项目 '{selected_project}' 吗？\n\n"
-                "选择:\n"
-                "是 - 删除项目配置和所有文件\n"
-                "否 - 仅删除项目配置，保留文件\n"
-                "取消 - 不删除"
-            )
-            
-            if response is not None:  # 用户没有选择取消
-                delete_files = response  # True=删除文件，False=保留文件
-                
-                if output_manager.delete_project(selected_project, delete_files):
-                    action = "及文件" if delete_files else "配置"
-                    messagebox.showinfo("成功", f"项目 '{selected_project}' 的{action}已删除")
-                    self._refresh_project_list()
-                    self.gui_manager._refresh_project_status()
-
-
-class ProjectSelectionDialog:
-    """项目选择对话框"""
-    
-    def __init__(self, parent, projects, title="选择项目"):
-        self.parent = parent
-        self.projects = projects
-        self.selected_project = None
-        # 创建对话框
-        self.dialog = ctk.CTkToplevel(parent)
-        self.dialog.title(title)
-        self.dialog.geometry("300x250")
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
-        set_window_icon(self.dialog)
-
-        # 居中显示
-        self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (300 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (250 // 2)
-        self.dialog.geometry(f"300x250+{x}+{y}")
-        
-        self._create_content()
-        
-
-    def _create_content(self):
-        """创建对话框内容"""
-        # 标题
-        title_label = ctk.CTkLabel(self.dialog, text="请选择项目:", 
-                                  font=ctk.CTkFont(size=14, weight="bold"))
-        title_label.pack(pady=10)
-        
-        # 项目选择菜单
-        self.project_var = ctk.StringVar(value=self.projects[0])
-        self.project_menu = ctk.CTkOptionMenu(self.dialog, 
-                                             values=self.projects,
-                                             variable=self.project_var,
-                                             width=200)
-        self.project_menu.pack(pady=10)
-        
-        # 按钮框架
-        button_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
-        button_frame.pack(pady=20)
-        
-        # 确认按钮
-        confirm_btn = ctk.CTkButton(button_frame, text="确认", 
-                                   command=self._confirm_selection)
-        confirm_btn.pack(side="left", padx=10)
-        
-        # 取消按钮
-        cancel_btn = ctk.CTkButton(button_frame, text="取消", 
-                                  command=self._cancel_selection)
-        cancel_btn.pack(side="left", padx=10)
-    
-    def _confirm_selection(self):
-        """确认选择"""
-        self.selected_project = self.project_var.get()
-        self.dialog.destroy()
-    
-    def _cancel_selection(self):
-        """取消选择"""
-        self.selected_project = None
-        self.dialog.destroy()
 
 if __name__ == "__main__":
     root = ctk.CTk()
