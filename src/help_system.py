@@ -63,7 +63,7 @@ class HelpSystem:
             "preprocess_data": "💡 下一步：点击 '开始数据预处理' 处理原始txt文件",
             "select_data": "💡 下一步：选择预处理生成的归一化CSV文件",
             "select_model": "💡 下一步：从 '模型选择' 中选择合适的机器学习算法",
-            "train_model": "💡 下一步：点击 '开始分析' 按钮开始训练模型",
+            "train_model": "💡 下一步：点击 '开始训练' 按钮开始训练模型",
             "view_results": "💡 训练完成！您可以查看生成的评估图表",
             "predict_sample": "💡 模型已就绪！可以选择新样本进行预测"
         }
@@ -451,7 +451,7 @@ class HelpSystem:
                      wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step3, text="2. 从菜单 '模型选择' 中选择合适的机器学习模型",
                      wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step3, text="3. 点击 '开始分析' 按钮开始训练过程",
+        ctk.CTkLabel(step3, text="3. 点击 '开始训练' 按钮开始训练过程",
                      wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step3, text="4. 训练完成后，查看生成的评估图表",
                      wraplength=550).pack(anchor='w', padx=20, pady=2)

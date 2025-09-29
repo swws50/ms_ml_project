@@ -236,7 +236,7 @@ class ControlPanel(BasePanel):
         """创建训练控制组件"""
         # 开始训练按钮
         self.components['start_button'] = ctk.CTkButton(
-            self.frame, text='开始分析', width=180, height=35,
+            self.frame, text='开始训练', width=180, height=35,
             command=self._on_start_training, state='disabled'
         )
         self.components['start_button'].grid(row=3, column=0, padx=10, pady=5, sticky='ew')
@@ -367,9 +367,20 @@ class PredictionPanel(BasePanel):
     
     def reset_model_selection(self):
         """重置模型选择状态"""
+        # 清除当前选择的模型路径
         self.current_model_selection = None
+        
+        # 重置按钮文本
         self.components['model_select_button'].configure(text="选择模型文件")
-        self.components['compatibility_status'].configure(text="兼容性: 未检测", text_color="gray")
+        
+        # 重置兼容性状态
+        self.components['compatibility_status'].configure(
+            text="兼容性: 未检测", 
+            text_color="gray"
+        )
+        
+        # 重置结果显示
+        self.update_result("状态：等待选择文件", color="black")
 
     def _create_panel_layout(self):
         """创建面板布局 - 三栏结构"""

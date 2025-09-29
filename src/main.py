@@ -25,6 +25,8 @@ from ui_components import ProgressComponent
 from print_manager import PrintManager
 # 在现有导入后添加
 from project_manager import ProjectManager
+from automated_workflow import AutomatedWorkflow
+
 
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
@@ -36,6 +38,8 @@ class MainGUIManager:
         self.exact_selection = DEFAULT_MODEL
         self.project_manager = ProjectManager()
         self._operation_cancelled = False  # 简单的终止标志
+
+        self.automated_workflow = AutomatedWorkflow(self)
 
         # 业务逻辑管理器
         self.data_preprocessor = DataPreprocessor()
@@ -127,6 +131,17 @@ class MainGUIManager:
         menu_container = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
         menu_container.pack(side="left", padx=20, pady=15)
         
+        auto_workflow_btn = ctk.CTkButton(
+            menu_container, 
+            text="自动化流程", 
+            width=100, 
+            height=35,
+            command=self.automated_workflow.start_workflow,
+            fg_color="orange",
+            hover_color="darkorange"
+        )
+        auto_workflow_btn.pack(side="left", padx=5)
+
         # 将重置按钮改为动态按钮
         self.action_btn = ctk.CTkButton(
             menu_container, 
