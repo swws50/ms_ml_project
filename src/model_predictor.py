@@ -268,14 +268,22 @@ class PredictionManager:
         参数:
             result_label: 用于显示结果的标签控件
         """
-        file_path = filedialog.askopenfilename(
+        file_paths = filedialog.askopenfilenames(
             initialdir="/",
-            title="选择要预测的文件",
+            title="选择要预测的文件（可多选）",
             filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
         )
         
-        if file_path:
-            self.predict_and_display(file_path, result_label)
+        if file_paths:  # 改为复数
+            # 遍历所有文件
+            result_label.delete("1.0", "end")
+            for i, file_path in enumerate(file_paths, 1):
+                if i > 1:
+                    result_label.insert("end", "\n" + "="*50 + "\n")
+                result_label.insert("end", f"【样本 {i}】\n")
+                result = self.predict_sample(file_path)
+                result_text = self.format_prediction_result(result)
+                result_label.insert("end", result_text + "\n")
     
     def predict_and_display(self, file_path, result_label):
         """
