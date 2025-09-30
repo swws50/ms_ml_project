@@ -262,28 +262,35 @@ class PredictionManager:
     
     # UI交互相关 
     def open_file_dialog(self, result_label):
-        """
-        打开文件选择对话框
-        
-        参数:
-            result_label: 用于显示结果的标签控件
-        """
+        """打开文件选择对话框"""
         file_paths = filedialog.askopenfilenames(
             initialdir="/",
-            title="选择要预测的文件（可多选）",
+            title="选择要预测的文件(可多选)",
             filetypes=(("Text files", "*.txt"), ("All files", "*.*"))
         )
         
-        if file_paths:  # 改为复数
-            # 遍历所有文件
-            result_label.delete("1.0", "end")
-            for i, file_path in enumerate(file_paths, 1):
-                if i > 1:
-                    result_label.insert("end", "\n" + "="*50 + "\n")
-                result_label.insert("end", f"【样本 {i}】\n")
-                result = self.predict_sample(file_path)
-                result_text = self.format_prediction_result(result)
-                result_label.insert("end", result_text + "\n")
+        # 用户取消选择时直接返回
+        if not file_paths:
+            return
+        
+        # 清空之前的所有结果
+        result_label.delete("1.0", "end")
+        
+        # 遍历所有文件
+        for i, file_path in enumerate(file_paths, 1):
+            if i > 1:
+                result_label.insert("end", "\n" + "="*50 + "\n")
+            result_label.insert("end", f"【样本 {i}】\n")
+            
+            result = self.predict_sample(file_path)
+            result_text = self.format_prediction_result(result)
+            result_label.insert("end", result_text + "\n")
+            
+            # 设置颜色
+            if result.get("success"):
+                result_label.configure(text_color=result.get("confidence_color", "black"))
+            else:
+                result_label.configure(text_color='red')
     
     def predict_and_display(self, file_path, result_label):
         """

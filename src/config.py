@@ -52,7 +52,12 @@ MODEL_CONFIGS = {
         "activation": 'logistic',
         "max_iter": 2000
     },
-    "PLSRegression": {"n_components": 10},
+    "PLSRegression": {
+        "n_components": 4,
+        "scale": False,
+        "max_iter": 300,
+        "tol": 1e-06
+    },
 }
 
 # 默认模型选择
