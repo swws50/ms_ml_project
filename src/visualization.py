@@ -1,4 +1,4 @@
-# visualization.py - 可视化和图表生成模块（修复版本）
+# visualization.py - 可视化和图表生成模块（增强版本）
 
 # 标准库导入 
 import os
@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
+import matplotlib.patches as mpatches
 
 # 本地模块导入 
 from config import get_class_mapping, OUTPUT_FILES
@@ -16,18 +17,21 @@ from utils import log_message, set_window_icon
 import data_store
 
 
-
 def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test, 
                                Fscores, confusion_matrixs, fpr_list, tpr_list, 
                                auc_list, thresholds_used=None):
     """
-    生成机器学习模型的性能评估图表
+    生成机器学习模型的性能评估图表（增强版）
     """
     log_message("开始生成可视化图表...")
     generated_charts = {}
     
     # 获取动态类别映射
     _, reverse_class_mapping = get_class_mapping()
+
+    # 获取输出文件路径
+    from config import get_output_paths
+    OUTPUT_FILES = get_output_paths()
 
     try:
         # 1. 生成准确率图表
@@ -42,7 +46,6 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.legend()
         plt.title('Training and Test Balanced Accuracy over Iterations')
         
-        # 修复：使用config中定义的路径
         chart_path = OUTPUT_FILES['chart_accuracy']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
@@ -59,32 +62,41 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.legend()
         plt.title('Weighted Average Precision, Recall, and F1-score over Iterations')
         
-        # 修复：使用config中定义的路径
         chart_path = OUTPUT_FILES['chart_metrics']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['metrics'] = str(chart_path)
 
-        # 3. 生成混淆矩阵图表
-        log_message("生成混淆矩阵图...")
-        plt.figure(figsize=(5, 5))
+        # 3. 生成增强的混淆矩阵图表（带百分比和数值）
+        log_message("生成增强混淆矩阵图...")
+        plt.figure(figsize=(6, 5))
         mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
+        
+        # 计算每行的百分比（按真实类别归一化）
+        row_sums = mean_conf_matrix.sum(axis=1, keepdims=True)
+        conf_matrix_percent = (mean_conf_matrix / row_sums) * 100
+        
         plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
         plt.colorbar(fraction=0.046, pad=0.04)
-        plt.xticks([0, 1], ["class 0","class 1"])
-        plt.yticks([0, 1], ["class 0","class 1"])
+        plt.xticks([0, 1], ["Predicted\nClass 0", "Predicted\nClass 1"])
+        plt.yticks([0, 1], ["True\nClass 0", "True\nClass 1"])
         
-        # 添加数值标签
+        # 添加数值和百分比标签
         for i in range(2):
             for j in range(2):
-                plt.text(j, i, f"{mean_conf_matrix[i, j]:.1f}", 
-                        ha="center", va="center", color="black")
+                count = mean_conf_matrix[i, j]
+                percentage = conf_matrix_percent[i, j]
+                # 根据背景色选择文字颜色
+                text_color = "white" if count > mean_conf_matrix.max() / 2 else "black"
+                plt.text(j, i, f"{count:.1f}\n({percentage:.1f}%)", 
+                        ha="center", va="center", color=text_color, 
+                        fontsize=11, fontweight='bold')
         
-        plt.xlabel('Predicted Class')
-        plt.ylabel('True Class')
-        plt.title('Mean Confusion Matrix')
+        plt.xlabel('Predicted Class', fontsize=11)
+        plt.ylabel('True Class', fontsize=11)
+        plt.title('Mean Confusion Matrix\n(Count and Percentage)', fontsize=12)
+        plt.tight_layout()
         
-        # 修复：使用config中定义的路径
         chart_path = OUTPUT_FILES['chart_confusion']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
@@ -103,13 +115,74 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.title('Mean ROC Curve')
         plt.legend()
         
-        # 修复：使用config中定义的路径
         chart_path = OUTPUT_FILES['chart_roc']
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['roc'] = str(chart_path)
         
-        # 5. 生成PLS阈值分布图（如果有阈值数据）
+        
+        # 5. 新增：生成详细性能指标表格
+        log_message("生成详细性能指标表格...")
+
+        # Calculate metrics
+        mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
+        tn, fp, fn, tp = mean_conf_matrix.ravel()
+
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+        ppv = tp / (tp + fp) if (tp + fp) > 0 else 0
+        npv = tn / (tn + fn) if (tn + fn) > 0 else 0
+        f1 = 2 * (ppv * sensitivity) / (ppv + sensitivity) if (ppv + sensitivity) > 0 else 0
+        accuracy = (tp + tn) / (tp + tn + fp + fn)
+        balanced_acc = np.mean(balanced_accuracy_test)
+        mean_auc = np.mean(auc_list)
+
+        # Create compact table with key metrics only
+        fig, ax = plt.subplots(figsize=(6, 3.5))
+        ax.axis('tight')
+        ax.axis('off')
+
+        table_data = [
+            ['Metric', 'Value'],
+            ['Sensitivity', f'{sensitivity:.4f}'],
+            ['Specificity', f'{specificity:.4f}'],
+            ['PPV', f'{ppv:.4f}'],
+            ['NPV', f'{npv:.4f}'],
+            ['Accuracy', f'{accuracy:.4f}'],
+            ['Balanced Acc', f'{balanced_acc:.4f}'],
+            ['F1-Score', f'{f1:.4f}'],
+            ['AUC-ROC', f'{mean_auc:.4f}'],
+        ]
+
+        table = ax.table(cellText=table_data, cellLoc='center', loc='center',
+                        colWidths=[0.55, 0.45])
+
+        table.auto_set_font_size(False)
+        table.set_fontsize(9)
+        table.scale(1, 1.5)
+
+        # Header row
+        table[(0, 0)].set_facecolor('#4472C4')
+        table[(0, 1)].set_facecolor('#4472C4')
+        table[(0, 0)].set_text_props(weight='bold', color='white', size=10)
+        table[(0, 1)].set_text_props(weight='bold', color='white', size=10)
+
+        # Data rows with alternating colors
+        for i in range(1, len(table_data)):
+            color = '#F2F2F2' if i % 2 == 0 else '#FFFFFF'
+            table[(i, 0)].set_facecolor(color)
+            table[(i, 1)].set_facecolor(color)
+            table[(i, 1)].set_text_props(weight='bold')
+
+        plt.title('Key Metrics', fontsize=11, fontweight='bold', pad=10)
+        plt.tight_layout()
+
+        chart_path = OUTPUT_FILES.get('chart_metrics_table', 'output/chart_metrics_table.png')
+        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
+        plt.close()
+        generated_charts['metrics_table'] = str(chart_path)
+        
+        # 6. 生成PLS阈值分布图（如果有阈值数据）
         if thresholds_used is not None and len(thresholds_used) > 0:
             log_message("生成PLS阈值分布图...")
             mean_threshold = np.mean(thresholds_used)
@@ -124,21 +197,19 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
             else:
                 y_max = plt.ylim()[1] * 1.1
                 
-            # 添加平均阈值和默认阈值的竖线
-            plt.axvline(x=mean_threshold, color='r', linestyle='--', 
+            plt.axvline(x=mean_threshold, color='r', linestyle='--', linewidth=2,
                        label=f'Mean Threshold: {mean_threshold:.4f}')
-            plt.axvline(x=0.5, color='g', linestyle='--', 
+            plt.axvline(x=0.5, color='g', linestyle='--', linewidth=2,
                        label='Default Threshold: 0.5')
             
             plt.xlabel('Threshold Value', fontsize=12)
             plt.ylabel('Frequency', fontsize=12)
             plt.legend(loc='upper right', fontsize=10)
-            plt.title(f'PLS-DA Optimal Threshold Distribution (Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', 
+            plt.title(f'PLS-DA Optimal Threshold Distribution\n(Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', 
                       fontsize=12)
             plt.ylim(0, y_max)
             plt.tight_layout()
             
-            # 修复：使用config中定义的路径
             chart_path = OUTPUT_FILES['chart_thresholds']
             plt.savefig(chart_path, dpi=100, bbox_inches='tight')
             plt.close()
@@ -151,12 +222,14 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         log_message(f"生成图表时出错: {str(e)}", "ERROR")
         return {}
 
+
 def show_large_image(parent, image_path, title="查看大图"):
     """显示大图窗口"""
     window = ctk.CTkToplevel(parent)
     window.title(title)
     window.grab_set()
     set_window_icon(window)
+    
     # 加载并显示原图
     image = Image.open(image_path)
     ctk_image = ctk.CTkImage(light_image=image, size=image.size)
@@ -170,32 +243,34 @@ def show_large_image(parent, image_path, title="查看大图"):
     y = (window.winfo_screenheight() - window.winfo_reqheight()) // 2
     window.geometry(f"+{x}+{y}")
 
+
 def create_visualization_tabs(root, generated_charts):
     """
-    在GUI中创建可视化标签页显示图表
+    在GUI中创建可视化标签页显示图表（增强版）
     """
+    from config import get_output_paths
+    OUTPUT_FILES = get_output_paths()
+
     # 检查是否有可视化容器
     if hasattr(root, 'visualization_container') and hasattr(root, 'visualization_placeholder'):
-        # 先销毁占位标签
         try:
             root.visualization_placeholder.destroy()
         except:
             pass
         
-        # 创建更大的选项卡视图 
         notebook = ctk.CTkTabview(root.visualization_container, width=800, height=500)
         notebook.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
     else:
-        # 如果没有找到可视化容器，使用原来的方式（兼容性）
         notebook = ctk.CTkTabview(root, width=800, height=500)
         notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
 
-    # 修复：图表文件列表使用config中的路径
+    # 图表配置列表（按显示顺序）
     chart_configs = [
+        (OUTPUT_FILES.get('chart_metrics_table', 'output/chart_metrics_table.png'), '性能指标总览'),
         (str(OUTPUT_FILES['chart_accuracy']), '准确率'),
         (str(OUTPUT_FILES['chart_metrics']), '精确率/召回率/F1'),
         (str(OUTPUT_FILES['chart_confusion']), '混淆矩阵'),
-        (str(OUTPUT_FILES['chart_roc']), 'ROC曲线')
+        (str(OUTPUT_FILES['chart_roc']), 'ROC曲线'),
     ]
     
     # 如果有阈值数据，添加阈值分布图
@@ -206,10 +281,8 @@ def create_visualization_tabs(root, generated_charts):
     for chart_file, tab_name in chart_configs:
         if os.path.exists(chart_file):
             try:
-                # 创建选项卡
                 tab = notebook.add(tab_name)
-                 
-                # 创建图像显示框架 
+                
                 image_frame = ctk.CTkFrame(tab, fg_color="transparent")
                 image_frame.pack(fill='both', expand=True, padx=10, pady=10)
                 
@@ -217,27 +290,22 @@ def create_visualization_tabs(root, generated_charts):
                 image = Image.open(chart_file)
                 img_width, img_height = image.size
                 
-               # 计算最佳显示尺寸 
-                # 可用的显示区域尺寸（考虑选项卡的标题栏和边距）
-                available_width = 760   # 800 - 40 (左右边距)
-                available_height = 440  # 500 - 60 (上下边距 + 选项卡标题)
+                # 计算最佳显示尺寸
+                available_width = 760
+                available_height = 440
                 
-                # 计算缩放比例，保持图片宽高比
                 scale_width = available_width / img_width
                 scale_height = available_height / img_height
-                scale = min(scale_width, scale_height)  # 取较小的比例，确保图片完全显示
+                scale = min(scale_width, scale_height)
                 
-                # 计算最终尺寸
                 final_width = int(img_width * scale)
                 final_height = int(img_height * scale)
                 
-                # 调整图像大小并创建CTkImage
                 resized_image = image.resize((final_width, final_height), Image.Resampling.LANCZOS)
                 ctk_image = ctk.CTkImage(light_image=resized_image, size=(final_width, final_height))
 
-                # 居中显示图像 
                 label = ctk.CTkLabel(image_frame, image=ctk_image, text="")
-                label.place(relx=0.5, rely=0.5, anchor='center')  # 精确居中
+                label.place(relx=0.5, rely=0.5, anchor='center')
                 
                 # 添加点击事件
                 def on_click(event, path=chart_file):
@@ -248,28 +316,23 @@ def create_visualization_tabs(root, generated_charts):
                 log_message(f"已加载图表: {tab_name}")
 
             except Exception as e:
-                # 错误处理
                 log_message(f"加载图表 {tab_name} 时出错: {str(e)}")
                 tab = notebook.add(f"{tab_name}(错误)")
                 error_label = ctk.CTkLabel(tab, text=f"无法加载图表: {chart_file}\n错误: {str(e)}", 
                                           text_color="red")
                 error_label.pack(fill='both', expand=True)
         else:
-            # 文件不存在的错误处理
             log_message(f"警告: 图表文件不存在: {chart_file}")
-            tab = notebook.add(f"{tab_name}(缺失)")
-            missing_label = ctk.CTkLabel(tab, text=f"图表文件未找到:\n{chart_file}", 
-                                        text_color="orange")
-            missing_label.pack(fill='both', expand=True)
     
     log_message("可视化界面创建完成！")
     root.update()
     return notebook
 
+
 def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, 
                          confusion_matrixs, fpr_list, tpr_list, auc_list, 
                          thresholds_used=None, root=None):
-    """可视化机器学习模型的多种性能指标并在GUI中显示结果"""
+    """可视化机器学习模型的多种性能指标并在GUI中显示结果（增强版）"""
     try:
         # 生成图表
         generated_charts = generate_performance_charts(
@@ -288,4 +351,3 @@ def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscor
     except Exception as e:
         log_message(f"创建可视化界面时出错: {str(e)}", "ERROR")
         messagebox.showerror("界面创建错误", f"创建可视化界面时出现错误：{str(e)}")
-

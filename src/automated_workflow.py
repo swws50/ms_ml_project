@@ -174,9 +174,29 @@ class AutomatedWorkflow:
             latest_model, latest_path = data_store.get_latest_trained_model()
 
             if latest_model is not None:
-                # 训练完成
-                log_message("检测到训练完成,准备进入预测模式", "SUCCESS")
-                self.root.after(1000, self._prediction_preparation_step)
+                # 额外检查:确保图表也已生成
+                from config import OUTPUT_FILES
+                import os
+                
+                # 检查关键图表是否存在
+                key_charts = [
+                    OUTPUT_FILES.get('chart_accuracy'),
+                    OUTPUT_FILES.get('chart_roc'),
+                    OUTPUT_FILES.get('chart_confusion')
+                ]
+                
+                charts_ready = all(
+                    os.path.exists(str(chart)) for chart in key_charts if chart
+                )
+                
+                if charts_ready:
+                    # 训练和图表生成都完成
+                    log_message("检测到训练完成,图表已生成", "SUCCESS")
+                    self.root.after(1000, self._prediction_preparation_step)
+                else:
+                    # 模型已保存但图表还在生成中,继续等待
+                    log_message("模型已训练,等待图表生成...", "INFO")
+                    self.root.after(2000, check_training_status)
             else:
                 # 继续监听
                 self.root.after(2000, check_training_status)

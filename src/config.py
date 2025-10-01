@@ -101,7 +101,8 @@ def get_output_paths():
         'chart_metrics': output_manager.get_path('chart', 'Weighted Average Precision, Recall, and F1-score.png'),
         'chart_confusion': output_manager.get_path('chart', 'Mean Confusion Matrix.png'),
         'chart_roc': output_manager.get_path('chart', 'Mean ROC Curve.png'),
-        'chart_thresholds': output_manager.get_path('chart', 'PLS_optimal_thresholds.png')
+        'chart_thresholds': output_manager.get_path('chart', 'PLS_optimal_thresholds.png'),
+        'chart_metrics_table': output_manager.get_path('chart', 'Performance_Metrics_Table.png'),
     }
 
 
