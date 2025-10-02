@@ -344,7 +344,6 @@ class TrainingUI:
                 root
             )
             
-            log_message("所有任务完成！")
 
         except InterruptedError:
             log_message("训练过程被终止", "WARNING")
