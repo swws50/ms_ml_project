@@ -536,6 +536,20 @@ class PredictionManager:
         
         self.info_window.protocol("WM_DELETE_WINDOW", on_closing)
     
+    def close_info_window(self):
+        """关闭模型信息窗口"""
+        try:
+            if self.info_window and self.info_window.winfo_exists():
+                self.info_window.grab_release()  # 释放模态
+                self.info_window.destroy()
+                self.info_window = None
+                log_message("模型信息窗口已关闭", "INFO")
+                return True
+        except Exception as e:
+            log_message(f"关闭模型信息窗口时出错: {e}", "WARNING")
+            self.info_window = None
+        return False
+
     # 批量预测相关（为步骤2准备）
     def batch_predict(self, file_paths, progress_callback=None):
         """

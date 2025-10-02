@@ -349,6 +349,8 @@ class MainGUIManager:
             self.ui_panels['result'].reset_results()
             self.ui_panels['prediction'].update_result("状态：等待选择文件")
             self.ui_panels['prediction'].reset_model_selection()
+            if hasattr(self, 'prediction_manager') and self.prediction_manager:
+                self.prediction_manager.close_info_window()
             self.ui_panels['control'].update_file_status("文件未选择")
             self.ui_panels['control'].enable_training(False)
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
