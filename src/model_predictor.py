@@ -2,6 +2,7 @@
 
 # 标准库导入 
 import os
+import csv
 
 # 第三方库导入 
 import customtkinter as ctk
@@ -276,13 +277,24 @@ class PredictionManager:
         # 清空之前的所有结果
         result_label.delete("1.0", "end")
         
-        # 遍历所有文件
+        # 单个文件：直接预测显示
+        if len(file_paths) == 1:
+            self.predict_and_display(file_paths[0], result_label)
+            return
+        
+        # 批量预测
+        log_message(f"开始批量预测 {len(file_paths)} 个文件...", "INFO")
+        results = []
+        
         for i, file_path in enumerate(file_paths, 1):
+            result = self.predict_sample(file_path)
+            results.append(result)
+            
+            # 在界面上逐个显示每个预测结果（保持原版样式）
             if i > 1:
                 result_label.insert("end", "\n" + "="*50 + "\n")
             result_label.insert("end", f"【样本 {i}】\n")
             
-            result = self.predict_sample(file_path)
             result_text = self.format_prediction_result(result)
             result_label.insert("end", result_text + "\n")
             
@@ -291,6 +303,188 @@ class PredictionManager:
                 result_label.configure(text_color=result.get("confidence_color", "black"))
             else:
                 result_label.configure(text_color='red')
+        
+        # 自动导出CSV（静默导出，不打断用户查看结果）
+        csv_path = self.export_batch_results_to_csv(results)
+        if csv_path:
+            log_message(f"批量预测结果已导出: {csv_path}", "SUCCESS")
+            
+            # 在界面底部添加导出提示
+            result_label.insert("end", "\n" + "="*50 + "\n")
+            result_label.insert("end", f"✓ 结果已自动导出至:\n{csv_path}\n")
+            
+            # 询问是否打开（使用after延迟，避免阻塞界面更新）
+            def ask_open():
+                if messagebox.askyesno("导出完成", f"批量预测完成！\n\n结果已导出至:\n{csv_path}\n\n是否打开CSV文件？"):
+                    try:
+                        os.startfile(csv_path)
+                    except:
+                        log_message("请手动打开CSV文件", "INFO")
+            
+            result_label.after(100, ask_open)
+        
+    def export_batch_results_to_csv(self, results, output_path=None):
+        """
+        将批量预测结果导出为CSV（Excel可打开）
+        
+        参数:
+            results: batch_predict返回的结果列表
+            output_path: 输出文件路径，None则自动生成
+            
+        返回:
+            str: 保存的文件路径
+        """
+        if not output_path:
+            from output_manager import output_manager
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            predictions_dir = output_manager.get_path('prediction', '')
+            output_path = os.path.join(predictions_dir, f"batch_prediction_{timestamp}.csv")
+        
+        # 确保输出目录存在
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # 获取模型信息
+        model_info = self._get_model_summary()
+        
+        try:
+            with open(output_path, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f)
+                
+                # 写入报告标题
+                writer.writerow(['批量预测结果报告'])
+                writer.writerow([])
+                
+                # 基本信息部分
+                writer.writerow(['基本信息'])
+                writer.writerow(['预测时间', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+                writer.writerow(['样本总数', len(results)])
+                writer.writerow(['数据模式', '已归一化' if data_store.is_normalization_enabled() else '原始数据'])
+                writer.writerow([])
+                
+                # 模型信息部分
+                writer.writerow(['模型信息'])
+                writer.writerow(['模型类型', model_info['type']])
+                writer.writerow(['模型来源', model_info['source']])
+                if model_info.get('trained_time'):
+                    writer.writerow(['训练时间', model_info['trained_time']])
+                writer.writerow([])
+                
+                # 预测结果表格
+                writer.writerow(['预测结果明细'])
+                writer.writerow(['序号', '样本文件', '预测类别', '置信度等级', '最大概率', 
+                            '类别0', '为0类概率', '类别1', '为1类概率', '特征数', ''])# 最后一列为预测状态列
+                
+                # 写入数据
+                for i, result in enumerate(results, 1):
+                    if result.get('success'):
+                        probs = result['probabilities']
+                        class_names = result['class_names']
+                        
+                        writer.writerow([
+                            i,
+                            result['file_name'],
+                            result['predicted_class'],
+                            result['confidence_level'],
+                            f"{result['max_probability']:.4f}",
+                            class_names[0],
+                            f"{probs[0]:.4f}",
+                            class_names[1],
+                            f"{probs[1]:.4f}",
+                            result['n_features'],
+                            ''  # 成功时状态为空
+                        ])
+                    else:
+                        # 失败时只在状态列显示错误信息
+                        writer.writerow([
+                            i,
+                            result.get('file_name', '未知'),
+                            '-',
+                            '-',
+                            '-',
+                            '-',
+                            '-',
+                            '-',
+                            '-',
+                            '-',
+                            result.get('error', '未知错误')  # 错误信息
+                        ])
+            
+            log_message(f"批量预测结果已导出为CSV: {output_path}", "SUCCESS")
+            return output_path
+            
+        except Exception as e:
+            log_message(f"导出CSV失败: {str(e)}", "ERROR")
+            return None
+
+    def _get_model_summary(self):
+        """
+        获取模型摘要信息用于CSV导出
+        
+        返回:
+            dict: 包含模型类型、来源等信息
+        """
+        model_summary = {
+            'type': '未知',
+            'source': '未知',
+            'trained_time': None
+        }
+        
+        try:
+            if self.model is not None:
+                model_summary['type'] = type(self.model).__name__
+                
+                # 判断模型来源
+                if hasattr(self, 'temp_model_path') and self.temp_model_path:
+                    model_summary['source'] = f"用户选择: {os.path.basename(self.temp_model_path)}"
+                    # 尝试获取文件修改时间
+                    if os.path.exists(self.temp_model_path):
+                        import time
+                        mtime = os.path.getmtime(self.temp_model_path)
+                        model_summary['trained_time'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+                else:
+                    # 检查是否是最新训练的模型
+                    latest_model, latest_path = data_store.get_latest_trained_model()
+                    if latest_model is not None and self.model is latest_model:
+                        model_summary['source'] = '最新训练模型（内存）'
+                        model_summary['trained_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    elif latest_path:
+                        model_summary['source'] = f"文件加载: {os.path.basename(latest_path)}"
+                        if os.path.exists(latest_path):
+                            import time
+                            mtime = os.path.getmtime(latest_path)
+                            model_summary['trained_time'] = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+                    else:
+                        model_summary['source'] = '自动检测'
+            
+        except Exception as e:
+            log_message(f"获取模型信息时出错: {str(e)}", "WARNING")
+        
+        return model_summary
+
+    def batch_predict(self, file_paths, progress_callback=None):
+        """
+        批量预测功能（修改版，返回结果）
+        
+        参数:
+            file_paths: 文件路径列表
+            progress_callback: 进度回调函数
+            
+        返回:
+            list: 预测结果列表
+        """
+        results = []
+        total_files = len(file_paths)
+        
+        for i, file_path in enumerate(file_paths):
+            result = self.predict_sample(file_path)
+            results.append(result)
+            
+            # 更新进度
+            if progress_callback:
+                progress = (i + 1) / total_files
+                progress_callback(progress, f"预测进度: {i+1}/{total_files}")
+        
+        return results
     
     def predict_and_display(self, file_path, result_label):
         """

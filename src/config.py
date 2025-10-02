@@ -83,18 +83,19 @@ def get_output_paths():
     return {
         # 数据文件
         'processed_data': output_manager.get_path('data', csv_filename),
+        
         # 模型文件
         # 于model_training.py中动态生成
         # 'trained_model': output_manager.get_path('model', 'trained_model.joblib'),
 
         # 结果文件
-        'confusion_matrix': output_manager.get_path('result', 'Con_matrix_SVM.csv'),
-        'fscore': output_manager.get_path('result', 'Fscore_SVM.csv'),
-        'auc': output_manager.get_path('result', '2C_auc_SVM.csv'),
-        'fpr_values': output_manager.get_path('result', 'fpr_values.npy'),
-        'tpr_values': output_manager.get_path('result', 'tpr_values.npy'),
-        'thresholds_values': output_manager.get_path('result', 'thresholds_values.npy'),
-        'pls_thresholds': output_manager.get_path('result', 'PLS_optimal_thresholds.csv'),
+        'confusion_matrix': output_manager.get_path('metrics', 'Con_matrix_SVM.csv'),
+        'fscore': output_manager.get_path('metrics', 'Fscore_SVM.csv'),
+        'auc': output_manager.get_path('metrics', '2C_auc_SVM.csv'),
+        'fpr_values': output_manager.get_path('metrics', 'fpr_values.npy'),
+        'tpr_values': output_manager.get_path('metrics', 'tpr_values.npy'),
+        'thresholds_values': output_manager.get_path('metrics', 'thresholds_values.npy'),
+        'pls_thresholds': output_manager.get_path('metrics', 'PLS_optimal_thresholds.csv'),
 
         # 图表文件
         'chart_accuracy': output_manager.get_path('chart', 'Training and Test Balanced Accuracy.png'),
@@ -103,6 +104,9 @@ def get_output_paths():
         'chart_roc': output_manager.get_path('chart', 'Mean ROC Curve.png'),
         'chart_thresholds': output_manager.get_path('chart', 'PLS_optimal_thresholds.png'),
         'chart_metrics_table': output_manager.get_path('chart', 'Performance_Metrics_Table.png'),
+
+        # 预测结果目录
+        'predictions_dir': output_manager.get_path('prediction', ''),    
     }
 
 
@@ -121,9 +125,9 @@ def save_model_file(model, filename):
     return output_manager.save_file(model, 'model', filename, 'joblib')
 
 
-def save_result_file(data, filename, method='numpy'):
-    """保存结果文件"""
-    return output_manager.save_file(data, 'result', filename, method)
+def save_metric_file(data, filename, method='numpy'):
+    """保存训练指标文件（改名）"""
+    return output_manager.save_file(data, 'metric', filename, method)  
 
 
 def save_chart_file(figure, filename):

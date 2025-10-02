@@ -77,8 +77,8 @@ class OutputManager:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
     def _create_project_directories(self, project_name):
-        """为项目创建4个基本的输出目录"""
-        directories = ['data', 'models', 'results', 'charts']
+        """为项目创建5个基本的输出目录"""
+        directories = ['data', 'models', 'metrics', 'charts', 'predictions']  # 添加predictions
         project_path = self.base_dir / project_name
         
         for dir_name in directories:
@@ -112,11 +112,12 @@ class OutputManager:
         category_map = {
             'data': 'data',
             'model': 'models',
-            'result': 'results',
-            'chart': 'charts'
+            'metric': 'metrics',
+            'chart': 'charts',
+            'prediction': 'predictions'  
         }
 
-        folder = category_map.get(category, 'results')  # 默认放在results
+        folder = category_map.get(category, 'metrics')  # 默认放在results
         directory_path = self.base_dir / self.current_project / folder
 
         # 确保目录存在
@@ -166,7 +167,7 @@ class OutputManager:
         """获取当前项目的结果文件夹内容摘要"""
         summary = {"current_project": self.current_project}
 
-        for category in ['data', 'models', 'results', 'charts']:
+        for category in ['data', 'models', 'metrics', 'charts','predictions']:
             category_dir = self.base_dir / self.current_project / category
             if category_dir.exists():
                 files = list(category_dir.glob('*'))
@@ -328,7 +329,7 @@ class OutputManager:
         project_path = self.base_dir / project_name
         if project_path.exists():
             info['file_counts'] = {}
-            for category in ['data', 'models', 'results', 'charts']:
+            for category in ['data', 'models', 'metrics', 'charts','predictions']:
                 category_path = project_path / category
                 if category_path.exists():
                     info['file_counts'][category] = len(list(category_path.glob('*')))

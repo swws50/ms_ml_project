@@ -469,13 +469,15 @@ class MainGUIManager:
             if selected_model_path and selected_model_path != "自动检测":
                 self.prediction_manager.temp_model_path = selected_model_path
             
+            # 直接调用预测管理器的方法（它已经处理了单个和批量的逻辑）
             self.prediction_manager.open_file_dialog(prediction_panel.components['result_textbox'])
+            
         finally:
             # 清理临时模型路径
             if hasattr(self.prediction_manager, 'temp_model_path'):
                 delattr(self.prediction_manager, 'temp_model_path')
             self._set_operation_running(False)
-                        
+                            
                   
     def update_training_results(self, train_acc, test_acc, model_status, score=None):
         """更新训练结果（供训练模块调用）"""
