@@ -391,6 +391,9 @@ class ProjectManagerDialog:
             
             row += 1
 
+        #  默认选中当前项目
+        if current_project:
+            self.selected_project = current_project
     def _bind_row_click(self, row_frame, project_name):
         """绑定行点击事件"""
         def on_click(event):
@@ -472,11 +475,11 @@ class ProjectManagerDialog:
         self.current_label.configure(text=current_project)
         self._create_project_table()
         
-        # 清除选择状态（因为表格已重建）
-        if hasattr(self, 'selected_project'):
-            delattr(self, 'selected_project')
+        # 默认选中当前项目
+        if current_project:
+            self.selected_project = current_project
 
-
+        
     def _center_dialog(self):
         """居中显示对话框"""
         self.dialog.update_idletasks()
