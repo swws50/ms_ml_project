@@ -217,7 +217,7 @@ class PrintManager:
         # 获取数据
         system_status = data_store.get_system_status()
         training_data_info = data_store.get_training_data_info()
-        model_info = data_store.get_model_info()
+        model_info = data_store.get_latest_model_info()
         latest_prediction = data_store.get_latest_prediction() if hasattr(data_store, 'get_latest_prediction') else None
         
         # 检查是否有数据
