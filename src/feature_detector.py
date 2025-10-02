@@ -31,8 +31,19 @@ class FeatureDetector:
         返回:
             tuple: (特征列表, 归一化因子) 或 (None, None)
         """
-        # 如果已经检测过且不需要强制重新加载
-        if not force_reload and self.training_features is not None:
+        # 检查归一化状态是否改变，如果改变则强制重新加载
+        current_norm_enabled = data_store.is_normalization_enabled()
+        cached_norm_factor = self.normalization_factor
+        
+        # 判断是否需要重新加载
+        need_reload = (
+            force_reload or 
+            self.training_features is None or
+            (current_norm_enabled and cached_norm_factor is None) or  # 切换到归一化但没有因子
+            (not current_norm_enabled and cached_norm_factor is not None)  # 切换到非归一化但有因子
+        )
+        
+        if not need_reload:
             return self.training_features, self.normalization_factor
         
         try:
@@ -63,7 +74,7 @@ class FeatureDetector:
                     mz_value = float(feature_name)
                     training_mz_values.append(mz_value)
                 except ValueError:
-                    log_message(f"无法解析特征名: {feature_name}，跳过", "WARNING")
+                    log_message(f"无法解析特征名: {feature_name},跳过", "WARNING")
             
             # 缓存结果
             self.training_features = training_mz_values

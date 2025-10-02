@@ -201,21 +201,6 @@ class MainGUIManager:
         self.ui_panels['control'].update_normalization_status()
         self.ui_panels['prediction'].update_normalization_status()
 
-    def _detect_normalization_factor(self, df):
-        """检测归一化因子"""
-
-        if data_store.is_normalization_enabled():
-            # 归一化模式：必须有归一化因子
-            factor = data_store.get_normalization_factor()
-            if factor is None:
-                log_message("归一化模式下无法获取归一化因子，请先进行数据预处理", "ERROR")
-                raise ValueError("归一化模式下无法获取归一化因子，请先进行数据预处理")
-            log_message(f"归一化模式：使用归一化因子 {factor:.2f}", "INFO")
-            return factor
-        else:
-            # 非归一化模式：不需要归一化因子
-            log_message("非归一化模式：使用原始强度值", "INFO")
-            return None  # 返回None表示不需要归一化
             
     def handle_print_report(self):
         """处理打印报告"""
