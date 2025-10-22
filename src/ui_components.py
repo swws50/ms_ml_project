@@ -609,7 +609,26 @@ class VisualizationPanel(BasePanel):
     def reset_placeholder(self):
         """重置为默认占位状态"""
         self.components['placeholder_label'].configure(text="训练完成后，模型评估图表将在此显示")
-
+    
+    def clear_content(self):
+        """清空可视化内容，恢复到初始状态"""
+        try:
+            # 销毁容器内的所有子组件
+            for widget in self.container.winfo_children():
+                widget.destroy()
+            
+            # 重新创建占位符
+            self.placeholder = ctk.CTkLabel(
+                self.container, 
+                text="训练完成后，图表将在此处显示",
+                text_color="gray",
+                font=("Arial", 14)
+            )
+            self.placeholder.grid(row=0, column=0, sticky='nsew', padx=20, pady=20)
+            
+            log_message("可视化面板已清空")
+        except Exception as e:
+            log_message(f"清空可视化面板时出错: {e}", "WARNING")
 
 class InfoPanel(BasePanel):
     """运行信息面板组件"""

@@ -125,69 +125,132 @@ class MainGUIManager:
         self.global_progress.hide()
             
     def _create_menu_bar(self):
-        """创建菜单栏"""
-        self.menu_frame = ctk.CTkFrame(self.root, height=60, corner_radius=0)
-        self.menu_frame.grid(row=0, column=0, columnspan=4, sticky='ew', padx=0, pady=0)
+        """创建传统tkinter菜单栏"""
+        from tkinter import Menu, BooleanVar
         
-        menu_container = ctk.CTkFrame(self.menu_frame, fg_color="transparent")
-        menu_container.pack(side="left", padx=20, pady=15)
+        menubar = Menu(self.root)
+        self.root.config(menu=menubar)
         
-        auto_workflow_btn = ctk.CTkButton(
-            menu_container, 
-            text="自动化流程", 
-            width=100, 
-            height=35,
-            command=self.automated_workflow.start_workflow,
-            fg_color="orange",
-            hover_color="darkorange"
+        # 自动化流程菜单
+        auto_menu = Menu(menubar, tearoff=0)
+        auto_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
         )
-        auto_workflow_btn.pack(side="left", padx=5)
-
-        # 将重置按钮改为动态按钮
-        self.action_btn = ctk.CTkButton(
-            menu_container, 
-            text="重置进度", 
-            width=100, 
-            height=35,
+        menubar.add_cascade(label="自动化", menu=auto_menu)
+        auto_menu.add_command(
+            label="\n启动自动化流程\n",
+            command=self.automated_workflow.start_workflow
+        )
+        
+        # 重置/终止菜单
+        action_menu = Menu(menubar, tearoff=0)
+        action_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="重置", menu=action_menu)
+        action_menu.add_command(
+            label="\n重置进度/终止训练\n",
             command=self._handle_action_button
         )
-        self.action_btn.pack(side="left", padx=5)
         
-        self._is_operation_running = False
-
-        # 归一化开关（替换按钮）
-        self.normalize_switch = ctk.CTkSwitch(
-            menu_container, text="归一化", width=80,
+        # 归一化菜单
+        normalize_menu = Menu(menubar, tearoff=0)
+        normalize_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="归一化", menu=normalize_menu)
+        self.normalize_var = BooleanVar(value=True)
+        normalize_menu.add_checkbutton(
+            label="\n启用归一化\n",
+            variable=self.normalize_var,
             command=self._toggle_normalization
         )
-        self.normalize_switch.pack(side="left", padx=5)
-        self.normalize_switch.select()  # 默认开启
-
-        project_btn = ctk.CTkButton(menu_container, text="项目管理", width=100, height=35,
-                           command=lambda: self.project_manager.show_manager_dialog(self.root))
-        project_btn.pack(side="left", padx=5)
         
-        # 新增：打印按钮
-        print_btn = ctk.CTkButton(menu_container, text="打印报告", width=100, height=35,
-                                command=self.handle_print_report)
-        print_btn.pack(side="left", padx=5)
-
-        # 帮助按钮
-        help_btn = ctk.CTkButton(menu_container, text="使用向导", width=100, height=35,
-                                command=self.help_system.show_wizard)
-        help_btn.pack(side="left", padx=5)
-
-        # 参数调优按钮
-        tune_btn = ctk.CTkButton(
-            menu_container, 
-            text="⚙️ 参数调优", 
-            width=100, 
-            height=35,
-            command=self.handle_parameter_tuning,
-            fg_color="#1f6aa5",
-            hover_color="#144870"
+        # 项目管理菜单
+        project_menu = Menu(menubar, tearoff=0)
+        project_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
         )
-        tune_btn.pack(side="left", padx=5)
+        menubar.add_cascade(label="项目", menu=project_menu)
+        project_menu.add_command(
+            label="\n打开项目管理\n",
+            command=lambda: self.project_manager.show_manager_dialog(self.root)
+        )
+        
+        # 打印报告菜单
+        print_menu = Menu(menubar, tearoff=0)
+        print_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="打印", menu=print_menu)
+        print_menu.add_command(
+            label="\n生成打印报告\n",
+            command=self.handle_print_report
+        )
+        
+        # 使用向导菜单
+        help_menu = Menu(menubar, tearoff=0)
+        help_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="帮助", menu=help_menu)
+        help_menu.add_command(
+            label="\n打开使用向导\n",
+            command=self.help_system.show_wizard
+        )
+        
+        # 参数调优菜单
+        tune_menu = Menu(menubar, tearoff=0)
+        tune_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="参数调优", menu=tune_menu)
+        tune_menu.add_command(
+            label="\n打开参数调优\n",
+            command=self.handle_parameter_tuning
+        )
+        
+        self._is_operation_running = False
+        self.action_btn = None
+
+        # 创建隐藏的虚拟按钮以保持兼容性
+        self.action_btn = ctk.CTkButton(self.root, text="")
+        # 不要grid或pack，让它隐藏
 
     def _handle_action_button(self):
         """处理动态按钮点击"""
@@ -207,9 +270,9 @@ class MainGUIManager:
 
     def _toggle_normalization(self):
         """切换归一化状态"""
-        new_state = self.normalize_switch.get()
-        data_store.set_normalization_enabled(new_state)
-        status = "启用" if new_state else "禁用"
+        enabled = self.normalize_var.get()  # 改用 BooleanVar
+        data_store.set_normalization_enabled(enabled)
+        status = "启用" if enabled else "禁用"
         log_message(f"归一化已{status}")
         self.ui_panels['control'].update_normalization_status()
         self.ui_panels['prediction'].update_normalization_status()
@@ -329,7 +392,7 @@ class MainGUIManager:
             self.prediction_manager.show_model_info_window(self.root)
         
     def handle_reset_progress(self):
-        """完整重置到初始状态 - 修复TclError问题"""
+        """完整重置到初始状态 - 彻底修复方案"""
 
         # 设置取消标志
         self._operation_cancelled = True
@@ -337,33 +400,31 @@ class MainGUIManager:
         try:
             log_message("开始重置系统...", "INFO")
             
-            # 0. 先重置按钮状态，避免UI锁死问题
+            # 0. 先重置按钮状态
             self._is_operation_running = False
-            self.action_btn.configure(text="重置进度", state="normal")
+            if self.action_btn:
+                self.action_btn.configure(text="重置进度", state="normal")
             
-            # 1. 安全销毁可视化面板 - 添加存在性检查
+            # 1. 清空可视化面板内容（不销毁）
             try:
                 if hasattr(self, 'ui_panels') and 'visualization' in self.ui_panels:
                     viz_panel = self.ui_panels['visualization']
-                    if viz_panel and hasattr(viz_panel, 'frame') and viz_panel.frame.winfo_exists():
-                        viz_panel.frame.destroy()
+                    if viz_panel:
+                        viz_panel.clear_content()  # 调用清空方法
             except Exception as e:
-                log_message(f"销毁可视化面板时出错: {e}", "WARNING")
+                log_message(f"清空可视化面板时出错: {e}", "WARNING")
             
-            # 2. 强制更新UI，确保销毁操作完成
-            self.root.update_idletasks()
-            
-            # 3. 重置数据存储
+            # 2. 重置数据存储
             data_store.clear_all_data()
             
-            # 4. 重置帮助系统进度
+            # 3. 重置帮助系统进度
             for step in self.help_system.steps:
                 step['completed'] = False
             self.help_system.current_step_index = 0
             self.help_system.update_progress_display()
             self.help_system.hide_all_tips()
 
-            # 5. 重置UI面板
+            # 4. 重置UI面板
             self.ui_panels['result'].reset_results()
             self.ui_panels['prediction'].update_result("状态：等待选择文件")
             self.ui_panels['prediction'].reset_model_selection()
@@ -374,21 +435,12 @@ class MainGUIManager:
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
             self.ui_panels['preprocessing'].update_status("等待开始预处理")
-            self.normalize_switch.select()  # 重置为开启状态
-            data_store.set_normalization_enabled(True)  # 重置data_store状态
+            self.normalize_switch.select()
+            data_store.set_normalization_enabled(True)
             self.ui_panels['control'].update_normalization_status()
             self.ui_panels['prediction'].update_normalization_status()
             
-            # 6. 重新创建可视化面板
-            try:
-                self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-                self.ui_panels['visualization'].create_panel(row=4, column=0, rowspan=2, columnspan=3)
-                self.root.visualization_container = self.ui_panels['visualization'].get_container()
-                self.root.visualization_placeholder = self.ui_panels['visualization'].get_placeholder()
-            except Exception as e:
-                log_message(f"重新创建可视化面板时出错: {e}", "ERROR")
-            
-            # 7. 隐藏进度条并重置模型选择
+            # 5. 隐藏进度条并重置模型选择
             self.hide_global_progress()
             self.exact_selection = DEFAULT_MODEL
             clear_log()

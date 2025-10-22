@@ -105,6 +105,8 @@ class ParameterTuningWindow(ctk.CTkToplevel):
     
     def _setup_ui(self):
         """设置UI"""
+        from utils import set_window_icon
+        set_window_icon(self) 
         # 配置网格权重
         self.grid_rowconfigure(2, weight=1)
         self.grid_columnconfigure(0, weight=1)
