@@ -26,6 +26,7 @@ from print_manager import PrintManager
 # 在现有导入后添加
 from project_manager import ProjectManager
 from automated_workflow import AutomatedWorkflow
+from parameter_tuning_window import ParameterTuningWindow
 
 
 class MainGUIManager:
@@ -176,6 +177,18 @@ class MainGUIManager:
                                 command=self.help_system.show_wizard)
         help_btn.pack(side="left", padx=5)
 
+        # 参数调优按钮
+        tune_btn = ctk.CTkButton(
+            menu_container, 
+            text="⚙️ 参数调优", 
+            width=100, 
+            height=35,
+            command=self.handle_parameter_tuning,
+            fg_color="#1f6aa5",
+            hover_color="#144870"
+        )
+        tune_btn.pack(side="left", padx=5)
+
     def _handle_action_button(self):
         """处理动态按钮点击"""
         if self._is_operation_running:
@@ -206,6 +219,11 @@ class MainGUIManager:
         """处理打印报告"""
         self.print_manager.show_print_dialog(self.root)
 
+    def handle_parameter_tuning(self):
+        """处理参数调优"""
+        current_model = self.ui_panels['control'].current_model or DEFAULT_MODEL
+        tuning_window = ParameterTuningWindow(self.root, current_model)
+        self.root.wait_window(tuning_window)
                 
     def _create_ui_panels(self):
         """创建新网格布局的UI面板"""
