@@ -16,6 +16,215 @@ from config import get_class_mapping, OUTPUT_FILES
 from utils import log_message, set_window_icon
 import data_store
 
+def generate_confusion_matrix_with_stability(confusion_matrixs):
+    """
+    论文标准版混淆矩阵
+    
+    特点：
+    - 保留V3的智能稳定性评估（Range用于小样本，CV用于大样本）
+    - 简洁的视觉风格，符合学术期刊要求
+    - 清晰的层级结构：百分比 > 均值±SD > 稳定性指标
+    """
+    log_message("生成论文标准版混淆矩阵...")
+    
+    from config import get_output_paths
+    OUTPUT_FILES = get_output_paths()
+    
+    # 计算统计量
+    mean_cm = confusion_matrixs.mean(axis=0).reshape((2, 2))
+    std_cm = confusion_matrixs.std(axis=0).reshape((2, 2))
+    
+    # 计算百分比
+    row_sums = mean_cm.sum(axis=1, keepdims=True)
+    cm_percent = (mean_cm / row_sums) * 100
+    
+    # 创建图形 - 论文标准尺寸
+    fig, ax = plt.subplots(figsize=(8, 6.5))
+    
+    # 绘制热力图 - 使用学术风格配色
+    im = ax.imshow(mean_cm, interpolation='nearest', cmap='Blues',
+                   vmin=0, vmax=mean_cm.max() * 1.05)
+    
+    # 颜色条 - 简洁样式
+    cbar = ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.ax.set_ylabel('Mean Count', rotation=-90, va="bottom", 
+                       fontsize=10, fontfamily='sans-serif')
+    cbar.ax.tick_params(labelsize=9)
+    
+    # 设置刻度 - 简洁标签
+    ax.set_xticks([0, 1])
+    ax.set_yticks([0, 1])
+    ax.set_xticklabels(['Predicted\nNegative (0)', 'Predicted\nPositive (1)'], 
+                       fontsize=10, fontfamily='sans-serif')
+    ax.set_yticklabels(['True\nNegative (0)', 'True\nPositive (1)'], 
+                       fontsize=10, fontfamily='sans-serif')
+    
+    # 添加单元格内容
+    for i in range(2):
+        for j in range(2):
+            mean_val = mean_cm[i, j]
+            std_val = std_cm[i, j]
+            percent = cm_percent[i, j]
+            
+            # 获取该位置的100次原始数据
+            flat_idx = i * 2 + j
+            cell_values = confusion_matrixs[:, flat_idx]
+            
+            # 文字颜色
+            text_color = "white" if mean_val > mean_cm.max() / 2 else "black"
+            
+            # 第一行：百分比（最突出）
+            ax.text(j, i - 0.25, f'{percent:.1f}%',
+                   ha="center", va="center", 
+                   color=text_color, fontsize=18, fontweight='bold',
+                   fontfamily='sans-serif')
+            
+            # 第二行：均值±标准差（辅助信息）
+            ax.text(j, i, f'({mean_val:.1f} ± {std_val:.1f})',
+                   ha="center", va="center", 
+                   color=text_color, fontsize=10, style='italic',
+                   fontfamily='sans-serif')
+            
+            # 第三行：稳定性指标（V3逻辑）
+            if mean_val < 5.0:
+                # 小样本：使用Range
+                min_val = np.min(cell_values)
+                max_val = np.max(cell_values)
+                range_val = max_val - min_val
+                
+                # 评估稳定性
+                if range_val <= 2:
+                    stability_text = f'Range={range_val:.0f} (Excellent)'
+                    stability_color = '#006400' if text_color == 'black' else '#90EE90'
+                elif range_val <= 4:
+                    stability_text = f'Range={range_val:.0f} (Good)'
+                    stability_color = '#228B22' if text_color == 'black' else '#98FB98'
+                else:
+                    stability_text = f'Range={range_val:.0f} (Variable)'
+                    stability_color = '#B8860B' if text_color == 'black' else '#FFD700'
+                
+            else:
+                # 大样本：使用CV
+                cv_val = std_val / mean_val
+                
+                if cv_val < 0.15:
+                    stability_text = f'CV={cv_val:.3f} (High)'
+                    stability_color = '#006400' if text_color == 'black' else '#90EE90'
+                elif cv_val < 0.30:
+                    stability_text = f'CV={cv_val:.3f} (Mod)'
+                    stability_color = '#B8860B' if text_color == 'black' else '#FFD700'
+                else:
+                    stability_text = f'CV={cv_val:.3f} (Low)'
+                    stability_color = '#8B0000' if text_color == 'black' else '#FF6B6B'
+            
+            ax.text(j, i + 0.25, stability_text,
+                   ha="center", va="center", 
+                   color=stability_color, fontsize=8, 
+                   style='italic', fontweight='normal',
+                   fontfamily='sans-serif')
+    
+    # 轴标签 - 简洁
+    ax.set_xlabel('Predicted Class', fontsize=11, fontweight='bold',
+                  fontfamily='sans-serif')
+    ax.set_ylabel('True Class', fontsize=11, fontweight='bold',
+                  fontfamily='sans-serif')
+    
+    # 标题 - 学术风格
+    ax.set_title('Confusion Matrix - Percentage (Mean ± SD) across 100 random splits', 
+                fontsize=12, fontweight='bold', pad=15,
+                fontfamily='sans-serif')
+    
+    # 网格线 - 细线
+    ax.set_xticks([0.5], minor=True)
+    ax.set_yticks([0.5], minor=True)
+    ax.grid(which="minor", color="gray", linestyle='-', linewidth=1.5)
+    ax.tick_params(which="minor", size=0)
+    
+    # 说明框 - 横向分布版本（更美观）
+    textstr = ('Adaptive Stability Assessment:\n'
+               'For rare events (Mean < 5): Range ≤ 2 = Excellent, ≤ 4 = Good, > 4 = Variable\n'
+               'For frequent events (Mean ≥ 5): CV < 0.15 = High, < 0.30 = Moderate, ≥ 0.30 = Low')
+    
+    props = dict(boxstyle='round,pad=0.6', facecolor='wheat', 
+                alpha=0.85, edgecolor='gray', linewidth=1)
+    
+    ax.text(0.5, -0.15, textstr, transform=ax.transAxes,
+            fontsize=8, verticalalignment='top', 
+            horizontalalignment='center',
+            bbox=props, fontfamily='sans-serif')
+    
+    # 调整布局
+    plt.tight_layout()
+    
+    # 保存 - 高质量
+    chart_path = OUTPUT_FILES['chart_confusion']
+    plt.savefig(chart_path, dpi=300, bbox_inches='tight', 
+                facecolor='white', edgecolor='none')
+    plt.close()
+    
+    # 日志输出（保持不变）
+    log_message("=" * 70)
+    log_message("混淆矩阵稳定性分析 (论文标准版):")
+    log_message("-" * 70)
+    
+    positions = [
+        ('TN [True Negative]', 0, 0, 0), 
+        ('FP [False Positive]', 0, 1, 1), 
+        ('FN [False Negative]', 1, 0, 2), 
+        ('TP [True Positive]', 1, 1, 3)
+    ]
+    
+    for name, i, j, flat_idx in positions:
+        mean_val = mean_cm[i, j]
+        std_val = std_cm[i, j]
+        percent_val = cm_percent[i, j]
+        cell_values = confusion_matrixs[:, flat_idx]
+        
+        log_message(f"\n{name}:")
+        log_message(f"  百分比: {percent_val:.1f}%")
+        log_message(f"  均值±SD: {mean_val:.2f} ± {std_val:.2f}")
+        
+        if mean_val < 5.0:
+            min_val = np.min(cell_values)
+            max_val = np.max(cell_values)
+            range_val = max_val - min_val
+            q1 = np.percentile(cell_values, 25)
+            median = np.percentile(cell_values, 50)
+            q3 = np.percentile(cell_values, 75)
+            
+            unique, counts = np.unique(cell_values, return_counts=True)
+            freq_str = ", ".join([f"{int(u)}次:{c}个实验" for u, c in zip(unique, counts)])
+            
+            log_message(f"  罕见事件 - 使用Range评估:")
+            log_message(f"    范围: [{min_val:.0f}, {max_val:.0f}], Range={range_val:.0f}")
+            log_message(f"    四分位: Q1={q1:.1f}, Median={median:.1f}, Q3={q3:.1f}")
+            log_message(f"    分布: {freq_str}")
+            
+            if range_val <= 2:
+                log_message(f"    评价: 优秀 - 错误非常少且一致")
+            elif range_val <= 4:
+                log_message(f"    评价: 良好 - 波动在可接受范围")
+            else:
+                log_message(f"    评价: 有一定变异")
+                
+        else:
+            cv_val = std_val / mean_val
+            log_message(f"  常见事件 - 使用CV评估:")
+            log_message(f"    CV = {cv_val:.4f} ({cv_val*100:.2f}%)")
+            
+            if cv_val < 0.15:
+                log_message(f"    评价: 高度稳定")
+            elif cv_val < 0.30:
+                log_message(f"    评价: 中等稳定")
+            else:
+                log_message(f"    评价: 稳定性较低")
+    
+    log_message("=" * 70)
+    log_message(f"图表已保存: {chart_path} (300 DPI, 适合论文发表)")
+    
+    return str(chart_path)
+
+
 
 def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test, 
                                Fscores, confusion_matrixs, fpr_list, tpr_list, 
@@ -67,40 +276,9 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         plt.close()
         generated_charts['metrics'] = str(chart_path)
 
-        # 3. 生成增强的混淆矩阵图表（带百分比和数值）
-        log_message("生成增强混淆矩阵图...")
-        plt.figure(figsize=(6, 5))
-        mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
-        
-        # 计算每行的百分比（按真实类别归一化）
-        row_sums = mean_conf_matrix.sum(axis=1, keepdims=True)
-        conf_matrix_percent = (mean_conf_matrix / row_sums) * 100
-        
-        plt.imshow(mean_conf_matrix, interpolation='nearest', cmap='Blues')
-        plt.colorbar(fraction=0.046, pad=0.04)
-        plt.xticks([0, 1], ["Predicted\nClass 0", "Predicted\nClass 1"])
-        plt.yticks([0, 1], ["True\nClass 0", "True\nClass 1"])
-        
-        # 添加数值和百分比标签
-        for i in range(2):
-            for j in range(2):
-                count = mean_conf_matrix[i, j]
-                percentage = conf_matrix_percent[i, j]
-                # 根据背景色选择文字颜色
-                text_color = "white" if count > mean_conf_matrix.max() / 2 else "black"
-                plt.text(j, i, f"{count:.1f}\n({percentage:.1f}%)", 
-                        ha="center", va="center", color=text_color, 
-                        fontsize=11, fontweight='bold')
-        
-        plt.xlabel('Predicted Class', fontsize=11)
-        plt.ylabel('True Class', fontsize=11)
-        plt.title('Mean Confusion Matrix\n(Count and Percentage)', fontsize=12)
-        plt.tight_layout()
-        
-        chart_path = OUTPUT_FILES['chart_confusion']
-        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
-        plt.close()
-        generated_charts['confusion'] = str(chart_path)
+        # 3. 生成专业混淆矩阵（带标准差和变异系数）
+        chart_path = generate_confusion_matrix_with_stability(confusion_matrixs)
+        generated_charts['confusion'] = chart_path
 
         # 4. 生成ROC曲线
         log_message("生成ROC曲线图...")
@@ -224,24 +402,58 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
 
 
 def show_large_image(parent, image_path, title="查看大图"):
-    """显示大图窗口"""
-    window = ctk.CTkToplevel(parent)
-    window.title(title)
-    window.grab_set()
-    set_window_icon(window)
-    
-    # 加载并显示原图
-    image = Image.open(image_path)
-    ctk_image = ctk.CTkImage(light_image=image, size=image.size)
-    
-    label = ctk.CTkLabel(window, image=ctk_image, text="")
-    label.pack(padx=10, pady=10)
-    
-    # 居中显示窗口
-    window.update_idletasks()
-    x = (window.winfo_screenwidth() - window.winfo_reqwidth()) // 2
-    y = (window.winfo_screenheight() - window.winfo_reqheight()) // 2
-    window.geometry(f"+{x}+{y}")
+    """显示大图窗口（增强版）- 支持自适应缩放和滚动"""
+    try:
+        window = ctk.CTkToplevel(parent)
+        window.title(title)
+        window.grab_set()
+        set_window_icon(window)
+        
+        # 加载原始图像
+        image = Image.open(image_path)
+        img_width, img_height = image.size
+        
+        # 获取屏幕尺寸
+        screen_width = window.winfo_screenwidth()
+        screen_height = window.winfo_screenheight()
+        
+        # 计算合适的窗口尺寸（屏幕的80%）
+        max_width = int(screen_width * 0.8)
+        max_height = int(screen_height * 0.8)
+        
+        # 计算缩放比例（如果图片太大）
+        scale_w = max_width / img_width if img_width > max_width else 1
+        scale_h = max_height / img_height if img_height > max_height else 1
+        scale = min(scale_w, scale_h)
+        
+        # 应用缩放
+        if scale < 1:
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
+            display_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        else:
+            display_image = image
+            new_width = img_width
+            new_height = img_height
+        
+        # 设置窗口尺寸并居中
+        window_width = min(new_width + 40, max_width)
+        window_height = min(new_height + 40, max_height)
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # 创建CTkImage
+        ctk_image = ctk.CTkImage(light_image=display_image, size=(new_width, new_height))
+        
+        # 创建标签显示图像
+        label = ctk.CTkLabel(window, image=ctk_image, text="")
+        label.pack(padx=20, pady=20)
+        
+        
+    except Exception as e:
+        log_message(f"显示大图时出错: {str(e)}", "ERROR")
+        messagebox.showerror("显示错误", f"无法显示图片: {str(e)}")
 
 
 def create_visualization_tabs(root, generated_charts):
