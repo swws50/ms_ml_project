@@ -9,14 +9,240 @@ import matplotlib.pyplot as plt
 import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
-import matplotlib.patches as mpatches
+from matplotlib.patches import Patch
 
 # 本地模块导入 
 from config import get_class_mapping, OUTPUT_FILES
 from utils import log_message, set_window_icon
 import data_store
 
-def generate_confusion_matrix_with_stability(confusion_matrixs):
+
+
+def generate_class_performance_chart(confusion_matrices, f_scores):
+    """
+    生成类别性能图表（组1）：Sensitivity, Specificity, Precision
+    使用小提琴图展示分布，符合论文标准
+    
+    参数：
+        confusion_matrices: 混淆矩阵 (100x4) [TN, FP, FN, TP]
+        f_scores: 精确率/召回率/F1 (100x3)
+    
+    返回：
+        图表保存路径
+    """
+    from config import get_output_paths
+    from utils import log_message
+    
+    OUTPUT_FILES = get_output_paths()
+    log_message("生成类别性能小提琴图...")
+    
+    # 设置论文风格
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = ['Arial']
+    
+    # 从混淆矩阵提取数据
+    TNs = confusion_matrices[:, 0]
+    FPs = confusion_matrices[:, 1]
+    FNs = confusion_matrices[:, 2]
+    TPs = confusion_matrices[:, 3]
+    
+    # 计算指标
+    sensitivity = TPs / (TPs + FNs + 1e-10)  # TPR/Recall
+    specificity = TNs / (TNs + FPs + 1e-10)  # TNR
+    precision = f_scores[:, 0]  # PPV
+    
+    # 创建图形 - 论文标准尺寸
+    fig, ax = plt.subplots(figsize=(8, 5))
+    
+    # 数据准备
+    data_list = [sensitivity, specificity, precision]
+    labels = ['Sensitivity\n(TPR)', 'Specificity\n(TNR)', 'Precision\n(PPV)']
+    
+    # 绘制小提琴图
+    parts = ax.violinplot(data_list, positions=[1, 2, 3], widths=0.6,
+                          showmeans=True, showmedians=False, showextrema=True)
+    
+    # 设置颜色 - 使用学术配色
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c']  # 蓝、橙、绿
+    for i, pc in enumerate(parts['bodies']):
+        pc.set_facecolor(colors[i])
+        pc.set_alpha(0.8)
+        pc.set_edgecolor('black')
+        pc.set_linewidth(0.5)
+    
+    # 设置其他元素样式
+    parts['cmeans'].set_color('red')
+    parts['cmeans'].set_linewidth(1.5)
+    parts['cbars'].set_color('black')
+    parts['cbars'].set_linewidth(0.8)
+    parts['cmaxes'].set_color('black')
+    parts['cmaxes'].set_linewidth(0.8)
+    parts['cmins'].set_color('black')
+    parts['cmins'].set_linewidth(0.8)
+    
+    # 添加均值文本
+    for i, data in enumerate(data_list):
+        mean_val = np.mean(data)
+        std_val = np.std(data)
+        ax.text(i+1, 1.02, f'{mean_val:.3f}±{std_val:.3f}',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+    
+    # 设置轴标签和标题
+    ax.set_xticks([1, 2, 3])
+    ax.set_xticklabels(labels, fontsize=11)
+    ax.set_ylabel('Score', fontsize=12, fontweight='bold')
+    ax.set_title('Class-wise Performance Metrics', fontsize=13, fontweight='bold', pad=20)
+    
+    # 设置y轴范围和网格
+    ax.set_ylim(0.6, 1.05)
+    ax.grid(True, axis='y', alpha=0.3, linestyle='--')
+    
+    # 添加参考线
+    ax.axhline(y=0.9, color='green', linestyle=':', alpha=0.4, linewidth=1)
+    ax.axhline(y=0.8, color='orange', linestyle=':', alpha=0.4, linewidth=1)
+    
+    # 添加图例
+    legend_elements = [
+        Patch(facecolor=colors[0], alpha=0.8, label='Sensitivity'),
+        Patch(facecolor=colors[1], alpha=0.8, label='Specificity'),
+        Patch(facecolor=colors[2], alpha=0.8, label='Precision')
+    ]
+    ax.legend(handles=legend_elements, loc='lower left', fontsize=10, framealpha=0.9)
+    
+    # 调整布局
+    plt.tight_layout()
+    
+    # 保存图表 - 使用原有路径名
+    chart_path = OUTPUT_FILES['chart_accuracy']  # 替代原准确率图
+    plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.close()
+    
+    # 日志输出
+    log_message(f"类别性能图表已保存: {chart_path}")
+    log_message(f"  Sensitivity: {np.mean(sensitivity):.3f}±{np.std(sensitivity):.3f}")
+    log_message(f"  Specificity: {np.mean(specificity):.3f}±{np.std(specificity):.3f}")
+    log_message(f"  Precision: {np.mean(precision):.3f}±{np.std(precision):.3f}")
+    
+    return str(chart_path)
+
+
+def generate_balance_metrics_chart(confusion_matrices, f_scores):
+    """
+    生成综合平衡指标图表（组2）：F1-Score, MCC
+    使用小提琴图展示分布，符合论文标准
+    
+    参数：
+        confusion_matrices: 混淆矩阵 (100x4) [TN, FP, FN, TP]
+        f_scores: 精确率/召回率/F1 (100x3)
+    
+    返回：
+        图表保存路径
+    """
+    from config import get_output_paths
+    from utils import log_message
+    
+    OUTPUT_FILES = get_output_paths()
+    log_message("生成综合平衡指标小提琴图...")
+    
+    # 设置论文风格
+    plt.rcParams['font.family'] = 'sans-serif'
+    plt.rcParams['font.sans-serif'] = ['Arial']
+    
+    # 从混淆矩阵提取数据
+    TNs = confusion_matrices[:, 0]
+    FPs = confusion_matrices[:, 1]
+    FNs = confusion_matrices[:, 2]
+    TPs = confusion_matrices[:, 3]
+    
+    # 计算F1和MCC
+    f1_scores = f_scores[:, 2]  # F1-score
+    
+    # 计算MCC
+    numerator = (TPs * TNs) - (FPs * FNs)
+    denominator = np.sqrt((TPs + FPs) * (TPs + FNs) * (TNs + FPs) * (TNs + FNs))
+    mcc_scores = numerator / (denominator + 1e-10)
+    
+    # 创建图形 - 论文标准尺寸
+    fig, ax = plt.subplots(figsize=(7, 5))
+    
+    # 数据准备
+    data_list = [f1_scores, mcc_scores]
+    labels = ['F1-Score', 'MCC']
+    
+    # 绘制小提琴图
+    parts = ax.violinplot(data_list, positions=[1, 2], widths=0.5,
+                          showmeans=True, showmedians=False, showextrema=True)
+    
+    # 设置颜色 - 使用学术配色
+    colors = ['#9467bd', '#e377c2']  # 紫色系
+    for i, pc in enumerate(parts['bodies']):
+        pc.set_facecolor(colors[i])
+        pc.set_alpha(0.8)
+        pc.set_edgecolor('black')
+        pc.set_linewidth(0.5)
+    
+    # 设置其他元素样式
+    parts['cmeans'].set_color('red')
+    parts['cmeans'].set_linewidth(1.5)
+    parts['cbars'].set_color('black')
+    parts['cbars'].set_linewidth(0.8)
+    parts['cmaxes'].set_color('black')
+    parts['cmaxes'].set_linewidth(0.8)
+    parts['cmins'].set_color('black')
+    parts['cmins'].set_linewidth(0.8)
+    
+    # 添加统计信息
+    for i, data in enumerate(data_list):
+        mean_val = np.mean(data)
+        std_val = np.std(data)
+        cv_val = std_val / (mean_val + 1e-10)
+        
+        # 均值±标准差
+        ax.text(i+1, 1.02, f'{mean_val:.3f}±{std_val:.3f}',
+                ha='center', va='bottom', fontsize=10, fontweight='bold')
+        
+        # CV值
+        ax.text(i+1, 0.58, f'CV={cv_val:.3f}',
+                ha='center', va='top', fontsize=9, style='italic', color='gray')
+    
+    # 设置轴标签和标题
+    ax.set_xticks([1, 2])
+    ax.set_xticklabels(labels, fontsize=11)
+    ax.set_ylabel('Score', fontsize=12, fontweight='bold')
+    ax.set_title('Comprehensive Balance Metrics', fontsize=13, fontweight='bold', pad=20)
+    
+    # 设置y轴范围和网格
+    ax.set_ylim(0.6, 1.05)
+    ax.grid(True, axis='y', alpha=0.3, linestyle='--')
+    
+    # 添加参考线
+    ax.axhline(y=0.9, color='green', linestyle=':', alpha=0.4, linewidth=1)
+    ax.axhline(y=0.8, color='orange', linestyle=':', alpha=0.4, linewidth=1)
+    
+    # 添加说明文本
+    ax.text(1.5, 0.62, 'F1: Harmonic mean of Precision and Recall\nMCC: Correlation coefficient (-1 to +1)',
+            ha='center', va='bottom', fontsize=8, style='italic',
+            bbox=dict(boxstyle='round,pad=0.3', facecolor='wheat', alpha=0.3))
+    
+    # 调整布局
+    plt.tight_layout()
+    
+    # 保存图表 - 使用原有路径名
+    chart_path = OUTPUT_FILES['chart_metrics']  # 替代原精确率/召回率/F1图
+    plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
+    plt.close()
+    
+    # 日志输出
+    log_message(f"综合平衡指标图表已保存: {chart_path}")
+    log_message(f"  F1-Score: {np.mean(f1_scores):.3f}±{np.std(f1_scores):.3f}")
+    log_message(f"  MCC: {np.mean(mcc_scores):.3f}±{np.std(mcc_scores):.3f}")
+    log_message(f"  F1 CV: {np.std(f1_scores)/np.mean(f1_scores):.3f}")
+    log_message(f"  MCC CV: {np.std(mcc_scores)/np.mean(mcc_scores):.3f}")
+    
+    return str(chart_path)
+
+
+def generate_confusion_matrix_with_stability(confusion_matrices):
     """
     论文标准版混淆矩阵
     
@@ -31,8 +257,8 @@ def generate_confusion_matrix_with_stability(confusion_matrixs):
     OUTPUT_FILES = get_output_paths()
     
     # 计算统计量
-    mean_cm = confusion_matrixs.mean(axis=0).reshape((2, 2))
-    std_cm = confusion_matrixs.std(axis=0).reshape((2, 2))
+    mean_cm = confusion_matrices.mean(axis=0).reshape((2, 2))
+    std_cm = confusion_matrices.std(axis=0).reshape((2, 2))
     
     # 计算百分比
     row_sums = mean_cm.sum(axis=1, keepdims=True)
@@ -68,7 +294,7 @@ def generate_confusion_matrix_with_stability(confusion_matrixs):
             
             # 获取该位置的100次原始数据
             flat_idx = i * 2 + j
-            cell_values = confusion_matrixs[:, flat_idx]
+            cell_values = confusion_matrices[:, flat_idx]
             
             # 文字颜色
             text_color = "white" if mean_val > mean_cm.max() / 2 else "black"
@@ -178,7 +404,7 @@ def generate_confusion_matrix_with_stability(confusion_matrixs):
         mean_val = mean_cm[i, j]
         std_val = std_cm[i, j]
         percent_val = cm_percent[i, j]
-        cell_values = confusion_matrixs[:, flat_idx]
+        cell_values = confusion_matrices[:, flat_idx]
         
         log_message(f"\n{name}:")
         log_message(f"  百分比: {percent_val:.1f}%")
@@ -226,8 +452,8 @@ def generate_confusion_matrix_with_stability(confusion_matrixs):
 
 
 
-def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test, 
-                               Fscores, confusion_matrixs, fpr_list, tpr_list, 
+def generate_performance_charts(train_accuracy, test_accuracy, 
+                               f_scores, confusion_matrices, fpr_values, tpr_values, 
                                auc_list, thresholds_used=None):
     """
     生成机器学习模型的性能评估图表（增强版）
@@ -243,48 +469,24 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
     OUTPUT_FILES = get_output_paths()
 
     try:
-        # 1. 生成准确率图表
-        log_message("生成准确率对比图...")
-        plt.figure(figsize=(6, 4))
-        plt.scatter(range(len(balanced_accuracy_train)), balanced_accuracy_train,
-                    label='Training Balanced Accuracy', color='b', s=5)
-        plt.scatter(range(len(balanced_accuracy_test)), balanced_accuracy_test, 
-                    label='Test Balanced Accuracy', color='r', s=5)
-        plt.xlabel('Iteration')
-        plt.ylabel('Balanced Accuracy')
-        plt.legend()
-        plt.title('Training and Test Balanced Accuracy over Iterations')
         
-        chart_path = OUTPUT_FILES['chart_accuracy']
-        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
-        plt.close()
-        generated_charts['accuracy'] = str(chart_path)
+        # 1. 生成类别性能图表（Sensitivity, Specificity, Precision）
+        chart_path = generate_class_performance_chart(confusion_matrices, f_scores)
+        generated_charts['accuracy'] = chart_path
 
-        # 2. 生成F1分数等指标图表
-        log_message("生成精确率/召回率/F1分数图...")
-        plt.figure(figsize=(6, 4))
-        plt.scatter(range(len(Fscores)), Fscores[:, 0], label='Weighted Avg Precision', s=5)
-        plt.scatter(range(len(Fscores)), Fscores[:, 1], label='Weighted Avg Recall', s=5)
-        plt.scatter(range(len(Fscores)), Fscores[:, 2], label='Weighted Avg F1-score', s=5)
-        plt.xlabel('Iteration')
-        plt.ylabel('Score')
-        plt.legend()
-        plt.title('Weighted Average Precision, Recall, and F1-score over Iterations')
-        
-        chart_path = OUTPUT_FILES['chart_metrics']
-        plt.savefig(chart_path, dpi=100, bbox_inches='tight')
-        plt.close()
-        generated_charts['metrics'] = str(chart_path)
+        # 2. 生成综合平衡指标图表（F1-Score, MCC）
+        chart_path = generate_balance_metrics_chart(confusion_matrices, f_scores)
+        generated_charts['metrics'] = chart_path
 
         # 3. 生成专业混淆矩阵（带标准差和变异系数）
-        chart_path = generate_confusion_matrix_with_stability(confusion_matrixs)
+        chart_path = generate_confusion_matrix_with_stability(confusion_matrices)
         generated_charts['confusion'] = chart_path
 
         # 4. 生成ROC曲线
         log_message("生成ROC曲线图...")
         plt.figure(figsize=(6, 4))
         mean_fpr = np.linspace(0, 1, 100)
-        mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) for fpr, tpr in zip(fpr_list, tpr_list)], axis=0)
+        mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) for fpr, tpr in zip(fpr_values, tpr_values)], axis=0)
         plt.plot(mean_fpr, mean_tpr, color='red', lw=3, 
                 label=f'Mean ROC (AUC={np.mean(auc_list):.2f})')
         plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
@@ -303,7 +505,7 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         log_message("生成详细性能指标表格...")
 
         # Calculate metrics
-        mean_conf_matrix = confusion_matrixs.mean(axis=0).reshape((2, 2))
+        mean_conf_matrix = confusion_matrices.mean(axis=0).reshape((2, 2))
         tn, fp, fn, tp = mean_conf_matrix.ravel()
 
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
@@ -312,7 +514,7 @@ def generate_performance_charts(balanced_accuracy_train, balanced_accuracy_test,
         npv = tn / (tn + fn) if (tn + fn) > 0 else 0
         f1 = 2 * (ppv * sensitivity) / (ppv + sensitivity) if (ppv + sensitivity) > 0 else 0
         accuracy = (tp + tn) / (tp + tn + fp + fn)
-        balanced_acc = np.mean(balanced_accuracy_test)
+        balanced_acc = np.mean(test_accuracy)
         mean_auc = np.mean(auc_list)
 
         # Create compact table with key metrics only
@@ -541,15 +743,15 @@ def create_visualization_tabs(root, generated_charts):
     return notebook
 
 
-def visualize_performance(balanced_accuracy_train, balanced_accuracy_test, Fscores, 
-                         confusion_matrixs, fpr_list, tpr_list, auc_list, 
+def visualize_performance(train_accuracy, test_accuracy, f_scores, 
+                         confusion_matrices, fpr_values, tpr_values, auc_list, 
                          thresholds_used=None, root=None):
     """可视化机器学习模型的多种性能指标并在GUI中显示结果（增强版）"""
     try:
         # 生成图表
         generated_charts = generate_performance_charts(
-            balanced_accuracy_train, balanced_accuracy_test, Fscores, 
-            confusion_matrixs, fpr_list, tpr_list, auc_list, thresholds_used
+            train_accuracy, test_accuracy, f_scores, 
+            confusion_matrices, fpr_values, tpr_values, auc_list, thresholds_used
         )
         
         if not generated_charts:

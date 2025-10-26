@@ -101,7 +101,7 @@ class ModelTrainer:
         cm = confusion_matrix(test_y, test_y_pred).flatten()
         fscore_dict = classification_report(test_y, test_y_pred, labels=[0, 1], output_dict=True)
         
-        fscores = [
+        f_scores = [
             fscore_dict["weighted avg"]["precision"],
             fscore_dict["weighted avg"]["recall"],
             fscore_dict["weighted avg"]["f1-score"],
@@ -113,7 +113,7 @@ class ModelTrainer:
             'train_accuracy': train_acc,
             'test_accuracy': test_acc,
             'confusion_matrix': cm,
-            'fscores': fscores,
+            'f_scores': f_scores,
             'fpr': fpr,
             'tpr': tpr,
             'roc_thresholds': thresholds,
@@ -145,16 +145,16 @@ class ModelTrainer:
         
         # 初始化结果存储
         results = {
-            'balanced_accuracy_train': [],
-            'balanced_accuracy_test': [],
+            'train_accuracy': [],
+            'test_accuracy': [],
             'trained_models': [],
-            'fpr_list': [],
-            'tpr_list': [],
+            'fpr_values': [],
+            'tpr_values': [],
             'thresholds_list': [],
             'auc_list': [],
-            'Fscores': np.zeros((TRAINING_ITERATIONS, 4)),
+            'f_scores': np.zeros((TRAINING_ITERATIONS, 4)),
             'thresholds_used': [],
-            'confusion_matrixs': np.zeros((TRAINING_ITERATIONS, 4))
+            'confusion_matrices': np.zeros((TRAINING_ITERATIONS, 4))
         }
         
         self.best_score = -1
@@ -168,15 +168,15 @@ class ModelTrainer:
             iteration_result = self.train_single_iteration(row, column, model_class, params)
             
             # 收集结果
-            results['balanced_accuracy_train'].append(iteration_result['train_accuracy'])
-            results['balanced_accuracy_test'].append(iteration_result['test_accuracy'])
+            results['train_accuracy'].append(iteration_result['train_accuracy'])
+            results['test_accuracy'].append(iteration_result['test_accuracy'])
             results['trained_models'].append(iteration_result['model'])
-            results['fpr_list'].append(iteration_result['fpr'])
-            results['tpr_list'].append(iteration_result['tpr'])
+            results['fpr_values'].append(iteration_result['fpr'])
+            results['tpr_values'].append(iteration_result['tpr'])
             results['thresholds_list'].append(iteration_result['roc_thresholds'])
             results['auc_list'].append(iteration_result['auc'])
-            results['Fscores'][i] = iteration_result['fscores']
-            results['confusion_matrixs'][i] = iteration_result['confusion_matrix']
+            results['f_scores'][i] = iteration_result['f_scores']
+            results['confusion_matrices'][i] = iteration_result['confusion_matrix']
             
             if iteration_result['threshold_used'] is not None:
                 results['thresholds_used'].append(iteration_result['threshold_used'])
@@ -210,11 +210,11 @@ class ModelTrainer:
         
         try:
             # 保存各种指标
-            np.savetxt(OUTPUT_FILES['confusion_matrix'], results['confusion_matrixs'], delimiter=",")
-            np.savetxt(OUTPUT_FILES['fscore'], results['Fscores'], delimiter=",")
+            np.savetxt(OUTPUT_FILES['confusion_matrix'], results['confusion_matrices'], delimiter=",")
+            np.savetxt(OUTPUT_FILES['fscore'], results['f_scores'], delimiter=",")
             np.savetxt(OUTPUT_FILES['auc'], results['auc_list'], delimiter=",")
-            np.save(OUTPUT_FILES['fpr_values'], np.array(results['fpr_list'], dtype=object))
-            np.save(OUTPUT_FILES['tpr_values'], np.array(results['tpr_list'], dtype=object))
+            np.save(OUTPUT_FILES['fpr_values'], np.array(results['fpr_values'], dtype=object))
+            np.save(OUTPUT_FILES['tpr_values'], np.array(results['tpr_values'], dtype=object))
             np.save(OUTPUT_FILES['thresholds_values'], np.array(results['thresholds_list'], dtype=object))
             
             # 保存最佳模型
@@ -261,10 +261,10 @@ class ModelTrainer:
         
         return {
             "best_score": self.best_score,
-            "mean_train_accuracy": np.mean(results['balanced_accuracy_train']),
-            "mean_test_accuracy": np.mean(results['balanced_accuracy_test']),
+            "mean_train_accuracy": np.mean(results['train_accuracy']),
+            "mean_test_accuracy": np.mean(results['test_accuracy']),
             "mean_auc": np.mean(results['auc_list']),
-            "n_iterations": len(results['balanced_accuracy_test']),
+            "n_iterations": len(results['test_accuracy']),
             "model_type": type(self.best_model).__name__ if self.best_model else None,
             "has_thresholds": len(results['thresholds_used']) > 0
         }
@@ -333,12 +333,12 @@ class TrainingUI:
             # 生成可视化
             thresholds = results['thresholds_used'] if len(results['thresholds_used']) > 0 else None
             visualize_performance(
-                results['balanced_accuracy_train'],
-                results['balanced_accuracy_test'],
-                results['Fscores'],
-                results['confusion_matrixs'],
-                results['fpr_list'],
-                results['tpr_list'],
+                results['train_accuracy'],
+                results['test_accuracy'],
+                results['f_scores'],
+                results['confusion_matrices'],
+                results['fpr_values'],
+                results['tpr_values'],
                 results['auc_list'],
                 thresholds,
                 root
