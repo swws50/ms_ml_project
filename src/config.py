@@ -97,13 +97,13 @@ def get_output_paths():
         'thresholds_values': output_manager.get_path('metrics', 'thresholds_values.npy'),
         'pls_thresholds': output_manager.get_path('metrics', 'PLS_optimal_thresholds.csv'),
 
-        # 图表文件
-        'chart_accuracy': output_manager.get_path('chart', 'Training and Test Balanced Accuracy.png'),
-        'chart_metrics': output_manager.get_path('chart', 'Weighted Average Precision, Recall, and F1-score.png'),
-        'chart_confusion': output_manager.get_path('chart', 'Mean Confusion Matrix.png'),
-        'chart_roc': output_manager.get_path('chart', 'Mean ROC Curve.png'),
-        'chart_thresholds': output_manager.get_path('chart', 'PLS_optimal_thresholds.png'),
-        'chart_metrics_table': output_manager.get_path('chart', 'Performance_Metrics_Table.png'),
+        # 图表文件 - 使用描述性基础名称（时间戳在保存时添加）
+        'chart_accuracy': output_manager.get_path('chart', 'ClassPerformance.png'),
+        'chart_metrics': output_manager.get_path('chart', 'BalanceMetrics.png'),
+        'chart_confusion': output_manager.get_path('chart', 'ConfusionMatrix.png'),
+        'chart_roc': output_manager.get_path('chart', 'ROC_Curve.png'),
+        'chart_thresholds': output_manager.get_path('chart', 'PLS_Thresholds.png'),
+        'chart_metrics_table': output_manager.get_path('chart', 'MetricsTable.png'),
 
         # 预测结果目录
         'predictions_dir': output_manager.get_path('prediction', ''),    
@@ -164,5 +164,3 @@ def get_class_mapping(labels=None):
         default_forward = {"类别0": 0, "类别1": 1}
         default_reverse = {0: "类别0", 1: "类别1"}
         return default_forward, default_reverse
-
-

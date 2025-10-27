@@ -18,7 +18,7 @@ import data_store
 
 
 
-def generate_class_performance_chart(confusion_matrices, f_scores):
+def generate_class_performance_chart(confusion_matrices, f_scores, model_type="Model", timestamp=""):
     """
     生成类别性能图表（组1）：Sensitivity, Specificity, Precision
     使用小提琴图展示分布，符合论文标准
@@ -113,7 +113,10 @@ def generate_class_performance_chart(confusion_matrices, f_scores):
     plt.tight_layout()
     
     # 保存图表 - 使用原有路径名
-    chart_path = OUTPUT_FILES['chart_accuracy']  # 替代原准确率图
+    # 保存图表 - 添加模型类型和时间戳
+    base_path = OUTPUT_FILES['chart_accuracy']
+    chart_path = str(base_path).replace('ClassPerformance.png', 
+                                         f'{model_type}_ClassPerformance_{timestamp}.png')
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
@@ -126,7 +129,7 @@ def generate_class_performance_chart(confusion_matrices, f_scores):
     return str(chart_path)
 
 
-def generate_balance_metrics_chart(confusion_matrices, f_scores):
+def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Model", timestamp=""):
     """
     生成综合平衡指标图表（组2）：F1-Score, MCC
     使用小提琴图展示分布，符合论文标准
@@ -228,7 +231,10 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores):
     plt.tight_layout()
     
     # 保存图表 - 使用原有路径名
-    chart_path = OUTPUT_FILES['chart_metrics']  # 替代原精确率/召回率/F1图
+    # 保存图表 - 添加模型类型和时间戳
+    base_path = OUTPUT_FILES['chart_metrics']
+    chart_path = str(base_path).replace('BalanceMetrics.png', 
+                                         f'{model_type}_BalanceMetrics_{timestamp}.png')
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
@@ -242,7 +248,7 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores):
     return str(chart_path)
 
 
-def generate_confusion_matrix_with_stability(confusion_matrices):
+def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Model", timestamp=""):
     """
     论文标准版混淆矩阵
     
@@ -383,7 +389,10 @@ def generate_confusion_matrix_with_stability(confusion_matrices):
     plt.tight_layout()
     
     # 保存 - 高质量
-    chart_path = OUTPUT_FILES['chart_confusion']
+    # 保存 - 高质量，添加模型类型和时间戳
+    base_path = OUTPUT_FILES['chart_confusion']
+    chart_path = str(base_path).replace('ConfusionMatrix.png', 
+                                         f'{model_type}_ConfusionMatrix_{timestamp}.png')
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', 
                 facecolor='white', edgecolor='none')
     plt.close()
@@ -467,20 +476,30 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     # 获取输出文件路径
     from config import get_output_paths
     OUTPUT_FILES = get_output_paths()
+    
+    # 添加模型类型和时间戳（用于文件名）
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    latest_model, _ = data_store.get_latest_trained_model()
+    model_type = latest_model.__class__.__name__ if latest_model else "Model"
+    log_message(f"图表将使用标识: {model_type}_{timestamp}")
 
     try:
         
         # 1. 生成类别性能图表（Sensitivity, Specificity, Precision）
-        chart_path = generate_class_performance_chart(confusion_matrices, f_scores)
+        chart_path = generate_class_performance_chart(confusion_matrices, f_scores, model_type, timestamp)
         generated_charts['accuracy'] = chart_path
+        generated_charts['chart_accuracy'] = chart_path  # 用于UI显示
 
         # 2. 生成综合平衡指标图表（F1-Score, MCC）
-        chart_path = generate_balance_metrics_chart(confusion_matrices, f_scores)
+        chart_path = generate_balance_metrics_chart(confusion_matrices, f_scores, model_type, timestamp)
         generated_charts['metrics'] = chart_path
+        generated_charts['chart_metrics'] = chart_path  # 用于UI显示
 
         # 3. 生成专业混淆矩阵（带标准差和变异系数）
-        chart_path = generate_confusion_matrix_with_stability(confusion_matrices)
+        chart_path = generate_confusion_matrix_with_stability(confusion_matrices, model_type, timestamp)
         generated_charts['confusion'] = chart_path
+        generated_charts['chart_confusion'] = chart_path  # 用于UI显示
 
         # 4. 生成ROC曲线
         log_message("生成ROC曲线图...")
@@ -495,10 +514,14 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         plt.title('Mean ROC Curve')
         plt.legend()
         
-        chart_path = OUTPUT_FILES['chart_roc']
+        
+        base_path = OUTPUT_FILES['chart_roc']
+        chart_path = str(base_path).replace('ROC_Curve.png', 
+                                             f'{model_type}_ROC_Curve_{timestamp}.png')
         plt.savefig(chart_path, dpi=100, bbox_inches='tight')
         plt.close()
         generated_charts['roc'] = str(chart_path)
+        generated_charts['chart_roc'] = str(chart_path)  # 用于UI显示
         
         
         # 5. 新增：生成详细性能指标表格
@@ -590,10 +613,14 @@ def generate_performance_charts(train_accuracy, test_accuracy,
             plt.ylim(0, y_max)
             plt.tight_layout()
             
-            chart_path = OUTPUT_FILES['chart_thresholds']
+            
+            base_path = OUTPUT_FILES['chart_thresholds']
+            chart_path = str(base_path).replace('PLS_Thresholds.png', 
+                                                 f'{model_type}_PLS_Thresholds_{timestamp}.png')
             plt.savefig(chart_path, dpi=100, bbox_inches='tight')
             plt.close()
             generated_charts['thresholds'] = str(chart_path)
+            generated_charts['chart_thresholds'] = str(chart_path)  # 用于UI显示
 
         log_message("所有图表生成完成")
         return generated_charts
@@ -678,18 +705,20 @@ def create_visualization_tabs(root, generated_charts):
         notebook = ctk.CTkTabview(root, width=800, height=500)
         notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
 
-    # 图表配置列表（按显示顺序）
+    # 图表配置列表（按显示顺序）- 使用generated_charts中的实际路径
     chart_configs = [
-        (OUTPUT_FILES.get('chart_metrics_table', 'output/chart_metrics_table.png'), '性能指标总览'),
-        (str(OUTPUT_FILES['chart_accuracy']), '准确率'),
-        (str(OUTPUT_FILES['chart_metrics']), '精确率/召回率/F1'),
-        (str(OUTPUT_FILES['chart_confusion']), '混淆矩阵'),
-        (str(OUTPUT_FILES['chart_roc']), 'ROC曲线'),
+        (generated_charts.get('chart_metrics_table', generated_charts.get('metrics_table', '')), '性能指标总览'),
+        (generated_charts.get('chart_accuracy', generated_charts.get('accuracy', '')), '类别性能'),
+        (generated_charts.get('chart_metrics', generated_charts.get('metrics', '')), '综合指标'),
+        (generated_charts.get('chart_confusion', generated_charts.get('confusion', '')), '混淆矩阵'),
+        (generated_charts.get('chart_roc', generated_charts.get('roc', '')), 'ROC曲线'),
     ]
     
     # 如果有阈值数据，添加阈值分布图
-    if str(OUTPUT_FILES['chart_thresholds']) in generated_charts.values():
-        chart_configs.append((str(OUTPUT_FILES['chart_thresholds']), '阈值分布'))
+    if generated_charts.get('chart_thresholds') or generated_charts.get('thresholds'):
+        threshold_path = generated_charts.get('chart_thresholds', generated_charts.get('thresholds', ''))
+        if threshold_path:
+            chart_configs.append((threshold_path, '阈值分布'))
     
     # 创建选项卡
     for chart_file, tab_name in chart_configs:
