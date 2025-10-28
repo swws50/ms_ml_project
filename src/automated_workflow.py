@@ -168,33 +168,67 @@ class AutomatedWorkflow:
         self._monitor_training_completion()
     
     def _monitor_training_completion(self):
-        """监听训练是否完成"""
+        """监听训练是否完成（带超时机制）"""
+        max_wait_time = 30000  # 最多等待30秒
+        start_time = [time.time() * 1000]  # 使用列表以便在嵌套函数中修改
+        last_chart_count = [0]  # 记录上次的图表数量
+        
         def check_training_status():
             # 检查是否有最新训练的模型
             latest_model, latest_path = data_store.get_latest_trained_model()
 
             if latest_model is not None:
                 # 额外检查:确保图表也已生成
-                from config import OUTPUT_FILES
                 import os
+                from output_manager import output_manager
                 
-                # 检查关键图表是否存在
-                key_charts = [
-                    OUTPUT_FILES.get('chart_accuracy'),
-                    OUTPUT_FILES.get('chart_roc'),
-                    OUTPUT_FILES.get('chart_confusion')
-                ]
+                # 获取图表目录
+                charts_dir = output_manager.get_path('chart', '')
                 
-                charts_ready = all(
-                    os.path.exists(str(chart)) for chart in key_charts if chart
-                )
-                
-                if charts_ready:
-                    # 训练和图表生成都完成
-                    log_message("检测到训练完成,图表已生成", "SUCCESS")
-                    self.root.after(1000, self._prediction_preparation_step)
+                if os.path.exists(charts_dir):
+                    # 获取模型类型和最近的图表文件
+                    model_type = latest_model.__class__.__name__ if latest_model else "Model"
+                    
+                    # 列出目录中所有图表文件
+                    chart_files = [f for f in os.listdir(charts_dir) 
+                                  if f.startswith(model_type) and f.endswith('.png')]
+                    
+                    # 检查关键图表 - 只检查3个核心图表
+                    has_class_performance = any('ViolinPlot_ClassPerformance' in f for f in chart_files)
+                    has_confusion = any('ConfusionMatrix' in f for f in chart_files)
+                    has_roc = any('ROC_Curve' in f for f in chart_files)
+                    
+                    # 计算已等待时间
+                    elapsed_time = time.time() * 1000 - start_time[0]
+                    
+                    # 图表数量稳定（连续两次检查数量相同）
+                    charts_stable = (last_chart_count[0] == len(chart_files) and 
+                                    last_chart_count[0] > 0)
+                    
+                    # 判断是否完成的条件（简化版）：
+                    # 1. 有3个核心图表且图表数量>=3
+                    # 2. 图表数量稳定且>=3（说明生成完毕）
+                    # 3. 等待超时
+                    charts_ready = (
+                        (has_class_performance and has_confusion and has_roc and len(chart_files) >= 3) or
+                        (charts_stable and len(chart_files) >= 3) or
+                        (elapsed_time > max_wait_time and len(chart_files) >= 1)
+                    )
+                    
+                    if charts_ready:
+                        # 训练和图表生成都完成
+                        log_message(f"检测到训练完成,图表已生成 (共{len(chart_files)}个)", "SUCCESS")
+                        self.root.after(1000, self._prediction_preparation_step)
+                    else:
+                        # 更新图表计数
+                        last_chart_count[0] = len(chart_files)
+                        
+                        # 模型已保存但图表还在生成中,继续等待
+                        remaining = int((max_wait_time - elapsed_time) / 1000)
+                        log_message(f"等待图表生成... (已有{len(chart_files)}个, 剩余{remaining}秒)", "INFO")
+                        self.root.after(2000, check_training_status)
                 else:
-                    # 模型已保存但图表还在生成中,继续等待
+                    # 图表目录不存在,继续等待
                     log_message("模型已训练,等待图表生成...", "INFO")
                     self.root.after(2000, check_training_status)
             else:
