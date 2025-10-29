@@ -262,7 +262,7 @@ class MainGUIManager:
                     self._operation_cancelled = True
                     self.action_btn.configure(state="disabled")  # 禁用防止重复点击
                     log_message("用户请求终止训练", "WARNING")
-                    self.root.after(1000, self.handle_reset_progress)
+                    self.root.after(1500, self.handle_reset_progress)
             # 如果是禁用状态就不响应
         else:
             # 非运行时作为重置按钮
@@ -435,7 +435,7 @@ class MainGUIManager:
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
             self.ui_panels['preprocessing'].update_status("等待开始预处理")
-            self.normalize_switch.select()
+            self.normalize_var.set(True)
             data_store.set_normalization_enabled(True)
             self.ui_panels['control'].update_normalization_status()
             self.ui_panels['prediction'].update_normalization_status()
@@ -443,10 +443,14 @@ class MainGUIManager:
             # 5. 隐藏进度条并重置模型选择
             self.hide_global_progress()
             self.exact_selection = DEFAULT_MODEL
-            clear_log()
-            
-            self._operation_cancelled = False
-            log_message("系统已完全重置", "SUCCESS")
+
+            # 延迟清空日志和显示完成消息（避免并发冲突）
+            def finish_reset():
+                clear_log()
+                self._operation_cancelled = False
+                log_message("系统已完全重置", "SUCCESS")
+
+            self.root.after(300, finish_reset)
         
         except Exception as e:
             self._operation_cancelled = False

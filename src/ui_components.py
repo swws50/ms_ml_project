@@ -613,18 +613,15 @@ class VisualizationPanel(BasePanel):
     def clear_content(self):
         """清空可视化内容，恢复到初始状态"""
         try:
-            # 销毁容器内的所有子组件
-            for widget in self.container.winfo_children():
-                widget.destroy()
+            # 销毁frame内的所有子组件（除了标题）
+            for widget in self.frame.winfo_children():
+                # 跳过标题行的组件（row=0）
+                grid_info = widget.grid_info()
+                if grid_info and grid_info.get('row', 0) > 0:
+                    widget.destroy()
             
-            # 重新创建占位符
-            self.placeholder = ctk.CTkLabel(
-                self.container, 
-                text="训练完成后，图表将在此处显示",
-                text_color="gray",
-                font=("Arial", 14)
-            )
-            self.placeholder.grid(row=0, column=0, sticky='nsew', padx=20, pady=20)
+            # 重新创建可视化区域
+            self._create_visualization_area()
             
             log_message("可视化面板已清空")
         except Exception as e:
@@ -669,4 +666,3 @@ class InfoPanel(BasePanel):
     def clear_messages(self):
         """清空消息"""
         self.components['text_box'].delete("1.0", "end")
-
