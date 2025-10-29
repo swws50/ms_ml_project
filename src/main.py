@@ -163,9 +163,9 @@ class MainGUIManager:
             command=self._handle_action_button
         )
         
-        # 归一化菜单
-        normalize_menu = Menu(menubar, tearoff=0)
-        normalize_menu.configure(
+        # 专业菜单（合并归一化和参数调优）
+        pro_menu = Menu(menubar, tearoff=0)
+        pro_menu.configure(
             font=("Microsoft YaHei UI", 14),
             bg='#f0f0f0',
             activebackground='#0078d4',
@@ -173,12 +173,20 @@ class MainGUIManager:
             borderwidth=2,
             relief='raised'
         )
-        menubar.add_cascade(label="归一化", menu=normalize_menu)
+        menubar.add_cascade(label="专业", menu=pro_menu)
+        
+        # 归一化子菜单项
         self.normalize_var = BooleanVar(value=True)
-        normalize_menu.add_checkbutton(
+        pro_menu.add_checkbutton(
             label="\n启用归一化\n",
             variable=self.normalize_var,
             command=self._toggle_normalization
+        )
+        
+        # 参数调优子菜单项
+        pro_menu.add_command(
+            label="\n打开参数调优\n",
+            command=self.handle_parameter_tuning
         )
         
         # 项目管理菜单
@@ -227,22 +235,6 @@ class MainGUIManager:
         help_menu.add_command(
             label="\n打开使用向导\n",
             command=self.help_system.show_wizard
-        )
-        
-        # 参数调优菜单
-        tune_menu = Menu(menubar, tearoff=0)
-        tune_menu.configure(
-            font=("Microsoft YaHei UI", 14),
-            bg='#f0f0f0',
-            activebackground='#0078d4',
-            activeforeground='white',
-            borderwidth=2,
-            relief='raised'
-        )
-        menubar.add_cascade(label="参数调优", menu=tune_menu)
-        tune_menu.add_command(
-            label="\n打开参数调优\n",
-            command=self.handle_parameter_tuning
         )
         
         self._is_operation_running = False
