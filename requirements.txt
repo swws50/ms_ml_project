@@ -1,36 +1,19 @@
-# requirements.txt - 诊断分析工具依赖库列表
+# Mass Spectrometry Data Machine Learning Analysis
+# Project Dependencies
 
-# GUI框架
-customtkinter>=5.2.0
-
-# 科学计算和数据处理
-numpy>=1.21.0
+# Required core libraries
+customtkinter>=5.0.0
 pandas>=1.3.0
-
-# 机器学习
+numpy>=1.21.0
 scikit-learn>=1.0.0
-joblib>=1.1.0
-
-# 质谱数据处理
 pyopenms>=2.8.0
 
-# 数据可视化
+# Optional but recommended
 matplotlib>=3.5.0
-
-# 图像处理
-Pillow>=8.3.0
-
-# 进度条显示
+scipy>=1.7.0
+joblib>=1.1.0
 tqdm>=4.62.0
+Pillow>=10.0.0
 
-# 可选：更好的数值计算性能
-# scipy>=1.7.0
-
-# 可选：Excel文件支持
-# openpyxl>=3.0.0
-# xlrd>=2.0.0
-
-# 开发和调试工具（可选）
-# pytest>=6.0.0
-# black>=21.0.0
-# flake8>=3.9.0
+# For packaging
+pyinstaller>=5.13.0
