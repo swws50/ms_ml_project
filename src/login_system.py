@@ -15,7 +15,7 @@ class SimpleLogin:
     def setup_window(self):
         """设置窗口"""
         self.root.title("用户登录")
-        self.root.geometry("450x525")
+        self.root.geometry("450x550")
         self.root.resizable(False, False)
         self.root.configure(fg_color='white') 
         self.root.after(10, self.center_window)
@@ -24,7 +24,7 @@ class SimpleLogin:
         """窗口居中显示"""
         try:
             # 计算居中位置
-            window_width, window_height = 450, 525
+            window_width, window_height = 450, 550
             screen_width = self.root.winfo_screenwidth()
             screen_height = self.root.winfo_screenheight()
             center_x = int(screen_width/2 - window_width/2)
@@ -48,6 +48,10 @@ class SimpleLogin:
             # 显示图片
             self.show_image(main_frame)
             
+            # 应用说明
+            title_label = ctk.CTkLabel(main_frame, text="基于质谱指纹图谱的肝癌早筛系统", font=("Microsoft YaHei", 20, "bold"))
+            title_label.pack(pady=12)
+
             # 用户名
             self.username_entry = ctk.CTkEntry(main_frame, placeholder_text="用户名", height=32)
             self.username_entry.pack(pady=8, fill="x", padx=8)
