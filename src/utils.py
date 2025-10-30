@@ -13,6 +13,25 @@ import sys
 info_text = None
 root = None
 
+def get_resource_path(relative_path):
+    """
+    获取资源文件的绝对路径（兼容开发和打包环境）
+    
+    Args:
+        relative_path: 相对路径，例如 'assets/app_icon.ico'
+    
+    Returns:
+        str: 资源文件的绝对路径
+    """
+    try:
+        # PyInstaller 打包后的临时文件夹路径
+        base_path = sys._MEIPASS
+    except AttributeError:
+        # 开发环境，使用项目根目录
+        # 假设此文件在 src/ 目录下，根目录是父目录
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    
+    return os.path.join(base_path, relative_path)
 
 def set_window_icon(window):
     """设置窗口图标 - 带稳定性保证"""

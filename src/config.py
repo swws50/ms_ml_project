@@ -10,15 +10,15 @@ from sklearn.model_selection import StratifiedKFold
 # 本地模块导入
 import data_store
 from output_manager import output_manager
-from utils import log_message
+from utils import log_message, get_resource_path
 from pathlib import Path
 
 # 应用程序图标路径
 BASE_DIR = Path(__file__).parent.parent
 ASSETS_DIR = BASE_DIR / 'assets'
 ICON_CONFIG = {
-    'app_icon_ico': ASSETS_DIR / 'app_icon.ico',
-    'app_icon_png': ASSETS_DIR / 'app_icon.png',
+    'app_icon_ico': get_resource_path('assets/app_icon.ico'),  # ✅ 正确
+    'app_icon_png': get_resource_path('assets/app_icon.png'),  # ✅ 正确
 }
 
 
