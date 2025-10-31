@@ -559,6 +559,12 @@ class MainGUIManager:
             self.ui_panels['prediction'].update_result(result_text, color)
 
 if __name__ == "__main__":
-    root = ctk.CTk()
-    gui_manager = MainGUIManager(root)
-    root.mainloop()
+    
+    # 直接运行登录系统
+    from login_system import SimpleLogin
+    login = SimpleLogin()
+    login.run()
+    # # 若要跳过登录，取消注释以下代码：
+    #root = ctk.CTk()
+    #gui_manager = MainGUIManager(root)
+    #root.mainloop()
