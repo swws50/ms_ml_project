@@ -131,7 +131,7 @@
 
 ### 步骤3: 模型训练 🤖
 
-1. 点击"选择归一化excel文件"，加载预处理结果
+1. 点击"选择整理好的excel文件"，加载预处理结果
 2. 从**模型选择**菜单选择算法：
    * `LogisticRegressionCV`: 小数据集首选
    * `RandomForestClassifier`: 大数据集推荐

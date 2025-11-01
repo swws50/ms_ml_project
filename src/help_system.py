@@ -447,7 +447,7 @@ class HelpSystem:
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step3, text="1. 点击 '选择归一化.csv文件' 按钮，选择选择生成的normalized_ms_data.csv文件",
+        ctk.CTkLabel(step3, text="1. 点击 '选择整理好的.csv文件' 按钮，选择选择生成的normalized_ms_data.csv文件",
                      wraplength=550).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step3, text="2. 从菜单 '模型选择' 中选择合适的机器学习模型",
                      wraplength=550).pack(anchor='w', padx=20, pady=2)

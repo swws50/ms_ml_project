@@ -191,7 +191,7 @@ class ControlPanel(BasePanel):
         """创建文件选择控件"""
         # 文件选择按钮
         self.components['file_button'] = ctk.CTkButton(
-            self.frame, text="选择归一化.csv文件", width=180, height=35,
+            self.frame, text="选择整理好的.csv文件", width=180, height=35,
             command=self._on_file_select
         )
         self.components['file_button'].grid(row=1, column=0, padx=10, pady=5, sticky='ew')

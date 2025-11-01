@@ -55,7 +55,7 @@ def open_data_file(normalization_label, start_button):
     
     file_path = filedialog.askopenfilename(
         initialdir=initial_dir,  # 默认打开data文件夹
-        title="选择归一化CSV文件",
+        title="选择CSV文件",
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
     )
     

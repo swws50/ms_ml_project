@@ -71,7 +71,7 @@ class MainGUIManager:
         """设置窗口基本属性"""
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("dark-blue")
-        self.root.title('诊断分析')
+        self.root.title('DETEQX')
         
         # 设置图标
         set_window_icon(self.root)
@@ -131,6 +131,22 @@ class MainGUIManager:
         menubar = Menu(self.root)
         self.root.config(menu=menubar)
         
+        # 项目管理菜单
+        project_menu = Menu(menubar, tearoff=0)
+        project_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="文件", menu=project_menu)
+        project_menu.add_command(
+            label="\n打开项目管理\n",
+            command=lambda: self.project_manager.show_manager_dialog(self.root)
+        )
+
         # 自动化流程菜单
         auto_menu = Menu(menubar, tearoff=0)
         auto_menu.configure(
@@ -189,21 +205,6 @@ class MainGUIManager:
             command=self.handle_parameter_tuning
         )
         
-        # 项目管理菜单
-        project_menu = Menu(menubar, tearoff=0)
-        project_menu.configure(
-            font=("Microsoft YaHei UI", 14),
-            bg='#f0f0f0',
-            activebackground='#0078d4',
-            activeforeground='white',
-            borderwidth=2,
-            relief='raised'
-        )
-        menubar.add_cascade(label="项目", menu=project_menu)
-        project_menu.add_command(
-            label="\n打开项目管理\n",
-            command=lambda: self.project_manager.show_manager_dialog(self.root)
-        )
         
         # 打印报告菜单
         print_menu = Menu(menubar, tearoff=0)
