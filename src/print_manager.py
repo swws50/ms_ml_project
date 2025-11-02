@@ -61,14 +61,20 @@ class PrintDialog:
                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=10, pady=(10, 5))
         
         options = [
-            ("include_dataset_info", "数据集信息"),
-            ("include_training_info", "训练信息"),
-            ("include_prediction_info", "预测结果"),
-            ("include_model_info", "模型信息")
+            ("include_dataset_info", "数据集信息", False),
+            ("include_training_info", "训练信息", False),
+            ("include_prediction_info", "预测结果", True),
+            ("include_model_info", "模型信息", True)
         ]
-        
-        for key, text in options:
-            checkbox = ctk.CTkCheckBox(content_frame, text=text, variable=self.print_options[key])
+
+        for key, text, default_value in options:
+            checkbox = ctk.CTkCheckBox(
+                content_frame, 
+                text=text, 
+                variable=self.print_options[key]
+            )
+            # 设置默认值
+            self.print_options[key].set(default_value)
             checkbox.pack(anchor="w", padx=20, pady=5)
 
         # 病人信息输入
@@ -201,7 +207,7 @@ class PrintManager:
         
         # 打印到控制台
         print("\n" + "="*60)
-        print("诊断分析报告")
+        print("肝癌早筛预警检测报告")
         print("="*60)
         print(content)
         print("="*60)
@@ -235,6 +241,44 @@ class PrintManager:
         content_parts.append(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         content_parts.append("")
         
+        # 病人基础信息
+        if patient_info:
+            name = patient_info['name'].get().strip()
+            age = patient_info['age'].get().strip()
+            patient_id = patient_info['patient_id'].get().strip()
+            gender = patient_info['gender'].get()
+            diagnosis_date = patient_info['diagnosis_date'].get().strip()
+            
+            if any([name, age, patient_id]):  # 至少有一个信息不为空
+                content_parts.append("病人基础信息:")
+                if name:
+                    content_parts.append(f"  姓名: {name}")
+                if age:
+                    content_parts.append(f"  年龄: {age}岁")
+                if gender:
+                    content_parts.append(f"  性别: {gender}")
+                if patient_id:
+                    content_parts.append(f"  病人编号: {patient_id}")
+                if diagnosis_date:
+                    content_parts.append(f"  诊断日期: {diagnosis_date}")
+                content_parts.append("")
+
+        # 预测信息
+        if options['include_prediction_info'].get() and latest_prediction:
+            content_parts.append("预测结果:")
+            content_parts.append(f"  文件名: {latest_prediction.get('filename', 'N/A')}")
+            content_parts.append(f"  预测类别: {latest_prediction.get('predicted_class', 'N/A')}")
+            content_parts.append(f"  置信度: {latest_prediction.get('confidence', 0):.4f}")
+            content_parts.append(f"  预测时间: {latest_prediction.get('timestamp', 'N/A')}")
+            content_parts.append("")
+        
+        # 模型信息
+        if options['include_model_info'].get() and model_info.get('has_model', False):
+            content_parts.append("模型信息:")
+            content_parts.append(f"  模型类型: {model_info.get('model_type', 'N/A')}")
+            content_parts.append(f"  训练状态: 已完成")
+            content_parts.append("")
+
         # 数据集信息
         if options['include_dataset_info'].get() and system_status.get('file_classification', {}).get('has_data', False):
             file_class = system_status['file_classification']
@@ -278,61 +322,81 @@ class PrintManager:
                 content_parts.append(f"  数据平衡性: {balance_status} (比例: {balance_ratio:.2f})")
             
             content_parts.append("")
-        
-        # 预测信息
-        if options['include_prediction_info'].get() and latest_prediction:
-            content_parts.append("最新预测结果:")
-            content_parts.append(f"  文件名: {latest_prediction.get('filename', 'N/A')}")
-            content_parts.append(f"  预测类别: {latest_prediction.get('predicted_class', 'N/A')}")
-            content_parts.append(f"  置信度: {latest_prediction.get('confidence', 0):.4f}")
-            content_parts.append(f"  预测时间: {latest_prediction.get('timestamp', 'N/A')}")
-            content_parts.append("")
-        
-        # 模型信息
-        if options['include_model_info'].get() and model_info.get('has_model', False):
-            content_parts.append("模型信息:")
-            content_parts.append(f"  模型类型: {model_info.get('model_type', 'N/A')}")
-            content_parts.append(f"  训练状态: 已完成")
-            content_parts.append("")
-        # 病人基础信息
-        if patient_info:
-            name = patient_info['name'].get().strip()
-            age = patient_info['age'].get().strip()
-            patient_id = patient_info['patient_id'].get().strip()
-            gender = patient_info['gender'].get()
-            diagnosis_date = patient_info['diagnosis_date'].get().strip()
-            
-            if any([name, age, patient_id]):  # 至少有一个信息不为空
-                content_parts.append("病人基础信息:")
-                if name:
-                    content_parts.append(f"  姓名: {name}")
-                if age:
-                    content_parts.append(f"  年龄: {age}岁")
-                if gender:
-                    content_parts.append(f"  性别: {gender}")
-                if patient_id:
-                    content_parts.append(f"  病人编号: {patient_id}")
-                if diagnosis_date:
-                    content_parts.append(f"  诊断日期: {diagnosis_date}")
-                content_parts.append("")
                 
         return "\n".join(content_parts)
     
     def _export_to_file(self, content):
-        """导出内容到txt文件"""
+        """导出内容到txt或PDF文件"""
         filename = filedialog.asksaveasfilename(
             title="保存诊断报告",
-            defaultextension=".txt",
-            filetypes=[("文本文件", "*.txt")]
+            defaultextension=".pdf",
+            initialfile=f"肝癌早筛预警检测报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+            filetypes=[
+                ("PDF文件", "*.pdf"),
+                ("文本文件", "*.txt")  
+            ]
         )
         
         if filename:
             try:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write("诊断分析报告\n")
-                    f.write("=" * 50 + "\n")
-                    f.write(content)
+                if filename.lower().endswith('.pdf'):
+                    self._export_to_pdf(filename, content)
+                else:
+                    with open(filename, 'w', encoding='utf-8') as f:
+                        f.write("肝癌早筛预警检测报告\n")
+                        f.write("=" * 50 + "\n")
+                        f.write(content)
                 log_message(f"报告已保存到: {filename}", "SUCCESS")
             except Exception as e:
                 log_message(f"保存报告失败: {str(e)}", "ERROR")
                 raise
+    
+    def _export_to_pdf(self, filename, content):
+        """导出内容到PDF文件"""
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.pdfgen import canvas
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+            
+            # 注册中文字体 (使用系统自带的字体)
+            try:
+                pdfmetrics.registerFont(TTFont('SimSun', 'simsun.ttc'))
+                font_name = 'SimSun'
+            except:
+                # 如果找不到宋体,尝试其他字体
+                try:
+                    pdfmetrics.registerFont(TTFont('SimHei', 'simhei.ttf'))
+                    font_name = 'SimHei'
+                except:
+                    font_name = 'Helvetica'  # 回退到默认字体
+            
+            c = canvas.Canvas(filename, pagesize=A4)
+            width, height = A4
+            
+            # 标题
+            c.setFont(font_name, 16)
+            c.drawCentredString(width/2, height-50, "肝癌早筛预警检测报告")
+            
+            # 分隔线
+            c.line(50, height-70, width-50, height-70)
+            
+            # 内容
+            c.setFont(font_name, 10)
+            y_position = height - 100
+            line_height = 15
+            
+            for line in content.split('\n'):
+                if y_position < 50:  # 换页
+                    c.showPage()
+                    c.setFont(font_name, 10)
+                    y_position = height - 50
+                
+                c.drawString(50, y_position, line)
+                y_position -= line_height
+            
+            c.save()
+            
+        except ImportError:
+            messagebox.showerror("错误", "需要安装 reportlab 库来生成PDF\n请运行: pip install reportlab")
+            raise
