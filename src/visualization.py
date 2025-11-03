@@ -351,15 +351,38 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     
     cbar = ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.set_ylabel('Mean Count', rotation=-90, va="bottom", 
-                       fontsize=10, fontfamily='sans-serif')
-    cbar.ax.tick_params(labelsize=9)
+                       fontsize=11, fontfamily='sans-serif')
+    cbar.ax.tick_params(labelsize=10)
+    
+    # 获取类别名称并判断是否使用实际标签
+    import data_store
+    class_0_name, class_1_name = data_store.get_class_names()
+    
+    # 检查类别名称是否为英文（只包含ASCII字符、空格和常见标点）
+    def is_english(text):
+        if not text:
+            return False
+        # 检查是否只包含ASCII可打印字符
+        return all(ord(c) < 128 for c in text)
+    
+    # 如果两个类别名称都是英文，使用实际标签；否则使用通用标签
+    use_actual_labels = is_english(class_0_name) and is_english(class_1_name)
     
     ax.set_xticks([0, 1])
     ax.set_yticks([0, 1])
-    ax.set_xticklabels(['Predicted\nNegative (0)', 'Predicted\nPositive (1)'], 
-                       fontsize=10, fontfamily='sans-serif')
-    ax.set_yticklabels(['True\nNegative (0)', 'True\nPositive (1)'], 
-                       fontsize=10, fontfamily='sans-serif')
+    
+    if use_actual_labels:
+        # 使用实际的类别标签
+        ax.set_xticklabels([f'{class_0_name}', f'{class_1_name}'], 
+                           fontsize=15, fontfamily='sans-serif')
+        ax.set_yticklabels([f'{class_0_name}', f'{class_1_name}'], 
+                           fontsize=15, fontfamily='sans-serif')
+    else:
+        # 使用通用标签 (0/1)
+        ax.set_xticklabels(['Negative (0)', 'Positive (1)'], 
+                           fontsize=10, fontfamily='sans-serif')
+        ax.set_yticklabels(['Negative (0)', 'Positive (1)'], 
+                           fontsize=10, fontfamily='sans-serif')
     
     # 添加单元格内容
     for i in range(2):
