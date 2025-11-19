@@ -6,7 +6,7 @@ import os
 # 第三方库导入
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold
-
+from sklearn.model_selection import RepeatedStratifiedKFold
 # 本地模块导入
 import data_store
 from output_manager import output_manager
@@ -25,7 +25,7 @@ ICON_CONFIG = {
 # 智能峰发现参数
 # 特征选择参数
 MAX_FEATURES = 50                # 最大特征数量
-MIN_OCCURRENCE_RATE = 0.2        # 最小出现频率（20%的文件中出现）
+MIN_OCCURRENCE_RATE = 0.5        # 最小出现频率（50%的文件中出现）
 MIN_FOLD_CHANGE = 1.3            # 最小倍数变化（30%强度差异）
 
 # pyOpenMS峰拾取参数
@@ -63,8 +63,20 @@ MODEL_CONFIGS = {
 # 默认模型选择
 DEFAULT_MODEL = "PLSRegression"
 
-# 训练配置
-TRAINING_ITERATIONS = 500
+# 训练配置 - 使用嵌套交叉验证
+# 交叉验证配置
+CV_SPLITS = 5           # 5折交叉验证
+CV_REPEATS = 20         # 重复20次
+CV_RANDOM_STATE = 42    # 随机种子
+
+# 创建交叉验证对象（总共50次训练：5×10=50）
+CROSS_VALIDATOR = RepeatedStratifiedKFold(
+    n_splits=CV_SPLITS,
+    n_repeats=CV_REPEATS,
+    random_state=CV_RANDOM_STATE
+)
+
+# 保留这个（仍需用于其他地方）
 TEST_SIZE = 0.2
 MZ_TOLERANCE = 0.2
 

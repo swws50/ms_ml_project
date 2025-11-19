@@ -21,7 +21,8 @@ from sklearn.svm import LinearSVC
 from tkinter import messagebox
 
 # 本地模块导入 
-from config import MODEL_CONFIGS, OUTPUT_FILES, TRAINING_ITERATIONS, TEST_SIZE
+from config import CROSS_VALIDATOR
+from config import MODEL_CONFIGS, OUTPUT_FILES,  TEST_SIZE
 import data_store
 from utils import log_message, clear_log
 from validation_decorators import require_data_store, safe_model_operation, log_execution_time
@@ -123,7 +124,7 @@ class ModelTrainer:
     
     def train_model(self, model_name, progress_callback=None):
         """
-        执行完整的模型训练流程
+        使用嵌套交叉验证执行完整的模型训练流程
         
         参数:
             model_name: 模型名称
@@ -132,6 +133,7 @@ class ModelTrainer:
         返回:
             dict: 训练结果
         """
+        
         # 获取训练数据
         row, column, df = data_store.get_training_data()
         log_message(f"获取训练数据: {row.shape}", "INFO")
@@ -152,60 +154,109 @@ class ModelTrainer:
             'tpr_values': [],
             'thresholds_list': [],
             'auc_list': [],
-            'f_scores': np.zeros((TRAINING_ITERATIONS, 4)),
+            'f_scores': [],
             'thresholds_used': [],
-            'confusion_matrices': np.zeros((TRAINING_ITERATIONS, 4))
+            'confusion_matrices': []
         }
         
         self.best_score = -1
         self.best_model = None
         
-        log_message(f"开始{TRAINING_ITERATIONS}轮训练循环...")
+        # 计算总折数
+        total_folds = CROSS_VALIDATOR.get_n_splits(row, column)
+        log_message(f"开始交叉验证训练 (总共{total_folds}折)...")
         
-        # 主训练循环
-        for i in range(TRAINING_ITERATIONS):
-            # 执行单次训练
-            iteration_result = self.train_single_iteration(row, column, model_class, params)
+        # 交叉验证主循环
+        fold_idx = 0
+        for train_idx, test_idx in CROSS_VALIDATOR.split(row, column):
+            fold_idx += 1
+            
+            # 获取当前折的数据
+            train_X = row[train_idx]
+            test_X = row[test_idx]
+            train_y = column[train_idx]
+            test_y = column[test_idx]
+            
+            # 训练模型
+            current_model = model_class(**params)
+            current_model.fit(train_X, train_y)
+            
+            # 预测处理
+            if isinstance(current_model, PLSRegression):
+                # PLS回归需要特殊处理
+                train_pred_raw = current_model.predict(train_X).flatten()
+                test_pred_raw = current_model.predict(test_X).flatten()
+                
+                optimal_threshold = self.find_optimal_threshold(train_y, train_pred_raw)
+                
+                train_y_pred = (train_pred_raw > optimal_threshold).astype(int)
+                test_y_pred = (test_pred_raw > optimal_threshold).astype(int)
+                
+                threshold_used = optimal_threshold
+                results['thresholds_used'].append(threshold_used)
+            else:
+                train_y_pred = current_model.predict(train_X)
+                test_y_pred = current_model.predict(test_X)
+                threshold_used = None
+            
+            # 性能评估
+            fpr, tpr, thresholds = roc_curve(test_y, test_y_pred)
+            auc_score = auc(fpr, tpr)
+            
+            train_acc = balanced_accuracy_score(train_y, train_y_pred)
+            test_acc = balanced_accuracy_score(test_y, test_y_pred)
+            
+            # 混淆矩阵和F分数
+            cm = confusion_matrix(test_y, test_y_pred).flatten()
+            fscore_dict = classification_report(test_y, test_y_pred, labels=[0, 1], output_dict=True)
+            
+            f_scores = [
+                fscore_dict["weighted avg"]["precision"],
+                fscore_dict["weighted avg"]["recall"],
+                fscore_dict["weighted avg"]["f1-score"],
+                0  # 预留位置
+            ]
             
             # 收集结果
-            results['train_accuracy'].append(iteration_result['train_accuracy'])
-            results['test_accuracy'].append(iteration_result['test_accuracy'])
-            results['trained_models'].append(iteration_result['model'])
-            results['fpr_values'].append(iteration_result['fpr'])
-            results['tpr_values'].append(iteration_result['tpr'])
-            results['thresholds_list'].append(iteration_result['roc_thresholds'])
-            results['auc_list'].append(iteration_result['auc'])
-            results['f_scores'][i] = iteration_result['f_scores']
-            results['confusion_matrices'][i] = iteration_result['confusion_matrix']
-            
-            if iteration_result['threshold_used'] is not None:
-                results['thresholds_used'].append(iteration_result['threshold_used'])
+            results['train_accuracy'].append(train_acc)
+            results['test_accuracy'].append(test_acc)
+            results['trained_models'].append(current_model)
+            results['fpr_values'].append(fpr)
+            results['tpr_values'].append(tpr)
+            results['thresholds_list'].append(thresholds)
+            results['auc_list'].append(auc_score)
+            results['f_scores'].append(f_scores)
+            results['confusion_matrices'].append(cm)
             
             # 更新最佳模型
-            test_acc = iteration_result['test_accuracy']
             if test_acc > self.best_score:
                 self.best_score = test_acc
-                self.best_model = iteration_result['model']
-                log_message(f"发现更高分数：{self.best_score:.4f} (迭代{i+1})")
+                self.best_model = current_model
+                log_message(f"发现更高分数：{self.best_score:.4f} (第{fold_idx}折)")
             
             # 更新进度
             if progress_callback:
-                progress = (i + 1) / TRAINING_ITERATIONS
-                progress_callback(progress, f'分析进度: {progress:.1%}')
+                progress = fold_idx / total_folds
+                progress_callback(progress, f'交叉验证进度: {fold_idx}/{total_folds} ({progress:.1%})')
         
-        log_message(f"训练完成！最优模型分数：{self.best_score:.4f}")
+        log_message(f"交叉验证完成！最优模型分数：{self.best_score:.4f}")
         
-        # 保存最佳模型
-        log_message("最佳模型已保存到数据存储模块", "SUCCESS")
+        # 转换列表为数组（保持与原代码兼容）
+        results['f_scores'] = np.array(results['f_scores'])
+        results['confusion_matrices'] = np.array(results['confusion_matrices'])
         
         # 保存训练结果
         self.save_training_results(results)
         
         self.training_results = results
         return results
-    
+
     def save_training_results(self, results):
         """保存训练结果到文件"""
+        log_message(f"交叉验证统计:")
+        log_message(f"  - 平均测试精度: {np.mean(results['test_accuracy']):.4f}")
+        log_message(f"  - 标准差: {np.std(results['test_accuracy']):.4f}")
+        log_message(f"  - 95%置信区间: [{np.percentile(results['test_accuracy'], 2.5):.4f}, {np.percentile(results['test_accuracy'], 97.5):.4f}]")
         log_message("保存训练结果文件...")
         
         try:
