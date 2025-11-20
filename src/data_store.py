@@ -17,7 +17,7 @@ _file_classification = {
 # 归一化因子 
 _normalization_settings = {
     'factor': None,      # 归一化因子（预处理时产生）
-    'enabled': True      # 是否启用归一化
+    'enabled': False      # 是否启用归一化
 }
 _normalization_factor = None
 
@@ -118,7 +118,7 @@ def is_normalization_enabled():
 def clear_normalization_settings():
     """清空归一化设置"""
     global _normalization_settings
-    _normalization_settings = {'factor': None, 'enabled': True}
+    _normalization_settings = {'factor': None, 'enabled': False}
 
 # 训练数据相关函数 
 def set_training_data(row, column, df):

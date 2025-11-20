@@ -192,7 +192,7 @@ class MainGUIManager:
         menubar.add_cascade(label="专业", menu=pro_menu)
         
         # 归一化子菜单项
-        self.normalize_var = BooleanVar(value=True)
+        self.normalize_var = BooleanVar(value=False)
         pro_menu.add_checkbutton(
             label="\n启用归一化\n",
             variable=self.normalize_var,
@@ -428,8 +428,8 @@ class MainGUIManager:
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
             self.ui_panels['preprocessing'].update_status("等待开始预处理")
-            self.normalize_var.set(True)
-            data_store.set_normalization_enabled(True)
+            self.normalize_var.set(False)
+            data_store.set_normalization_enabled(False)
             self.ui_panels['control'].update_normalization_status()
             self.ui_panels['prediction'].update_normalization_status()
             
