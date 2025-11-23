@@ -22,9 +22,10 @@ class DataPreprocessor:
     """数据预处理器类 - 保持原有接口的简单版本"""
     
     def __init__(self):
-        self.global_max_intensity = 0.0
+        # 初始化缓存和归一化统计学特征
         self.all_file_peaks_cache = {}
-        
+        self.normalization_stats = {}
+
         # GUI组件
         self.root = None
         self.progress_bar = None
@@ -36,6 +37,10 @@ class DataPreprocessor:
         self.class_1_files = []
         self.class_0_name = "类别0"
         self.class_1_name = "类别1"
+
+        # 归一化设置默认值
+        self.current_normalization_enabled = True
+        self.current_normalization_method = 'sum'
 
     # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
@@ -93,20 +98,57 @@ class DataPreprocessor:
             self._cleanup_progress_ui()
   
     def _phase1_discover_peaks(self, file_paths: List[str]) -> List[pd.DataFrame]:
-        """阶段1: 峰发现"""
-        self._update_progress(0, "阶段1: 峰发现中...")
+        """阶段1: 峰发现 + 归一化"""
+        self._update_progress(0, "阶段1: 峰发现和归一化中...")
         
         all_peaks_data = []
+        
+        # 初始化归一化统计存储
+        self.normalization_stats = {}
+        
+        # 步骤1：峰发现（自动收集统计特征）
         for index, file_path in enumerate(file_paths):
             peaks_df = self._discover_peaks_from_file(file_path)
+            # _discover_peaks_from_file 内部已经计算并存储了统计特征到 self.normalization_stats
+            
             if not peaks_df.empty:
                 all_peaks_data.append(peaks_df)
                 log_message(f"文件 {os.path.basename(file_path)}: 发现 {len(peaks_df)} 个峰")
             
-            # 更新进度 (0-33%)
-            progress = (index + 1) / len(file_paths) * 0.33
-            message = f"峰发现: {index+1}/{len(file_paths)} ({progress:.0%})"
-            self._update_progress(progress, message)
+            # 更新进度 (0-25%)
+            progress = (index + 1) / len(file_paths) * 0.25
+            self._update_progress(progress, f"峰发现: {index+1}/{len(file_paths)}")
+        
+        # 步骤2：归一化（如果启用）
+        if self.current_normalization_enabled and all_peaks_data:
+            # 使用本地保存的归一化方法
+            norm_method = self.current_normalization_method
+            
+            # 创建归一化管理器（传入已计算的统计特征）
+            norm_manager = NormalizationManager(
+                method=norm_method, 
+                normalization_stats=self.normalization_stats
+            )
+            
+            # 显示归一化摘要
+            log_message(norm_manager.get_normalization_summary())
+            
+            # 应用归一化 (25-33%)
+            self._update_progress(0.25, "应用归一化...")
+            for i, peaks_df in enumerate(all_peaks_data):
+                all_peaks_data[i] = norm_manager.normalize_sample(peaks_df)
+                
+                # 【关键修复】更新缓存，确保后续矩阵构建使用归一化数据
+                file_id = all_peaks_data[i]['file_id'].iloc[0]
+                self.all_file_peaks_cache[file_id] = all_peaks_data[i]
+                
+                # 更新进度
+                progress = 0.25 + (i + 1) / len(all_peaks_data) * 0.08
+                self._update_progress(progress, f"归一化: {i+1}/{len(all_peaks_data)}")
+            
+            log_message(f"归一化完成（方法: {norm_method}）")
+        else:
+            log_message("未启用归一化，使用原始数据")
         
         return all_peaks_data
     
@@ -170,28 +212,17 @@ class DataPreprocessor:
         log_message(f"识别出 {len(consensus_df)} 个共识特征峰")
         
         # 更新进度到66%
-        if data_store.is_normalization_enabled():
-            # 归一化模式：进度到66%，还有阶段3
-            self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
-        else:
-            # 非归一化模式：进度到66%，准备直接跳到矩阵构建
-            self._update_progress(0.66, "阶段2: 特征选择完成，准备构建原始矩阵...")
+        self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
         
         return consensus_df
     
     def _phase3_build_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame) -> pd.DataFrame:
-        normalization_enabled = data_store.is_normalization_enabled()
-        
-        if normalization_enabled:
-            self._scan_global_max_intensity(file_paths)
-            start_progress, progress_range = 0.83, 0.17
-        else:
-            self.global_max_intensity = 1.0
-            start_progress, progress_range = 0.66, 0.34
+        """阶段3: 构建特征矩阵"""
+        start_progress = 0.66
+        progress_range = 0.34
         
         return self._build_unified_matrix(file_paths, consensus_peaks, 
-                                        normalization_enabled, start_progress, progress_range)
-
+                                        start_progress, progress_range)
 
     # 第三部分：核心算法方法
     def _discover_peaks_from_file(self, file_path: str) -> pd.DataFrame:
@@ -245,50 +276,25 @@ class DataPreprocessor:
             # 缓存结果
             self.all_file_peaks_cache[file_id] = results
             
+            # 【新增】计算并存储归一化统计特征
+            self.normalization_stats[file_id] = {
+                'sum': results['intensity'].sum(),
+                'median': results['intensity'].median(),
+            }
+            
             return results
             
         except Exception as e:
             log_message(f"处理文件 {file_path} 时出错: {str(e)}", "ERROR")
             return pd.DataFrame()
-    
-    def _scan_global_max_intensity(self, file_paths: List[str]):
-        """扫描全局最大强度值 - 仅在归一化模式下调用"""
-        log_message("扫描全局最大强度值用于归一化...")
-        self.global_max_intensity = 0.0
-        
-        for i, file_path in enumerate(file_paths):
-            file_id = os.path.splitext(os.path.basename(file_path))[0]
-            
-            # 使用缓存或重新发现峰
-            if file_id in self.all_file_peaks_cache:
-                peaks_df = self.all_file_peaks_cache[file_id]
-            else:
-                peaks_df = self._discover_peaks_from_file(file_path)
-            
-            if not peaks_df.empty:
-                file_max = peaks_df['intensity'].max()
-                self.global_max_intensity = max(self.global_max_intensity, file_max)
-            
-            # 更新进度 (66% - 83%)
-            progress = 0.66 + (i + 1) / len(file_paths) * 0.17
-            message = f"扫描最大值: {i+1}/{len(file_paths)} ({progress:.0%})"
-            self._update_progress(progress, message)
-        
-        if self.global_max_intensity == 0:
-            log_message("警告：未找到任何有效强度值", "WARNING")
-            self.global_max_intensity = 1.0
-        
-        log_message(f"全局最大强度值: {self.global_max_intensity:.2f}")
-        data_store.set_normalization_factor(self.global_max_intensity)
 
     def _build_unified_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame,
-                            apply_normalization: bool, start_progress: float, 
-                            progress_range: float) -> pd.DataFrame:
-        """统一的特征矩阵构建方法"""
+                        start_progress: float, progress_range: float) -> pd.DataFrame:
+        """统一的特征矩阵构建方法（归一化已在阶段1完成）"""
         
         # 构建基础矩阵结构
         feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" 
-                                   for _, peak in consensus_peaks.iterrows()]
+                                for _, peak in consensus_peaks.iterrows()]
         all_results = pd.DataFrame(
             pd.Series(feature_names, index=feature_names), 
             columns=['m/z']
@@ -300,9 +306,9 @@ class DataPreprocessor:
             file_class = self._get_file_classification(file_path)
             peaks_df = self.all_file_peaks_cache.get(file_id, pd.DataFrame())
             
-            # 提取所有特征值
+            # 提取所有特征值（直接使用，不再归一化）
             file_results = [file_class] + [
-                self._extract_intensity(peaks_df, peak['consensus_mz'], apply_normalization)
+                self._extract_intensity(peaks_df, peak['consensus_mz'])
                 for _, peak in consensus_peaks.iterrows()
             ]
             
@@ -313,15 +319,12 @@ class DataPreprocessor:
             
             # 动态进度更新
             progress = start_progress + (i + 1) / len(file_paths) * progress_range
-            mode_text = "归一化处理" if apply_normalization else "原始数据处理"
-            self._update_progress(progress, f"{mode_text}: {i+1}/{len(file_paths)}")
+            self._update_progress(progress, f"构建矩阵: {i+1}/{len(file_paths)}")
         
         return all_results
-    
-    def _extract_intensity(self, peaks_df: pd.DataFrame, 
-                      target_mz: float, 
-                      apply_normalization: bool) -> float:
-        """统一的强度提取方法 - 根据模式决定是否归一化"""
+        
+    def _extract_intensity(self, peaks_df: pd.DataFrame, target_mz: float) -> float:
+        """提取强度值（数据已在阶段1归一化）"""
         if peaks_df.empty:
             return 0.0
         
@@ -332,18 +335,12 @@ class DataPreprocessor:
         if not matches.empty:
             # 选择最接近的峰
             best_match_idx = mz_diff[mz_diff <= MZ_TOLERANCE].idxmin()
-            raw_intensity = peaks_df.loc[best_match_idx, 'intensity']
-            
-            # 根据模式决定是否归一化
-            if apply_normalization and self.global_max_intensity > 0:
-                return raw_intensity / self.global_max_intensity
-            else:
-                return raw_intensity
+            return peaks_df.loc[best_match_idx, 'intensity']
         else:
-            return 0.0  
-
+            return 0.0
+            
     def _passes_selection_criteria(self, class_0_data, class_1_data, 
-                                 class_0_files, class_1_files) -> bool:
+                             class_0_files, class_1_files) -> bool:
         """检查峰是否通过选择标准"""
         # 计算出现频率
         class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
@@ -352,18 +349,18 @@ class DataPreprocessor:
         class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
         class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
         
-        # 检查最小出现频率
-        if (class_0_occurrence_rate < MIN_OCCURRENCE_RATE or 
-            class_1_occurrence_rate < MIN_OCCURRENCE_RATE):
+        # 修改：至少在一个类别中满足最小出现频率（改为OR逻辑）
+        if not (class_0_occurrence_rate >= MIN_OCCURRENCE_RATE or 
+                class_1_occurrence_rate >= MIN_OCCURRENCE_RATE):
             return False
         
-        # 检查最小样本数
-        if len(class_0_data) < 2 or len(class_1_data) < 2:
+        # 检查最小样本数 - 也需要改为OR逻辑
+        if len(class_0_data) < 2 and len(class_1_data) < 2:
             return False
         
-        # 检查折叠变化
-        class_0_mean = class_0_data['intensity'].mean()
-        class_1_mean = class_1_data['intensity'].mean()
+        # 检查折叠变化（保持不变）
+        class_0_mean = class_0_data['intensity'].mean() if len(class_0_data) > 0 else 0
+        class_1_mean = class_1_data['intensity'].mean() if len(class_1_data) > 0 else 0
         fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
         
         return fold_change >= MIN_FOLD_CHANGE
@@ -410,7 +407,15 @@ class DataPreprocessor:
         """保存结果文件"""
         # 动态获取当前的输出路径
         current_paths = get_output_paths()
-        output_path = current_paths['processed_data']
+        base_path = current_paths['processed_data']
+        
+        # 根据归一化方法添加后缀
+        if self.current_normalization_enabled:
+            # 在文件名后面添加归一化方法标识
+            path_parts = os.path.splitext(base_path)
+            output_path = f"{path_parts[0]}_{self.current_normalization_method}{path_parts[1]}"
+        else:
+            output_path = base_path
         
         try:
             # 检查当前要保存的文件是否已存在（而不是检查固定的normalized文件）
@@ -433,7 +438,7 @@ class DataPreprocessor:
             )
             
             # 获取归一化状态用于日志
-            norm_status = "已归一化" if data_store.is_normalization_enabled() else "原始数据"
+            norm_status = f"已归一化({self.current_normalization_method})" if self.current_normalization_enabled else "原始数据"
             log_message(f"数据处理完成，{norm_status}结果已保存为 {os.path.abspath(output_path)}", "SUCCESS")
             return True
             
@@ -450,7 +455,7 @@ class DataPreprocessor:
         
         if success:
             current_paths = get_output_paths()
-            norm_status = "已归一化" if data_store.is_normalization_enabled() else "未归一化"
+            norm_status = f"已归一化({self.current_normalization_method})" if self.current_normalization_enabled else "未归一化"
             log_message("智能峰发现处理完成！", "SUCCESS")
             messagebox.showinfo("处理完成", 
                             f"智能峰发现完成！\n"
@@ -539,9 +544,12 @@ class DataPreprocessor:
         name_frame = ctk.CTkFrame(self.classification_window)
         name_frame.pack(fill='x', padx=20, pady=10)
         
-        ctk.CTkLabel(name_frame, text="类别名称设置（可手动更改命名）:", 
+        ctk.CTkLabel(name_frame, text="基础设置", 
                     font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=10, pady=5)
         
+        ctk.CTkLabel(name_frame, text="类别名称（可自定义）:", 
+            font=ctk.CTkFont(size=10), text_color="gray").pack(anchor='w', padx=10, pady=(0, 2))
+
         name_input_frame = ctk.CTkFrame(name_frame, fg_color="transparent")
         name_input_frame.pack(fill='x', padx=10, pady=5)
         
@@ -557,9 +565,22 @@ class DataPreprocessor:
         class_1_entry = ctk.CTkEntry(name_input_frame, textvariable=class_1_name_var, width=120)
         class_1_entry.pack(side='left', padx=5)
         
+        ctk.CTkLabel(name_input_frame, text="|", text_color="gray").pack(side='left', padx=10)
+
+        # 归一化设置（第三列）
+        ctk.CTkLabel(name_input_frame, text="归一化:").pack(side='left', padx=(20, 5))
+        self.normalization_method_var = ctk.StringVar(value="sum (总和)")
+        self.normalization_method_combobox = ctk.CTkComboBox(
+            name_input_frame,
+            values=["不归一化", "sum (总和)", "median (中位数)"],
+            variable=self.normalization_method_var,
+            state="readonly",
+            width=150
+        )
+        self.normalization_method_combobox.pack(side='left', padx=5)
         # 文件夹选择区域
         self._create_folder_selection_ui(class_0_name_var, class_1_name_var)
-        
+
         # 预览区域
         preview_text = self._create_preview_ui()
         
@@ -664,6 +685,42 @@ class DataPreprocessor:
             
             self._update_preview(None, class_0_name_var, class_1_name_var)
     
+    def _create_normalization_settings_ui(self):
+        """创建归一化设置UI"""
+        norm_frame = ctk.CTkFrame(self.classification_window)
+        norm_frame.pack(fill='x', padx=20, pady=10)
+        
+        ctk.CTkLabel(norm_frame, text="归一化设置:", 
+                    font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=10, pady=5)
+        
+        # 归一化方法选择（包含"不归一化"选项）
+        method_frame = ctk.CTkFrame(norm_frame, fg_color="transparent")
+        method_frame.pack(fill='x', padx=10, pady=5)
+        
+        ctk.CTkLabel(method_frame, text="归一化方法:").pack(side='left', padx=5)
+        
+        self.normalization_method_var = ctk.StringVar(value="sum (总和)")
+        self.normalization_method_combobox = ctk.CTkComboBox(
+            method_frame,
+            values=["不归一化", "sum (总和)", "median (中位数)"],
+            variable=self.normalization_method_var,
+            state="readonly",
+            width=150
+        )
+        self.normalization_method_combobox.pack(side='left', padx=5)
+        
+        # 说明文本
+        info_frame = ctk.CTkFrame(norm_frame, fg_color="transparent")
+        info_frame.pack(fill='x', padx=10, pady=5)
+        
+        info_text = ctk.CTkLabel(
+            info_frame,
+            text="💡 归一化会在峰发现阶段对每个样本单独应用",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        )
+        info_text.pack(anchor='w', padx=5)
+        
     def _update_preview(self, preview_text, class_0_name_var, class_1_name_var):
         """更新预览信息"""
         # 使用保存的引用或传入的参数
@@ -733,7 +790,22 @@ class DataPreprocessor:
         # 在开始实际处理前，重新设置按钮状态
         if self.root and hasattr(self.root, 'gui_manager'):
             self.root.gui_manager._set_operation_running(True, "数据预处理", allow_termination=False)
-
+        
+        # 【新增】解析归一化设置
+        selected_method = self.normalization_method_var.get()
+        if selected_method == "不归一化":
+            self.current_normalization_enabled = False
+            self.current_normalization_method = None
+            log_message("归一化设置: 不归一化")
+        else:
+            self.current_normalization_enabled = True
+            method_map = {
+                "sum (总和)": "sum",
+                "median (中位数)": "median"
+            }
+            self.current_normalization_method = method_map.get(selected_method, "sum")
+            log_message(f"归一化设置: 方法={self.current_normalization_method}")
+        
         # 更新类别名称
         self.class_0_name = class_0_name_var.get()
         self.class_1_name = class_1_name_var.get()
@@ -779,4 +851,71 @@ class DataPreprocessor:
         if self.root:
             self.root.update()
   
-
+class NormalizationManager:
+    """归一化管理器 - 使用预计算的统计特征"""
+    
+    def __init__(self, method='sum', normalization_stats=None):
+        """
+        Parameters:
+        - method: 'sum' 或 'median'
+        - normalization_stats: 从DataPreprocessor传入的统计特征字典
+        """
+        if method not in ['sum', 'median']:
+            raise ValueError(f"不支持的归一化方法: {method}，仅支持 'sum' 和 'median'")
+        
+        self.method = method
+        self.normalization_stats = normalization_stats or {}
+    
+    def normalize_sample(self, peaks_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        对单个样本进行归一化
+        
+        Parameters:
+        - peaks_df: 单个样本的峰数据
+        
+        Returns:
+        - 归一化后的峰数据（新的DataFrame）
+        """
+        if peaks_df.empty:
+            return peaks_df
+        
+        # 获取样本ID
+        file_id = peaks_df['file_id'].iloc[0]
+        
+        # 检查是否有该样本的统计数据
+        if file_id not in self.normalization_stats:
+            log_message(f"警告：未找到样本 {file_id} 的统计数据，跳过归一化", "WARNING")
+            return peaks_df
+        
+        # 获取归一化因子
+        norm_factor = self.normalization_stats[file_id][self.method]
+        
+        # 避免除以0
+        if norm_factor == 0 or np.isnan(norm_factor):
+            log_message(f"警告：样本 {file_id} 的归一化因子无效（{norm_factor}），跳过归一化", "WARNING")
+            return peaks_df
+        
+        # 复制并归一化
+        normalized_df = peaks_df.copy()
+        normalized_df['intensity'] = normalized_df['intensity'] / norm_factor
+        
+        return normalized_df
+    
+    def get_normalization_summary(self) -> str:
+        """获取归一化摘要信息"""
+        if not self.normalization_stats:
+            return "无归一化统计数据"
+        
+        factors = [stats[self.method] for stats in self.normalization_stats.values()]
+        
+        # 根据不同方法显示不同的描述
+        method_desc = {
+            'sum': '总离子流(TIC)',
+            'median': '中位数强度'
+        }
+        desc = method_desc.get(self.method, self.method)
+        
+        return (f"归一化方法: {self.method}\n"
+                f"样本数量: {len(self.normalization_stats)}\n"
+                f"样本{desc}范围: {min(factors):.2f} - {max(factors):.2f}\n"
+                f"样本{desc}中位数: {np.median(factors):.2f}")
