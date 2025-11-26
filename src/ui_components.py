@@ -201,20 +201,7 @@ class ControlPanel(BasePanel):
         self.components['file_status'] = ctk.CTkLabel(self.frame, text="文件未选择")
         self.components['file_status'].grid(row=1, column=1, padx=10, pady=5, sticky='w')
 
-         # 添加归一化状态显示
-        self.components['norm_status'] = ctk.CTkLabel(
-            self.frame, text="归一化: 开", 
-            font=ctk.CTkFont(size=10), text_color="green"
-        )
-        self.components['norm_status'].grid(row=0, column=1, padx=5, pady=5, sticky='w')
-
-    def update_normalization_status(self):
-        """更新归一化状态显示"""
-        enabled = data_store.is_normalization_enabled()
-        text = "归一化: 开" if enabled else "归一化: 关"
-        color = "green" if enabled else "orange"
-        self.components['norm_status'].configure(text=text, text_color=color)
-
+        
     def _create_model_controls(self):
         """创建模型选择控件"""
         # 模型选择下拉菜单
@@ -423,14 +410,6 @@ class PredictionPanel(BasePanel):
         )
         self.components['compatibility_status'].grid(row=0, column=2, sticky='w', padx=15, pady=2)
         
-        
-        # 归一化状态显示（与数据模式选择对齐）
-        self.components['norm_status'] = ctk.CTkLabel(
-            settings_frame, text="归一化", 
-            font=ctk.CTkFont(size=10), text_color="blue"
-        )
-        self.components['norm_status'].grid(row=0, column=3, sticky='e', padx=5, pady=2)
-
 
     def _create_action_buttons_area(self):
         """创建操作按钮区域"""
@@ -484,12 +463,6 @@ class PredictionPanel(BasePanel):
         self.components['result_textbox'].grid(row=1, column=0, sticky='nsew')
         self.components['result_textbox'].insert("end", "状态：等待选择文件")
 
-    def update_normalization_status(self):
-        """更新归一化状态显示"""
-        enabled = data_store.is_normalization_enabled()
-        text = "归一化" if enabled else "原始数据"
-        color = "blue" if enabled else "orange"
-        self.components['norm_status'].configure(text=text, text_color=color)
             
     def _on_predict_file(self):
         """单文件预测回调"""

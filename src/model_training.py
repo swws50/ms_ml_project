@@ -276,9 +276,9 @@ class ModelTrainer:
                 # 生成带时间戳的文件名
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 model_type = type(self.best_model).__name__
-                norm_status = "normalized" if data_store.is_normalization_enabled() else "raw"
+
                 
-                filename = f"{model_type}_{norm_status}_{timestamp}.joblib"
+                filename = f"{model_type}_{timestamp}.joblib"
                 model_path = output_manager.get_path('model', filename)
                 
                 # 保存模型

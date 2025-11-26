@@ -18,33 +18,24 @@ class FeatureDetector:
     
     def __init__(self):
         self.training_features = None
-        self.normalization_factor = None
+        self.normalization_method = None  # 改名：'max'/'sum'/'median'/None
         self.training_data_path = None
     
     def load_training_features(self, force_reload=False):
         """
-        检测训练特征和归一化因子
+        检测训练特征和归一化方法
         
-        参数:
-            force_reload: 是否强制重新检测
-            
         返回:
-            tuple: (特征列表, 归一化因子) 或 (None, None)
+            tuple: (特征列表, 归一化方法) 或 (None, None)
+                归一化方法为 'max'/'sum'/'median'/None
         """
-        # 检查归一化状态是否改变，如果改变则强制重新加载
-        current_norm_enabled = data_store.is_normalization_enabled()
-        cached_norm_factor = self.normalization_factor
-        
-        # 判断是否需要重新加载
         need_reload = (
             force_reload or 
-            self.training_features is None or
-            (current_norm_enabled and cached_norm_factor is None) or  # 切换到归一化但没有因子
-            (not current_norm_enabled and cached_norm_factor is not None)  # 切换到非归一化但有因子
+            self.training_features is None
         )
         
         if not need_reload:
-            return self.training_features, self.normalization_factor
+            return self.training_features, self.normalization_method
         
         try:
             # 方法1: 优先从data_store获取训练数据路径
@@ -60,12 +51,14 @@ class FeatureDetector:
                     return None, None
                 log_message(f"使用默认训练数据路径: {data_file}", "INFO")
             
+            self.training_data_path = data_file
+            
             # 读取和解析特征
             df = pd.read_csv(data_file, index_col=0)
             feature_names = df.index.tolist()[1:]  # 跳过'class'行
             
-            # 检测归一化因子
-            normalization_factor = self._detect_normalization_factor(df)
+            # 从文件名检测归一化方法
+            norm_method, _ = self._detect_normalization_factor(df)
             
             # 转换特征名为数值
             training_mz_values = []
@@ -78,16 +71,15 @@ class FeatureDetector:
             
             # 缓存结果
             self.training_features = training_mz_values
-            self.normalization_factor = normalization_factor
-            self.training_data_path = data_file
+            self.normalization_method = norm_method  # 改为存储方法名
             
             log_message(f"检测到 {len(training_mz_values)} 个特征", "SUCCESS")
-            return training_mz_values, normalization_factor
+            return training_mz_values, norm_method
             
         except Exception as e:
             log_message(f"检测训练特征失败: {str(e)}", "ERROR")
             return None, None
-    
+        
     def _get_stored_training_path(self):
         """获取存储的训练数据路径"""
         try:
@@ -101,41 +93,45 @@ class FeatureDetector:
         return None
     
     def _detect_normalization_factor(self, df):
-        """检测归一化因子"""
+        """从训练数据文件名推断归一化方法"""
+        if not self.training_data_path:
+            log_message("无法确定归一化方法，使用原始数据", "WARNING")
+            return None, None
         
-        if data_store.is_normalization_enabled():
-            # 归一化模式：必须有归一化因子
-            factor = data_store.get_normalization_factor()
-            if factor is None:
-                log_message("归一化模式下无法获取归一化因子，请先进行数据预处理", "ERROR")
-                raise ValueError("归一化模式下无法获取归一化因子，请先进行数据预处理")
-            log_message(f"归一化模式：使用归一化因子 {factor:.2f}", "INFO")
-            return factor
+        basename = os.path.basename(self.training_data_path)
+        
+        if '_max' in basename:
+            log_message("检测到归一化方法: max（最大峰）", "INFO")
+            return 'max', None
+        elif '_sum' in basename:
+            log_message("检测到归一化方法: sum（TIC）", "INFO")
+            return 'sum', None
+        elif '_median' in basename:
+            log_message("检测到归一化方法: median（中位数）", "INFO")
+            return 'median', None
+        elif '_raw' in basename:
+            log_message("检测到数据模式: raw（未归一化）", "INFO")
+            return None, None
         else:
-            # 非归一化模式：不需要归一化因子
-            log_message("非归一化模式：使用原始强度值", "INFO")
-            return None  # 返回None表示不需要归一化
-    
-    def process_prediction_sample(self, file_path, training_mz_values=None, normalization_factor=None):
+            log_message("无法从文件名推断归一化方法，使用原始数据", "WARNING")
+            return None, None
+        
+    def process_prediction_sample(self, file_path, training_mz_values=None, norm_method=None):
         """
         处理预测样本文件
         
         参数:
             file_path: 样本文件路径
-            training_mz_values: 训练特征列表（可选，如果未提供则自动检测）
-            normalization_factor: 归一化因子（可选，如果未提供则自动检测）
-            
-        返回:
-            numpy.ndarray: 处理后的特征矩阵
+            training_mz_values: 训练特征列表
+            norm_method: 归一化方法 ('max'/'sum'/'median'/None)
         """
-        # 如果未提供特征信息，自动检测
-        if training_mz_values is None or normalization_factor is None:
-            detected_features, detected_factor = self.load_training_features()
+        if training_mz_values is None or norm_method is None:
+            detected_features, detected_method = self.load_training_features()
             if detected_features is None:
                 raise ValueError("无法检测训练特征")
             
             training_mz_values = training_mz_values or detected_features
-            normalization_factor = normalization_factor or detected_factor
+            norm_method = norm_method if norm_method is not None else detected_method
         
         try:
             # 读取原始数据
@@ -144,11 +140,19 @@ class FeatureDetector:
             if raw_data.empty or raw_data.shape[1] < 2:
                 raise ValueError(f"文件格式错误: {file_path}")
             
+            # 计算样本统计值（用于归一化）
+            intensities = raw_data.iloc[:, 1]
+            sample_stats = {
+                'max': intensities.max(),
+                'sum': intensities.sum(),
+                'median': intensities.median()
+            } if norm_method else None
+            
             results = []
             
             # 对每个训练特征提取强度
             for target_mz in training_mz_values:
-                intensity = self._extract_intensity_for_mz(raw_data, target_mz, normalization_factor)
+                intensity = self._extract_intensity_for_mz(raw_data, target_mz, norm_method, sample_stats)
                 results.append(intensity)
             
             log_message(f"处理样本完成: {os.path.basename(file_path)}, 特征数: {len(results)}")
@@ -157,23 +161,20 @@ class FeatureDetector:
         except Exception as e:
             log_message(f"处理预测样本失败: {str(e)}", "ERROR")
             raise
-    
-    def _extract_intensity_for_mz(self, raw_data, target_mz, normalization_factor):
+        
+    def _extract_intensity_for_mz(self, raw_data, target_mz, norm_method, sample_stats):
         """
         为指定m/z值提取强度
         
         参数:
             raw_data: 原始数据DataFrame
             target_mz: 目标m/z值
-            normalization_factor: 归一化因子
-            
-        返回:
-            float: 归一化后的强度值
+            norm_method: 归一化方法 ('max'/'sum'/'median'/None)
+            sample_stats: 样本统计值字典 {'max': x, 'sum': y, 'median': z}
         """
         lower_bound = target_mz - MZ_TOLERANCE
         upper_bound = target_mz + MZ_TOLERANCE
         
-        # 在容差范围内查找
         filtered_df = raw_data[
             (raw_data.iloc[:, 0] >= lower_bound) & 
             (raw_data.iloc[:, 0] <= upper_bound)
@@ -182,15 +183,16 @@ class FeatureDetector:
         if not filtered_df.empty:
             max_intensity = filtered_df.iloc[:, 1].max()
             
-           # 根据归一化因子决定是否归一化
-            if normalization_factor is not None:
-                return max_intensity / normalization_factor  # 归一化
-            else:
-                return max_intensity  # 原始值
+            # 根据归一化方法处理
+            if norm_method and sample_stats:
+                norm_factor = sample_stats.get(norm_method)
+                if norm_factor and norm_factor > 0:
+                    return max_intensity / norm_factor
+            
+            return max_intensity
         else:
             return 0.0
         
-    
     def validate_sample_file(self, file_path):
         """
         验证样本文件格式

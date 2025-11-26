@@ -86,12 +86,9 @@ MZ_TOLERANCE = 0.2
 def get_output_paths():
     """动态生成输出文件路径"""
 
-    # 根据归一化状态确定文件名
-    if data_store.is_normalization_enabled():
-        csv_filename = 'normalized_ms_data.csv'
-    else:
-        csv_filename = 'raw_ms_data.csv'
-
+    # 基础文件名，归一化后缀由data_preprocessor处理
+    csv_filename = 'data.csv'
+    
     return {
         # 数据文件
         'processed_data': output_manager.get_path('data', csv_filename),

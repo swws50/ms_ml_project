@@ -191,14 +191,6 @@ class MainGUIManager:
         )
         menubar.add_cascade(label="专业", menu=pro_menu)
         
-        # 归一化子菜单项
-        self.normalize_var = BooleanVar(value=False)
-        pro_menu.add_checkbutton(
-            label="\n启用归一化\n",
-            variable=self.normalize_var,
-            command=self._toggle_normalization
-        )
-        
         # 参数调优子菜单项
         pro_menu.add_command(
             label="\n打开参数调优\n",
@@ -260,16 +252,6 @@ class MainGUIManager:
         else:
             # 非运行时作为重置按钮
             self.handle_reset_progress()
-
-    def _toggle_normalization(self):
-        """切换归一化状态"""
-        enabled = self.normalize_var.get()  # 改用 BooleanVar
-        data_store.set_normalization_enabled(enabled)
-        status = "启用" if enabled else "禁用"
-        log_message(f"归一化已{status}")
-        self.ui_panels['control'].update_normalization_status()
-        self.ui_panels['prediction'].update_normalization_status()
-
             
     def handle_print_report(self):
         """处理打印报告"""
@@ -428,10 +410,6 @@ class MainGUIManager:
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
             self.ui_panels['preprocessing'].update_status("等待开始预处理")
-            self.normalize_var.set(False)
-            data_store.set_normalization_enabled(False)
-            self.ui_panels['control'].update_normalization_status()
-            self.ui_panels['prediction'].update_normalization_status()
             
             # 5. 隐藏进度条并重置模型选择
             self.hide_global_progress()
