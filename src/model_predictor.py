@@ -372,7 +372,7 @@ class PredictionManager:
                 # 预测结果表格
                 writer.writerow(['预测结果明细'])
                 writer.writerow(['序号', '样本文件', '预测类别', '置信度等级', '最大概率', 
-                            '类别0', '为0类概率', '类别1', '为1类概率', '特征数', ''])# 最后一列为预测状态列
+                             '为0类概率', '为1类概率', '特征数', ''])# 最后一列为预测状态列
                 
                 # 写入数据
                 for i, result in enumerate(results, 1):
@@ -386,9 +386,7 @@ class PredictionManager:
                             result['predicted_class'],
                             result['confidence_level'],
                             f"{result['max_probability']:.4f}",
-                            class_names[0],
                             f"{probs[0]:.4f}",
-                            class_names[1],
                             f"{probs[1]:.4f}",
                             result['n_features'],
                             ''  # 成功时状态为空

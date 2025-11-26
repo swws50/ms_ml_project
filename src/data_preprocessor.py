@@ -17,6 +17,13 @@ from config import (
 import data_store
 from utils import log_message, create_backup_filename, set_window_icon
 
+# 诊断模块导入（可选，如果文件不存在则禁用诊断）
+try:
+    from consensus_peak_diagnostics import ConsensusPeakDiagnostics, create_diagnostics
+    DIAGNOSTICS_AVAILABLE = True
+except ImportError:
+    DIAGNOSTICS_AVAILABLE = False
+
 
 class DataPreprocessor:
     """数据预处理器类 - 保持原有接口的简单版本"""
@@ -40,7 +47,11 @@ class DataPreprocessor:
 
         # 归一化设置默认值
         self.current_normalization_enabled = True
-        self.current_normalization_method = 'sum'
+        self.current_normalization_method = 'max'
+        
+        # 诊断实例
+        self.diagnostics = None
+        self.enable_diagnostics = True  # 可通过设置禁用
 
     # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
@@ -67,6 +78,17 @@ class DataPreprocessor:
         # 创建进度显示
         self._create_progress_ui()
         
+        # 初始化诊断
+        if self.enable_diagnostics and DIAGNOSTICS_AVAILABLE:
+            self.diagnostics = create_diagnostics()
+            self.diagnostics.set_parameters(
+                min_occurrence_rate=MIN_OCCURRENCE_RATE,
+                min_fold_change=MIN_FOLD_CHANGE,
+                mz_tolerance=MZ_TOLERANCE,
+                max_features=MAX_FEATURES
+            )
+            log_message("诊断模式已启用")
+        
         try:
             log_message("开始智能峰发现处理...")
             
@@ -90,6 +112,9 @@ class DataPreprocessor:
             
             # 保存结果
             self._save_and_notify_results(feature_matrix, consensus_peaks, file_paths)
+            
+            # 生成诊断报告
+            self._generate_diagnostics_report()
                 
         except Exception as e:
             log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
@@ -106,10 +131,24 @@ class DataPreprocessor:
         # 初始化归一化统计存储
         self.normalization_stats = {}
         
+        # 设置类别名称到诊断器（用于分类统计）
+        if self.diagnostics:
+            self.diagnostics.phase1._class_0_name = self.class_0_name
+        
         # 步骤1：峰发现（自动收集统计特征）
         for index, file_path in enumerate(file_paths):
             peaks_df = self._discover_peaks_from_file(file_path)
-            # _discover_peaks_from_file 内部已经计算并存储了统计特征到 self.normalization_stats
+            file_id = os.path.splitext(os.path.basename(file_path))[0]
+            file_class = self._get_file_classification(file_path)
+            
+            # 收集诊断数据
+            if self.diagnostics:
+                self.diagnostics.phase1.add_file_result(
+                    file_id=file_id,
+                    file_class=file_class,
+                    peaks_df=peaks_df,
+                    success=not peaks_df.empty
+                )
             
             if not peaks_df.empty:
                 all_peaks_data.append(peaks_df)
@@ -180,14 +219,50 @@ class DataPreprocessor:
         unique_groups = all_peaks_df['mz_group'].unique()
         total_groups = len(unique_groups)
         
+        # 用于参数敏感性分析的数据收集
+        all_groups_data = []
+        
         for i, mz_group in enumerate(unique_groups):
             group_data = all_peaks_df[all_peaks_df['mz_group'] == mz_group]
             
             class_0_data = group_data[group_data['class'] == class_0_name]
             class_1_data = group_data[group_data['class'] == class_1_name]
             
+            # 计算诊断所需的指标
+            class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
+            class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
+            class_0_occurrence = class_0_file_count / class_0_files if class_0_files > 0 else 0
+            class_1_occurrence = class_1_file_count / class_1_files if class_1_files > 0 else 0
+            class_0_mean = class_0_data['intensity'].mean() if len(class_0_data) > 0 else 0
+            class_1_mean = class_1_data['intensity'].mean() if len(class_1_data) > 0 else 0
+            fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
+            
             # 检查是否通过选择标准
-            if self._passes_selection_criteria(class_0_data, class_1_data, class_0_files, class_1_files):
+            passed = self._passes_selection_criteria(class_0_data, class_1_data, class_0_files, class_1_files)
+            
+            # 收集诊断数据
+            if self.diagnostics:
+                self.diagnostics.phase2.record_group_analysis(
+                    mz_group=mz_group,
+                    class_0_occurrence=class_0_occurrence,
+                    class_1_occurrence=class_1_occurrence,
+                    class_0_samples=len(class_0_data),
+                    class_1_samples=len(class_1_data),
+                    fold_change=fold_change,
+                    min_occurrence_rate=MIN_OCCURRENCE_RATE,
+                    min_fold_change=MIN_FOLD_CHANGE,
+                    passed=passed
+                )
+                # 收集用于敏感性分析的数据
+                all_groups_data.append({
+                    'class_0_occurrence': class_0_occurrence,
+                    'class_1_occurrence': class_1_occurrence,
+                    'class_0_samples': len(class_0_data),
+                    'class_1_samples': len(class_1_data),
+                    'fold_change': fold_change,
+                })
+            
+            if passed:
                 peak_info = self._calculate_peak_metrics(group_data, class_0_data, class_1_data, len(consensus_peaks))
                 consensus_peaks.append(peak_info)
             
@@ -195,6 +270,12 @@ class DataPreprocessor:
             if i % 100 == 0 or i == total_groups - 1:
                 progress = 0.45 + (i + 1) / total_groups * 0.15
                 self._update_progress(progress, f"阶段2: 分析峰群 {i+1}/{total_groups}")
+        
+        # 执行参数敏感性分析
+        if self.diagnostics and all_groups_data:
+            self.diagnostics.phase2.analyze_parameter_sensitivity(
+                all_groups_data, MIN_OCCURRENCE_RATE, MIN_FOLD_CHANGE
+            )
         
         consensus_df = pd.DataFrame(consensus_peaks)
         
@@ -280,6 +361,7 @@ class DataPreprocessor:
             self.normalization_stats[file_id] = {
                 'sum': results['intensity'].sum(),
                 'median': results['intensity'].median(),
+                'max': results['intensity'].max(), 
             }
             
             return results
@@ -392,6 +474,47 @@ class DataPreprocessor:
         }
 
     # 第四部分：数据处理和保存
+    def _generate_diagnostics_report(self):
+        """生成诊断报告"""
+        if not self.diagnostics:
+            return
+        
+        try:
+            # 生成完整报告
+            report = self.diagnostics.generate_report()
+            
+            # 输出到日志
+            log_message("=" * 50)
+            log_message("共识峰识别诊断报告")
+            log_message("=" * 50)
+            
+            # 分行输出报告
+            for line in report.split('\n'):
+                if line.strip():
+                    log_message(line)
+            
+            # 获取快速统计
+            quick_stats = self.diagnostics.get_quick_stats()
+            
+            # 保存报告到文件
+            report_path = os.path.join(
+                os.path.dirname(get_output_paths()['processed_data']),
+                'diagnostics_report.txt'
+            )
+            
+            with open(report_path, 'w', encoding='utf-8') as f:
+                f.write(report)
+            
+            log_message(f"诊断报告已保存: {report_path}")
+            
+            # 如果共识峰数量异常少，显示警告
+            if quick_stats['consensus_peaks'] < 20:
+                log_message(f"⚠️ 警告: 共识峰数量较少 ({quick_stats['consensus_peaks']})", "WARNING")
+                log_message(f"   主要瓶颈: {quick_stats['bottleneck']}", "WARNING")
+            
+        except Exception as e:
+            log_message(f"生成诊断报告时出错: {str(e)}", "WARNING")
+    
     def _get_file_classification(self, file_path: str) -> str:
         """获取文件分类"""
         classification = data_store.get_file_classification()
@@ -569,10 +692,10 @@ class DataPreprocessor:
 
         # 归一化设置（第三列）
         ctk.CTkLabel(name_input_frame, text="归一化:").pack(side='left', padx=(20, 5))
-        self.normalization_method_var = ctk.StringVar(value="sum (总和)")
+        self.normalization_method_var = ctk.StringVar(value="max (最大峰)")
         self.normalization_method_combobox = ctk.CTkComboBox(
             name_input_frame,
-            values=["不归一化", "sum (总和)", "median (中位数)"],
+            values=["不归一化", "sum (总和)", "median (中位数)", "max (最大峰)"],
             variable=self.normalization_method_var,
             state="readonly",
             width=150
@@ -699,10 +822,10 @@ class DataPreprocessor:
         
         ctk.CTkLabel(method_frame, text="归一化方法:").pack(side='left', padx=5)
         
-        self.normalization_method_var = ctk.StringVar(value="sum (总和)")
+        self.normalization_method_var = ctk.StringVar(value="max (最大峰)")
         self.normalization_method_combobox = ctk.CTkComboBox(
             method_frame,
-            values=["不归一化", "sum (总和)", "median (中位数)"],
+            values=["不归一化", "sum (总和)", "median (中位数)", "max (最大峰)"],
             variable=self.normalization_method_var,
             state="readonly",
             width=150
@@ -801,7 +924,8 @@ class DataPreprocessor:
             self.current_normalization_enabled = True
             method_map = {
                 "sum (总和)": "sum",
-                "median (中位数)": "median"
+                "median (中位数)": "median",
+                "max (最大峰)": "max"
             }
             self.current_normalization_method = method_map.get(selected_method, "sum")
             log_message(f"归一化设置: 方法={self.current_normalization_method}")
@@ -860,8 +984,8 @@ class NormalizationManager:
         - method: 'sum' 或 'median'
         - normalization_stats: 从DataPreprocessor传入的统计特征字典
         """
-        if method not in ['sum', 'median']:
-            raise ValueError(f"不支持的归一化方法: {method}，仅支持 'sum' 和 'median'")
+        if method not in ['sum', 'median', 'max']:
+            raise ValueError(f"不支持的归一化方法: {method}，仅支持 'sum'、'median' 和 'max'")
         
         self.method = method
         self.normalization_stats = normalization_stats or {}
@@ -911,7 +1035,8 @@ class NormalizationManager:
         # 根据不同方法显示不同的描述
         method_desc = {
             'sum': '总离子流(TIC)',
-            'median': '中位数强度'
+            'median': '中位数强度',
+            'max': '最大峰强度'
         }
         desc = method_desc.get(self.method, self.method)
         
