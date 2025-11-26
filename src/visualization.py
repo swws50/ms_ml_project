@@ -1,5 +1,6 @@
 # visualization.py - 重构版（保持原有函数名，可直接替换）
 # 核心改进：使用 MetricsCalculator 统一管理所有指标计算
+# 图表管理：采用 latest + archive 模式
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -111,7 +112,7 @@ class MetricsCalculator:
 # 原有函数名 - 重构后的实现
 # ============================================================================
 
-def generate_class_performance_chart(confusion_matrices, f_scores, model_type="Model", timestamp="",
+def generate_class_performance_chart(confusion_matrices, f_scores, model_type="Model",
                                     show_ci=True, confidence=0.95):
     """
     生成类别性能图表：Sensitivity, Specificity, Precision
@@ -120,7 +121,6 @@ def generate_class_performance_chart(confusion_matrices, f_scores, model_type="M
         confusion_matrices: 混淆矩阵 (100x4) [TN, FP, FN, TP]
         f_scores: 精确率/召回率/F1 (100x3)
         model_type: 模型类型名称
-        timestamp: 时间戳
         show_ci: 是否显示置信区间（默认True）
         confidence: 置信水平（默认0.95）
     """
@@ -186,9 +186,9 @@ def generate_class_performance_chart(confusion_matrices, f_scores, model_type="M
     ax.set_xticklabels(labels, fontsize=11)
     ax.set_ylabel('Score', fontsize=12, fontweight='bold')
     
-    title = 'Class-wise Performance Metrics'
+    title = f'Class-wise Performance ({model_type})'
     if show_ci:
-        title += ' (95% CI)'
+        title += ' - 95% CI'
     ax.set_title(title, fontsize=13, fontweight='bold', pad=20)
     
     ax.set_ylim(0.6, 1.08 if show_ci else 1.05)
@@ -206,9 +206,8 @@ def generate_class_performance_chart(confusion_matrices, f_scores, model_type="M
     
     plt.tight_layout()
     
-    base_path = OUTPUT_FILES['chart_accuracy']
-    chart_path = str(base_path).replace('ClassPerformance.png', 
-                                         f'{model_type}_ClassPerformance_{timestamp}.png')
+    # 使用固定文件名（不带时间戳）
+    chart_path = OUTPUT_FILES['chart_accuracy']
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
@@ -222,7 +221,7 @@ def generate_class_performance_chart(confusion_matrices, f_scores, model_type="M
     return str(chart_path)
 
 
-def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Model", timestamp="",
+def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Model",
                                    show_ci=True, confidence=0.95):
     """
     生成综合平衡指标图表：F1-Score, MCC
@@ -231,7 +230,6 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Mod
         confusion_matrices: 混淆矩阵 (100x4) [TN, FP, FN, TP]
         f_scores: 精确率/召回率/F1 (100x3)
         model_type: 模型类型名称
-        timestamp: 时间戳
         show_ci: 是否显示置信区间（默认True）
         confidence: 置信水平（默认0.95）
     """
@@ -295,9 +293,9 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Mod
     ax.set_xticklabels(labels, fontsize=11)
     ax.set_ylabel('Score', fontsize=12, fontweight='bold')
     
-    title = 'Comprehensive Balance Metrics'
+    title = f'Balance Metrics ({model_type})'
     if show_ci:
-        title += ' (95% CI)'
+        title += ' - 95% CI'
     ax.set_title(title, fontsize=13, fontweight='bold', pad=20)
     
     ax.set_ylim(0.6, 1.08 if show_ci else 1.05)
@@ -312,9 +310,8 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Mod
     
     plt.tight_layout()
     
-    base_path = OUTPUT_FILES['chart_metrics']
-    chart_path = str(base_path).replace('BalanceMetrics.png', 
-                                         f'{model_type}_BalanceMetrics_{timestamp}.png')
+    # 使用固定文件名
+    chart_path = OUTPUT_FILES['chart_metrics']
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
@@ -328,9 +325,9 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Mod
     return str(chart_path)
 
 
-def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Model", timestamp=""):
+def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Model"):
     """
-    论文标准版混淆矩阵（保持原有实现）
+    论文标准版混淆矩阵
     """
     from config import get_output_paths
     from utils import log_message
@@ -358,27 +355,23 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     import data_store
     class_0_name, class_1_name = data_store.get_class_names()
     
-    # 检查类别名称是否为英文（只包含ASCII字符、空格和常见标点）
+    # 检查类别名称是否为英文
     def is_english(text):
         if not text:
             return False
-        # 检查是否只包含ASCII可打印字符
         return all(ord(c) < 128 for c in text)
     
-    # 如果两个类别名称都是英文，使用实际标签；否则使用通用标签
     use_actual_labels = is_english(class_0_name) and is_english(class_1_name)
     
     ax.set_xticks([0, 1])
     ax.set_yticks([0, 1])
     
     if use_actual_labels:
-        # 使用实际的类别标签
         ax.set_xticklabels([f'{class_0_name}', f'{class_1_name}'], 
                            fontsize=15, fontfamily='sans-serif')
         ax.set_yticklabels([f'{class_0_name}', f'{class_1_name}'], 
                            fontsize=15, fontfamily='sans-serif')
     else:
-        # 使用通用标签 (0/1)
         ax.set_xticklabels(['Negative (0)', 'Positive (1)'], 
                            fontsize=10, fontfamily='sans-serif')
         ax.set_yticklabels(['Negative (0)', 'Positive (1)'], 
@@ -423,14 +416,13 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     
     ax.set_xlabel('Predicted Label', fontsize=11, fontweight='bold', fontfamily='sans-serif')
     ax.set_ylabel('True Label', fontsize=11, fontweight='bold', fontfamily='sans-serif')
-    ax.set_title('Confusion Matrix (Mean ± SD)', 
+    ax.set_title(f'Confusion Matrix ({model_type}) - Mean ± SD', 
                 fontsize=12, fontweight='bold', pad=15, fontfamily='sans-serif')
     
     plt.tight_layout()
     
-    base_path = OUTPUT_FILES['chart_confusion']
-    chart_path = str(base_path).replace('Confusion_Matrix.png',
-                                         f'{model_type}_Confusion_Matrix_{timestamp}.png')
+    # 使用固定文件名
+    chart_path = OUTPUT_FILES['chart_confusion']
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
@@ -449,10 +441,11 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     1. 使用MetricsCalculator统一计算所有指标
     2. 为表格添加误差范围
     3. 为小提琴图添加95%置信区间
+    4. 采用 latest + archive 模式管理图表
     """
     from utils import log_message
     from config import get_output_paths, get_class_mapping
-    from datetime import datetime
+    from output_manager import output_manager
     import data_store
     
     log_message("开始生成可视化图表...")
@@ -461,10 +454,15 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     _, reverse_class_mapping = get_class_mapping()
     OUTPUT_FILES = get_output_paths()
     
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # ========== 归档旧图表 ==========
+    output_manager.start_training_session()  # 开始新的训练会话
+    archive_path = output_manager.archive_current_charts()  # 归档现有图表
+    if archive_path:
+        log_message(f"旧图表已归档到: {archive_path}")
+    
     latest_model, _ = data_store.get_latest_trained_model()
     model_type = latest_model.__class__.__name__ if latest_model else "Model"
-    log_message(f"图表将使用标识: {model_type}_{timestamp}")
+    log_message(f"当前模型类型: {model_type}")
     
     # ========== 核心改进：创建MetricsCalculator ==========
     metrics_calc = MetricsCalculator(
@@ -478,7 +476,7 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     try:
         # 1. 生成类别性能图表
         chart_path = generate_class_performance_chart(
-            confusion_matrices, f_scores, model_type, timestamp,
+            confusion_matrices, f_scores, model_type,
             show_ci=True, confidence=0.95
         )
         generated_charts['accuracy'] = chart_path
@@ -486,7 +484,7 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         
         # 2. 生成综合平衡指标图表
         chart_path = generate_balance_metrics_chart(
-            confusion_matrices, f_scores, model_type, timestamp,
+            confusion_matrices, f_scores, model_type,
             show_ci=True, confidence=0.95
         )
         generated_charts['metrics'] = chart_path
@@ -494,7 +492,7 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         
         # 3. 生成混淆矩阵
         chart_path = generate_confusion_matrix_with_stability(
-            confusion_matrices, model_type, timestamp
+            confusion_matrices, model_type
         )
         generated_charts['confusion'] = chart_path
         generated_charts['chart_confusion'] = chart_path
@@ -512,75 +510,47 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
         plt.xlabel('False Positive Rate', fontsize=11)
         plt.ylabel('True Positive Rate', fontsize=11)
-        plt.title('ROC Curve', fontsize=12, fontweight='bold')
+        plt.title(f'ROC Curve ({model_type})', fontsize=12, fontweight='bold')
         plt.legend(fontsize=10)
         plt.grid(alpha=0.3)
         
-        base_path = OUTPUT_FILES['chart_roc']
-        chart_path = str(base_path).replace('ROC_Curve.png', 
-                                             f'{model_type}_ROC_Curve_{timestamp}.png')
+        # 使用固定文件名
+        chart_path = OUTPUT_FILES['chart_roc']
         plt.savefig(chart_path, dpi=150, bbox_inches='tight')
         plt.close()
         generated_charts['roc'] = str(chart_path)
         generated_charts['chart_roc'] = str(chart_path)
         
-        # 5. 生成性能指标表格（新增误差范围）
-        log_message("生成详细性能指标表格...")
+        # 5. 生成性能指标表格（CSV格式）
+        log_message("生成详细性能指标表格(CSV)...")
         
         metric_names = [
             'Sensitivity', 'Specificity', 'Precision', 'NPV',
             'Accuracy', 'BalancedAcc', 'F1', 'AUC'
         ]
         
-        table_data = [['Metric', 'Value', 'Error Range']]
+        # 构建CSV数据
+        import csv
+        csv_path = str(OUTPUT_FILES['chart_metrics_table']).replace('.html', '.csv')
         
-        for name in metric_names:
-            metric = metrics_calc.get_metric(name)
-            if metric is None:
-                continue
+        with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Metric', 'Value', '±CI', '95% CI Range'])
             
-            value_str = f'{metric.mean:.3f}'
-            error_str = f'±{metric.ci_margin:.3f}\n[{metric.ci_lower:.3f}, {metric.ci_upper:.3f}]'
-            table_data.append([metric.name, value_str, error_str])
+            for name in metric_names:
+                metric = metrics_calc.get_metric(name)
+                if metric is None:
+                    continue
+                writer.writerow([
+                    metric.name,
+                    f'{metric.mean:.3f}',
+                    f'±{metric.ci_margin:.3f}',
+                    f'[{metric.ci_lower:.3f}, {metric.ci_upper:.3f}]'
+                ])
         
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.axis('tight')
-        ax.axis('off')
-        
-        table = ax.table(cellText=table_data, cellLoc='center', loc='center',
-                        colWidths=[0.4, 0.25, 0.35])
-        
-        table.auto_set_font_size(False)
-        table.set_fontsize(9)
-        table.scale(1, 2.0)
-        
-        # 表头样式
-        for col in range(3):
-            table[(0, col)].set_facecolor('#4472C4')
-            table[(0, col)].set_text_props(weight='bold', color='white', size=10)
-        
-        # 数据行样式
-        for i in range(1, len(table_data)):
-            color = '#F2F2F2' if i % 2 == 0 else '#FFFFFF'
-            for col in range(3):
-                table[(i, col)].set_facecolor(color)
-                if col == 1:
-                    table[(i, col)].set_text_props(weight='bold', size=10)
-                elif col == 2:
-                    table[(i, col)].set_text_props(size=8)
-        
-        plt.title('Performance Metrics Summary (95% CI)', fontsize=12, fontweight='bold', pad=15)
-        plt.figtext(0.5, 0.02, 'Error Range: ±95% Confidence Interval margin\n[Lower bound, Upper bound]',
-                   ha='center', fontsize=8, style='italic', color='gray')
-        
-        plt.tight_layout()
-        
-        chart_path = OUTPUT_FILES.get('chart_metrics_table', 'output/chart_metrics_table.png')
-        chart_path = str(chart_path).replace('chart_metrics_table.png',
-                                             f'{model_type}_MetricsTable_{timestamp}.png')
-        plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='white')
-        plt.close()
-        generated_charts['metrics_table'] = str(chart_path)
+        generated_charts['metrics_table'] = csv_path
+        generated_charts['chart_metrics_table'] = csv_path
+        log_message(f"性能指标表格已保存: {csv_path}")
         
         # 6. 生成PLS阈值分布图
         if thresholds_used is not None and len(thresholds_used) > 0:
@@ -610,19 +580,22 @@ def generate_performance_charts(train_accuracy, test_accuracy,
             plt.ylim(0, y_max)
             plt.tight_layout()
             
-            base_path = OUTPUT_FILES['chart_thresholds']
-            chart_path = str(base_path).replace('PLS_Thresholds.png', 
-                                                 f'{model_type}_PLS_Thresholds_{timestamp}.png')
+            # 使用固定文件名
+            chart_path = OUTPUT_FILES['chart_thresholds']
             plt.savefig(chart_path, dpi=100, bbox_inches='tight')
             plt.close()
             generated_charts['thresholds'] = str(chart_path)
             generated_charts['chart_thresholds'] = str(chart_path)
+        
+        # 结束训练会话
+        output_manager.end_training_session()
         
         log_message("所有图表生成完成")
         return generated_charts
         
     except Exception as e:
         log_message(f"生成图表时出错: {str(e)}", "ERROR")
+        output_manager.end_training_session()
         return {}
 
 
@@ -686,7 +659,9 @@ def create_visualization_tabs(root, generated_charts):
     from config import get_output_paths
     from utils import log_message
     import customtkinter as ctk
+    from tkinter import ttk
     from PIL import Image
+    import csv
     
     OUTPUT_FILES = get_output_paths()
     
@@ -716,50 +691,138 @@ def create_visualization_tabs(root, generated_charts):
             chart_configs.append((threshold_path, '阈值分布'))
     
     for chart_file, tab_name in chart_configs:
-        if os.path.exists(chart_file):
-            try:
-                tab = notebook.add(tab_name)
-                
-                image_frame = ctk.CTkFrame(tab, fg_color="transparent")
-                image_frame.pack(fill='both', expand=True, padx=10, pady=10)
-                
-                image = Image.open(chart_file)
-                img_width, img_height = image.size
-                
-                available_width = 760
-                available_height = 440
-                
-                scale_width = available_width / img_width
-                scale_height = available_height / img_height
-                scale = min(scale_width, scale_height)
-                
-                final_width = int(img_width * scale)
-                final_height = int(img_height * scale)
-                
-                resized_image = image.resize((final_width, final_height), Image.Resampling.LANCZOS)
-                ctk_image = ctk.CTkImage(light_image=resized_image, size=(final_width, final_height))
-                
-                label = ctk.CTkLabel(image_frame, image=ctk_image, text="")
-                label.place(relx=0.5, rely=0.5, anchor='center')
-                
-                def on_click(event, path=chart_file):
-                    show_large_image(notebook.master, path, f"查看大图 - {tab_name}")
-                    
-                label.bind("<Button-1>", on_click)
-                
+        if not chart_file or not os.path.exists(chart_file):
+            log_message(f"警告: 图表文件不存在: {chart_file}")
+            continue
+            
+        try:
+            tab = notebook.add(tab_name)
+            
+            # CSV文件用Treeview表格显示
+            if chart_file.endswith('.csv'):
+                _create_table_view(tab, chart_file, root)
+                log_message(f"已加载表格: {tab_name}")
+            else:
+                # 图片文件用Image显示
+                _create_image_view(tab, chart_file, notebook, tab_name)
                 log_message(f"已加载图表: {tab_name}")
                 
-            except Exception as e:
-                log_message(f"加载图表 {tab_name} 时出错: {str(e)}")
-                tab = notebook.add(f"{tab_name}(错误)")
-                error_label = ctk.CTkLabel(tab, text=f"无法加载图表: {chart_file}\n错误: {str(e)}", 
-                                          text_color="red")
-                error_label.pack(fill='both', expand=True)
-        else:
-            log_message(f"警告: 图表文件不存在: {chart_file}")
+        except Exception as e:
+            log_message(f"加载 {tab_name} 时出错: {str(e)}")
+            error_label = ctk.CTkLabel(tab, text=f"无法加载: {chart_file}\n错误: {str(e)}", 
+                                      text_color="red")
+            error_label.pack(fill='both', expand=True)
     
     log_message("可视化界面创建完成！")
     root.update()
+    return notebook
+
+
+def _create_table_view(parent, csv_path, root):
+    """在标签页中创建表格视图"""
+    from tkinter import ttk
+    import tkinter as tk
+    import csv
+    
+    # 读取CSV
+    with open(csv_path, 'r', encoding='utf-8') as f:
+        reader = csv.reader(f)
+        headers = next(reader)
+        data = list(reader)
+    
+    # 创建Frame容器
+    frame = ttk.Frame(parent)
+    frame.pack(fill='both', expand=True, padx=15, pady=15)
+    
+    # 配置样式
+    style = ttk.Style()
+    style.theme_use('clam')
+    
+    # 表头样式
+    style.configure("Metrics.Treeview.Heading", 
+                    font=('Arial', 18, 'bold'),
+                    background='#4472C4',
+                    foreground='white',
+                    padding=(10, 8))
+    
+    # 表格内容样式
+    style.configure("Metrics.Treeview",
+                    font=('Arial', 18),
+                    rowheight=74,
+                    background='white',
+                    fieldbackground='white')
+    
+    # 选中样式
+    style.map('Metrics.Treeview', 
+              background=[('selected', '#cce5ff')],
+              foreground=[('selected', 'black')])
+    
+    # 创建Treeview
+    tree = ttk.Treeview(frame, columns=headers, show='headings', 
+                        height=len(data), style="Metrics.Treeview")
+    
+    # 设置列宽 - 自适应填满
+    col_widths = [300, 150, 150, 250]
+    for i, header in enumerate(headers):
+        width = col_widths[i] if i < len(col_widths) else 120
+        tree.heading(header, text=header)
+        tree.column(header, width=width, minwidth=width, anchor='center')
+    
+    # 交替行颜色
+    tree.tag_configure('oddrow', background='#ffffff')
+    tree.tag_configure('evenrow', background='#f0f4f8')
+    
+    for i, row in enumerate(data):
+        tag = 'evenrow' if i % 2 == 0 else 'oddrow'
+        tree.insert('', 'end', values=row, tags=(tag,))
+    
+    # 水平居中，顶部对齐
+    tree.pack(fill='none', anchor='n')
+    
+    # 右键复制菜单
+    menu = tk.Menu(tree, tearoff=0, font=('Arial', 15))
+    
+    def copy_all():
+        lines = ['\t'.join(headers)]
+        for item in tree.get_children():
+            values = tree.item(item)['values']
+            lines.append('\t'.join(str(v) for v in values))
+        root.clipboard_clear()
+        root.clipboard_append('\n'.join(lines))
+    
+    menu.add_command(label="复制全部", command=copy_all,font=("Microsoft YaHei UI", 14))
+    tree.bind('<Button-3>', lambda e: menu.post(e.x_root, e.y_root))
+
+
+def _create_image_view(parent, image_path, notebook, tab_name):
+    """在标签页中创建图片视图"""
+    import customtkinter as ctk
+    from PIL import Image
+    
+    image_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    image_frame.pack(fill='both', expand=True, padx=10, pady=10)
+    
+    image = Image.open(image_path)
+    img_width, img_height = image.size
+    
+    available_width = 760
+    available_height = 440
+    
+    scale = min(available_width / img_width, available_height / img_height)
+    final_width = int(img_width * scale)
+    final_height = int(img_height * scale)
+    
+    resized_image = image.resize((final_width, final_height), Image.Resampling.LANCZOS)
+    ctk_image = ctk.CTkImage(light_image=resized_image, size=(final_width, final_height))
+    
+    label = ctk.CTkLabel(image_frame, image=ctk_image, text="")
+    label.place(relx=0.5, rely=0.5, anchor='center')
+    
+    def on_click(event, path=image_path):
+        show_large_image(notebook.master, path, f"查看大图 - {tab_name}")
+    
+    label.bind("<Button-1>", on_click)
+    
     return notebook
 
 

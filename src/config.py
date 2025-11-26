@@ -112,7 +112,7 @@ def get_output_paths():
         'chart_confusion': output_manager.get_path('chart', 'ConfusionMatrix.png'),
         'chart_roc': output_manager.get_path('chart', 'ROC_Curve.png'),
         'chart_thresholds': output_manager.get_path('chart', 'PLS_Thresholds.png'),
-        'chart_metrics_table': output_manager.get_path('chart', 'MetricsTable.png'),
+        'chart_metrics_table': output_manager.get_path('chart', 'MetricsTable.csv'),
 
         # 预测结果目录
         'predictions_dir': output_manager.get_path('prediction', ''),    
