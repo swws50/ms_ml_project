@@ -15,7 +15,7 @@ from sklearn.metrics import (
     balanced_accuracy_score, confusion_matrix, 
     classification_report, roc_curve, auc
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedKFold
 from sklearn.neural_network import MLPClassifier
 from sklearn.svm import LinearSVC
 from tkinter import messagebox
@@ -144,6 +144,10 @@ class ModelTrainer:
         
         model_class = globals()[model_name]
         params = MODEL_CONFIGS[model_name]
+
+        if model_name == "LogisticRegressionCV" and "cv_shuffle" in params:
+            params = params.copy()
+            params["cv"] = StratifiedKFold(n_splits=params.pop("cv", 5), shuffle=params.pop("cv_shuffle", True))
         
         # 初始化结果存储
         results = {

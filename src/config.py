@@ -41,7 +41,8 @@ MODEL_CONFIGS = {
     "LogisticRegressionCV": {
         "Cs": 20,
         "penalty": 'l1',
-        "cv": StratifiedKFold(5, shuffle=True),
+        "cv": 5,
+        "cv_shuffle": True,
         "max_iter": 10000,
         "solver": 'liblinear',
         "scoring": 'balanced_accuracy',
