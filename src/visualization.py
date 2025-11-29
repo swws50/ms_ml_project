@@ -352,17 +352,17 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     cbar.ax.tick_params(labelsize=10)
     
     # 获取类别名称并判断是否使用实际标签
-    import data_store
-    class_0_name, class_1_name = data_store.get_class_names()
+    from data_store import class_manager
+    class_0_name, class_1_name = class_manager.names
     
-    # 检查类别名称是否为英文
-    def is_english(text):
+    # 检查类别名称是否为英文或数字（ASCII可打印字符）
+    def is_ascii_safe(text):
         if not text:
             return False
-        return all(ord(c) < 128 for c in text)
+        return all(c.isascii() and (c.isalnum() or c in ' _-') for c in text)
     
-    use_actual_labels = is_english(class_0_name) and is_english(class_1_name)
-    
+    use_actual_labels = is_ascii_safe(class_0_name) and is_ascii_safe(class_1_name)
+
     ax.set_xticks([0, 1])
     ax.set_yticks([0, 1])
     
@@ -444,14 +444,13 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     4. 采用 latest + archive 模式管理图表
     """
     from utils import log_message
-    from config import get_output_paths, get_class_mapping
+    from config import get_output_paths
     from output_manager import output_manager
     import data_store
-    
+    from data_store import class_manager
+
     log_message("开始生成可视化图表...")
     generated_charts = {}
-    
-    _, reverse_class_mapping = get_class_mapping()
     OUTPUT_FILES = get_output_paths()
     
     # ========== 归档旧图表 ==========

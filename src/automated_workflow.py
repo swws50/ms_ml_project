@@ -109,7 +109,7 @@ class AutomatedWorkflow:
     def _auto_load_csv(self, csv_path):
         """自动加载CSV文件"""
         import pandas as pd
-        from config import get_class_mapping
+        from data_store import class_manager
         import numpy as np
         
         log_message(f"自动加载文件: {os.path.basename(csv_path)}")
@@ -139,8 +139,7 @@ class AutomatedWorkflow:
             log_message(f"自动识别类别: {unique_labels[0]}, {unique_labels[1]}")
         
         # 标签编码
-        class_mapping, _ = get_class_mapping()
-        column = np.array([class_mapping[label] for label in ylabels])
+        column = np.array([class_manager.encode(label) for label in ylabels])
         
         # 保存到data_store
         data_store.set_training_data(row, column, df)

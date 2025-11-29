@@ -14,8 +14,9 @@ from tkinter import filedialog, messagebox
 from datetime import datetime
 
 # 本地模块导入 
-from config import OUTPUT_FILES, MZ_TOLERANCE, get_class_mapping
+from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
+from data_store import class_manager
 from feature_detector import FeatureDetector
 from utils import log_message
 from validation_decorators import require_data_store, safe_model_operation
@@ -28,14 +29,7 @@ class PredictionManager:
         self.help_system = help_system
         self.model = None
         self.feature_detector = FeatureDetector()
-        self.class_mapping = {}
-        self.reverse_class_mapping = {}
         self.info_window = None  # 模型信息窗口引用
-        self._update_class_mapping()
-    
-    def _update_class_mapping(self):
-        """更新类别映射"""
-        self.class_mapping, self.reverse_class_mapping = get_class_mapping()
     
     # 模型加载相关 
     def load_model(self):
@@ -187,10 +181,9 @@ class PredictionManager:
                 return {"success": False, "error": "预测失败"}
             
             # 更新类别映射
-            self._update_class_mapping()
+            predicted_class = class_manager.decode(prediction)
             
             # 构建结果
-            predicted_class = self.reverse_class_mapping.get(prediction, "未知")
             max_probability = max(probabilities)
             
             # 确定置信度等级
@@ -208,7 +201,7 @@ class PredictionManager:
                 "success": True,
                 "predicted_class": predicted_class,
                 "probabilities": probabilities,
-                "class_names": list(self.reverse_class_mapping.values()),
+                "class_names": list(class_manager.names),
                 "confidence_level": confidence_level,
                 "confidence_color": confidence_color,
                 "max_probability": max_probability,

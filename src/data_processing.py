@@ -13,9 +13,9 @@ from tkinter import filedialog, messagebox, ttk
 # 本地模块导入 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_class_mapping
-)
+    MIN_FOLD_CHANGE)
 import data_store
+from data_store import class_manager
 from output_manager import output_manager
 from utils import log_message, create_backup_filename
 from validation_decorators import safe_data_processing, handle_file_operations, validate_file_path
@@ -106,8 +106,7 @@ def open_data_file(normalization_label, start_button):
         log_message(f"警告：{warning_msg}")
         
     # 标签编码
-    class_mapping, _ = get_class_mapping()
-    column = np.array([class_mapping[label] for label in ylabels])
+    column = np.array([class_manager.encode(label) for label in ylabels])
 
 
     log_message("标签编码完成，数据预处理成功")

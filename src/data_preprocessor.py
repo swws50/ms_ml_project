@@ -12,9 +12,10 @@ from tkinter import messagebox, filedialog
 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_class_mapping, get_output_paths
+    MIN_FOLD_CHANGE, get_output_paths
 )
 import data_store
+from data_store import class_manager
 from utils import log_message, create_backup_filename, set_window_icon
 
 # 诊断模块导入（可选，如果文件不存在则禁用诊断）
@@ -42,8 +43,6 @@ class DataPreprocessor:
         # 分类数据
         self.class_0_files = []
         self.class_1_files = []
-        self.class_0_name = "类别0"
-        self.class_1_name = "类别1"
 
         # 归一化设置默认值
         self.current_normalization_enabled = True
@@ -133,7 +132,7 @@ class DataPreprocessor:
         
         # 设置类别名称到诊断器（用于分类统计）
         if self.diagnostics:
-            self.diagnostics.phase1._class_0_name = self.class_0_name
+            self.diagnostics.phase1._class_0_name = class_manager.class_0_name
         
         # 步骤1：峰发现（自动收集统计特征）
         for index, file_path in enumerate(file_paths):
@@ -201,9 +200,7 @@ class DataPreprocessor:
         self._update_progress(0.40, "阶段2: 数据合并完成")  # 新增
         
         # 获取动态类别映射
-        _, reverse_mapping = get_class_mapping()
-        class_0_name, class_1_name = reverse_mapping[0], reverse_mapping[1]
-        
+        class_0_name, class_1_name = class_manager.names      
         log_message(f"使用类别: {class_0_name}, {class_1_name}")
         
         # 统计信息
@@ -676,18 +673,18 @@ class DataPreprocessor:
         name_input_frame = ctk.CTkFrame(name_frame, fg_color="transparent")
         name_input_frame.pack(fill='x', padx=10, pady=5)
         
-        # 类别名称输入框
-        class_0_name_var = ctk.StringVar(value=self.class_0_name)
-        class_1_name_var = ctk.StringVar(value=self.class_1_name)
-        
+       # 类别名称输入框 - 从 class_manager 读取真实值
+        class_0_name_var = ctk.StringVar(value=class_manager.class_0_name)
+        class_1_name_var = ctk.StringVar(value=class_manager.class_1_name)
+
         ctk.CTkLabel(name_input_frame, text="类别0:").pack(side='left', padx=5)
         class_0_entry = ctk.CTkEntry(name_input_frame, textvariable=class_0_name_var, width=120)
         class_0_entry.pack(side='left', padx=5)
-        
+
         ctk.CTkLabel(name_input_frame, text="类别1:").pack(side='left', padx=(20, 5))
         class_1_entry = ctk.CTkEntry(name_input_frame, textvariable=class_1_name_var, width=120)
         class_1_entry.pack(side='left', padx=5)
-        
+
         ctk.CTkLabel(name_input_frame, text="|", text_color="gray").pack(side='left', padx=10)
 
         # 归一化设置（第三列）
@@ -914,7 +911,7 @@ class DataPreprocessor:
         if self.root and hasattr(self.root, 'gui_manager'):
             self.root.gui_manager._set_operation_running(True, "数据预处理", allow_termination=False)
         
-        # 【新增】解析归一化设置
+        # 解析归一化设置
         selected_method = self.normalization_method_var.get()
         if selected_method == "不归一化":
             self.current_normalization_enabled = False
@@ -930,20 +927,21 @@ class DataPreprocessor:
             self.current_normalization_method = method_map.get(selected_method, "sum")
             log_message(f"归一化设置: 方法={self.current_normalization_method}")
         
-        # 更新类别名称
-        self.class_0_name = class_0_name_var.get()
-        self.class_1_name = class_1_name_var.get()
-        
-        # 保存分类信息到data_store
+        # 从输入框获取类别名称，直接设置到 class_manager
+        c0_name = class_0_name_var.get()
+        c1_name = class_1_name_var.get()
+        class_manager.set_names(c0_name, c1_name)
+
+        # 保存分类信息到 data_store（class_manager 已同步更新 _file_classification）
         classification_data = {
-            'class_0_name': self.class_0_name,
-            'class_1_name': self.class_1_name,
+            'class_0_name': c0_name,
+            'class_1_name': c1_name,
             'class_0_files': self.class_0_files,
             'class_1_files': self.class_1_files
         }
         data_store.set_file_classification(classification_data)
         
-        log_message(f"文件分类完成: {self.class_0_name}({len(self.class_0_files)}个), {self.class_1_name}({len(self.class_1_files)}个)")
+        log_message(f"文件分类完成: {c0_name}({len(self.class_0_files)}个), {c1_name}({len(self.class_1_files)}个)")
         
         # 关闭分类窗口
         self.classification_window.grab_release()

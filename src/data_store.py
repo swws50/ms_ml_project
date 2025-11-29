@@ -1,97 +1,165 @@
-# data_store.py - 简化后的数据存储模块
+# data_store.py - 数据存储模块（含类别映射管理）
 import numpy as np
 import os
+
 """
-这个文件用来存储程序中需要共享的数据
-相当于一个"数据仓库"，所有模块都可以访问
+数据仓库模块 - 所有模块共享的数据存储中心
+包含：文件分类、训练数据、模型、类别映射
 """
+
+# ==================== 类别映射管理器 ====================
+
+class ClassMappingManager:
+    """
+    类别映射管理器 - 直接操作 _file_classification
+    
+    使用方式：
+        from data_store import class_manager
+        
+        # 设置
+        class_manager.set_names('HCC', 'Normal')
+        
+        # 读取
+        class_manager.class_0_name          # 'HCC'
+        class_manager.names                 # ('HCC', 'Normal')
+        class_manager.forward_mapping       # {'HCC': 0, 'Normal': 1}
+        class_manager.reverse_mapping       # {0: 'HCC', 1: 'Normal'}
+        
+        # 编码/解码
+        class_manager.encode('HCC')         # 0
+        class_manager.decode(0)             # 'HCC'
+    """
+    
+    # ========== 属性（直接读取 _file_classification） ==========
+    
+    @property
+    def class_0_name(self) -> str:
+        return _file_classification['class_0_name']
+    
+    @property
+    def class_1_name(self) -> str:
+        return _file_classification['class_1_name']
+    
+    @property
+    def names(self) -> tuple:
+        """返回 (class_0, class_1)"""
+        return (_file_classification['class_0_name'], 
+                _file_classification['class_1_name'])
+    
+    @property
+    def forward_mapping(self) -> dict:
+        """名称 → 数字"""
+        return {
+            _file_classification['class_0_name']: 0, 
+            _file_classification['class_1_name']: 1
+        }
+    
+    @property
+    def reverse_mapping(self) -> dict:
+        """数字 → 名称"""
+        return {
+            0: _file_classification['class_0_name'], 
+            1: _file_classification['class_1_name']
+        }
+    
+    # ========== 设置方法 ==========
+    
+    def set_names(self, class_0: str, class_1: str):
+        """设置类别名称"""
+        _file_classification['class_0_name'] = class_0
+        _file_classification['class_1_name'] = class_1
+    
+    def reset(self):
+        """重置为默认值"""
+        _file_classification['class_0_name'] = "类别0"
+        _file_classification['class_1_name'] = "类别1"
+    
+    # ========== 编码/解码 ==========
+    
+    def encode(self, name: str) -> int:
+        """名称 → 数字"""
+        mapping = self.forward_mapping
+        if name not in mapping:
+            raise ValueError(f"未知类别: '{name}'，有效类别: {list(mapping.keys())}")
+        return mapping[name]
+    
+    def decode(self, label: int) -> str:
+        """数字 → 名称"""
+        mapping = self.reverse_mapping
+        if label not in mapping:
+            raise ValueError(f"无效标签: {label}")
+        return mapping[label]
+    
+    def safe_encode(self, name: str, default: int = -1) -> int:
+        """安全编码，失败返回默认值"""
+        try:
+            return self.encode(name)
+        except ValueError:
+            return default
+
+
+# 全局单例
+class_manager = ClassMappingManager()
+
+
+# ==================== 原有数据存储 ====================
 
 # 全局数据变量 
 _file_classification = {
-    'class_0_name': '类别0',  # 统一默认名称
+    'class_0_name': '类别0',
     'class_1_name': '类别1', 
-    'class_0_files': [],  # 存储完整文件路径
+    'class_0_files': [],
     'class_1_files': []
 }
 
-
 _training_data = {
-    'row': None,      # 特征数据
-    'column': None,   # 标签数据  
-    'df': None        # 原始DataFrame
+    'row': None,
+    'column': None,
+    'df': None
 }
 
 _training_data_path = None
-
-# 训练好的模型
-_latest_trained_model = None  # 最新训练的模型（内存中）
-_latest_model_path = None     # 最新模型文件路径
-
+_latest_trained_model = None
+_latest_model_path = None
 _latest_prediction = None
 
-# 文件分类相关函数 
+
+# ==================== 文件分类相关函数 ====================
+
 def set_file_classification(classification_data):
-    """
-    设置文件分类信息
-    
-    参数:
-        classification_data: 包含分类信息的字典
-    """
+    """设置文件分类信息"""
     global _file_classification
     _file_classification.update(classification_data)
 
 def get_file_classification():
     """获取文件分类信息"""
-    return _file_classification.copy()  # 返回副本，避免外部修改
+    return _file_classification.copy()
 
 def get_class_names():
-    """
-    获取类别名称
-    
-    返回:
-        tuple: (class_0_name, class_1_name)
-    """
+    """获取类别名称 - 返回 (class_0_name, class_1_name)"""
     return _file_classification['class_0_name'], _file_classification['class_1_name']
 
 def get_class_files(class_index):
-    """
-    获取指定类别的文件列表
-    
-    参数:
-        class_index: 0 或 1
-        
-    返回:
-        list: 文件路径列表
-    """
+    """获取指定类别的文件列表"""
     if class_index == 0:
         return _file_classification['class_0_files'].copy()
     elif class_index == 1:
         return _file_classification['class_1_files'].copy()
-    else:
-        return []
+    return []
 
 def get_all_files():
-    """
-    获取所有分类文件
-    
-    返回:
-        list: 所有文件路径的列表
-    """
+    """获取所有分类文件"""
     return (_file_classification['class_0_files'] + 
             _file_classification['class_1_files'])
 
 def has_file_classification():
-    """
-    检查是否有有效的文件分类
-    
-    返回:
-        bool: 是否有分类文件
-    """
+    """检查是否有有效的文件分类"""
     return (len(_file_classification['class_0_files']) > 0 or 
             len(_file_classification['class_1_files']) > 0)
 
 
-# 训练数据相关函数 
+# ==================== 训练数据相关函数 ====================
+
 def set_training_data(row, column, df):
     """设置训练数据"""
     global _training_data
@@ -111,17 +179,11 @@ def has_training_data():
             _training_data['column'] is not None)
 
 def get_training_data_info():
-    """
-    获取训练数据的基本信息
-    
-    返回:
-        dict: 包含数据形状、样本数等信息的字典
-    """
+    """获取训练数据的基本信息"""
     if not has_training_data():
         return {'has_data': False}
     
     row, column, df = get_training_data()
-    
     unique_classes = np.unique(column) if column is not None else []
     
     return {
@@ -141,7 +203,9 @@ def get_training_data_path():
     """获取训练数据文件路径"""
     return _training_data_path
 
-# 模型相关函数
+
+# ==================== 模型相关函数 ====================
+
 def set_latest_trained_model(model, model_path):
     """设置最新训练的模型"""
     global _latest_trained_model, _latest_model_path
@@ -152,7 +216,23 @@ def get_latest_trained_model():
     """获取最新训练的模型"""
     return _latest_trained_model, _latest_model_path
 
+def get_latest_model_info():
+    """获取最新模型信息"""
+    latest_model, latest_path = get_latest_trained_model()
+    
+    if latest_model is None and latest_path is None:
+        return {'has_model': False}
+    
+    return {
+        'has_model': True,
+        'model_type': type(latest_model).__name__ if latest_model else 'Unknown',
+        'model_file': os.path.basename(latest_path) if latest_path else None,
+        'model_path': latest_path,
+        'is_in_memory': latest_model is not None
+    }
 
+
+# ==================== 预测结果相关函数 ====================
 
 def set_latest_prediction(prediction_result):
     """保存最新预测结果"""
@@ -167,9 +247,11 @@ def has_latest_prediction():
     """检查是否有预测结果"""
     return _latest_prediction is not None
 
-# 数据清理函数 
+
+# ==================== 数据清理函数 ====================
+
 def clear_file_classification():
-    """清空文件分类数据"""
+    """清空文件分类数据（含类别名称重置）"""
     global _file_classification
     _file_classification = {
         'class_0_name': '类别0',
@@ -189,9 +271,9 @@ def clear_training_data():
 
 def clear_model():
     """清空模型数据"""
-    global _best_model
-    _best_model = None
-
+    global _latest_trained_model, _latest_model_path
+    _latest_trained_model = None
+    _latest_model_path = None
 
 def clear_prediction_results():
     """清空预测结果"""
@@ -205,14 +287,11 @@ def clear_all_data():
     clear_model()
     clear_prediction_results()
 
-# 状态检查函数 
+
+# ==================== 状态检查函数 ====================
+
 def get_system_status():
-    """
-    获取系统整体状态
-    
-    返回:
-        dict: 系统状态信息
-    """
+    """获取系统整体状态"""
     return {
         'file_classification': {
             'has_data': has_file_classification(),
@@ -224,43 +303,14 @@ def get_system_status():
             }
         },
         'training_data': get_training_data_info(),
-        'model': get_latest_model_info()  # 改为新的函数
-    }
-
-def get_latest_model_info():
-    """
-    获取最新模型信息
-    
-    返回:
-        dict: 最新模型信息字典
-    """
-    latest_model, latest_path = get_latest_trained_model()
-    
-    if latest_model is None and latest_path is None:
-        return {'has_model': False}
-    
-    return {
-        'has_model': True,
-        'model_type': type(latest_model).__name__ if latest_model else 'Unknown',
-        'model_file': os.path.basename(latest_path) if latest_path else None,
-        'model_path': latest_path,
-        'is_in_memory': latest_model is not None
+        'model': get_latest_model_info()
     }
 
 def is_ready_for_training():
-    """
-    检查是否准备好进行模型训练
-    
-    返回:
-        tuple: (是否准备好, 缺少的条件列表)
-    """
+    """检查是否准备好进行模型训练"""
     missing = []
-    
     if not has_training_data():
         missing.append("训练数据")
-    
-    if len(missing) == 0:
-        return True, []
-    else:
-        return False, missing
+    return (len(missing) == 0, missing)
+
 

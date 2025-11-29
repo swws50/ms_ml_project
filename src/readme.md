@@ -37,7 +37,6 @@
 - `MODEL_CONFIGS`: 各算法的参数配置
 
 **主要函数**:
-- `get_class_mapping()`: 获取动态类别映射
 - `get_normalization_factor()`: 获取归一化因子
 - `save_normalization_factor()`: 保存归一化因子
 - `get_output_paths()`: 动态生成输出文件路径

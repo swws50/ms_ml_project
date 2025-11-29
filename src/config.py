@@ -8,7 +8,6 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import RepeatedStratifiedKFold
 # 本地模块导入
-import data_store
 from output_manager import output_manager
 from utils import log_message, get_resource_path
 from pathlib import Path
@@ -144,10 +143,6 @@ def save_chart_file(figure, filename):
     """保存图表文件"""
     return output_manager.save_file(figure, 'chart', filename, 'matplotlib')
 
-# 动态类别映射管理
-
-
-def get_class_mapping(labels=None):
     """
     获取当前的类别映射 - 优先使用datastore中的类别
 

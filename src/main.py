@@ -27,7 +27,7 @@ from print_manager import PrintManager
 from project_manager import ProjectManager
 from automated_workflow import AutomatedWorkflow
 from parameter_tuning_window import ParameterTuningWindow
-
+from data_store import class_manager
 
 class MainGUIManager:
     """主界面管理器类 - 使用模块化UI组件"""
@@ -179,6 +179,22 @@ class MainGUIManager:
             command=self._handle_action_button
         )
         
+        # 类别设置菜单
+        class_menu = Menu(menubar, tearoff=0)
+        class_menu.configure(
+            font=("Microsoft YaHei UI", 14),
+            bg='#f0f0f0',
+            activebackground='#0078d4',
+            activeforeground='white',
+            borderwidth=2,
+            relief='raised'
+        )
+        menubar.add_cascade(label="类别", menu=class_menu)
+        class_menu.add_command(
+            label="\n类别名称设置\n",
+            command=self._show_class_settings_dialog
+        )
+
         # 专业菜单（合并归一化和参数调优）
         pro_menu = Menu(menubar, tearoff=0)
         pro_menu.configure(
@@ -252,7 +268,66 @@ class MainGUIManager:
         else:
             # 非运行时作为重置按钮
             self.handle_reset_progress()
-            
+
+    def _show_class_settings_dialog(self):
+        """显示类别名称设置对话框"""
+        from data_store import class_manager
+        
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("类别名称设置")
+        dialog.geometry("360x220")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 居中显示
+        dialog.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 360) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 220) // 2
+        dialog.geometry(f"+{x}+{y}")
+        
+        # 设置图标
+        set_window_icon(dialog)
+        
+        # 标题
+        ctk.CTkLabel(
+            dialog, 
+            text="设置类别名称", 
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).pack(pady=(15, 10))
+        
+        # 输入区域
+        input_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        input_frame.pack(fill='x', padx=20, pady=10)
+        
+        # 类别0
+        ctk.CTkLabel(input_frame, text="类别 0 (阳性):").grid(row=0, column=0, sticky='e', padx=5, pady=8)
+        class_0_var = ctk.StringVar(value=class_manager.class_0_name)
+        class_0_entry = ctk.CTkEntry(input_frame, textvariable=class_0_var, width=180)
+        class_0_entry.grid(row=0, column=1, padx=5, pady=8)
+        
+        # 类别1
+        ctk.CTkLabel(input_frame, text="类别 1 (阴性):").grid(row=1, column=0, sticky='e', padx=5, pady=8)
+        class_1_var = ctk.StringVar(value=class_manager.class_1_name)
+        class_1_entry = ctk.CTkEntry(input_frame, textvariable=class_1_var, width=180)
+        class_1_entry.grid(row=1, column=1, padx=5, pady=8)
+        
+        # 按钮区域
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill='x', padx=20, pady=15)
+        
+        def save_and_close():
+            c0 = class_0_var.get().strip()
+            c1 = class_1_var.get().strip()
+            if c0 and c1:
+                class_manager.set_names(c0, c1)
+                log_message(f"类别名称已更新: {c0} / {c1}", "SUCCESS")
+                dialog.destroy()
+            else:
+                messagebox.showwarning("警告", "类别名称不能为空", parent=dialog)
+        
+        ctk.CTkButton(btn_frame, text="取消", width=80, command=dialog.destroy).pack(side='left')
+        ctk.CTkButton(btn_frame, text="保存", width=80, command=save_and_close).pack(side='right')
+                
     def handle_print_report(self):
         """处理打印报告"""
         self.print_manager.show_print_dialog(self.root)
