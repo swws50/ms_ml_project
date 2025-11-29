@@ -499,7 +499,7 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         # 4. 生成ROC曲线
         log_message("生成ROC曲线图...")
         plt.figure(figsize=(6, 4))
-        mean_fpr = np.linspace(0, 1, 100)
+        mean_fpr = np.linspace(0, 1, 200)
         mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) 
                            for fpr, tpr in zip(fpr_values, tpr_values)], axis=0)
         

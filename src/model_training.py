@@ -86,13 +86,22 @@ class ModelTrainer:
             test_y_pred = (test_pred_raw > optimal_threshold).astype(int)
             
             threshold_used = optimal_threshold
+            test_scores = test_pred_raw  # ROC用连续分数
         else:
             train_y_pred = current_model.predict(train_X)
             test_y_pred = current_model.predict(test_X)
             threshold_used = None
-        
-        # 性能评估
-        fpr, tpr, thresholds = roc_curve(test_y, test_y_pred)
+            
+            # 获取连续分数用于ROC
+            if hasattr(current_model, 'predict_proba'):
+                test_scores = current_model.predict_proba(test_X)[:, 1]
+            elif hasattr(current_model, 'decision_function'):
+                test_scores = current_model.decision_function(test_X)
+            else:
+                test_scores = test_y_pred.astype(float)  # 回退
+
+        # 性能评估 - 使用连续分数
+        fpr, tpr, thresholds = roc_curve(test_y, test_scores)
         auc_score = auc(fpr, tpr)
         
         train_acc = balanced_accuracy_score(train_y, train_y_pred)
@@ -198,13 +207,22 @@ class ModelTrainer:
                 
                 threshold_used = optimal_threshold
                 results['thresholds_used'].append(threshold_used)
+                test_scores = test_pred_raw  # ROC用连续分数
             else:
                 train_y_pred = current_model.predict(train_X)
                 test_y_pred = current_model.predict(test_X)
                 threshold_used = None
-            
-            # 性能评估
-            fpr, tpr, thresholds = roc_curve(test_y, test_y_pred)
+                
+                # 获取连续分数用于ROC
+                if hasattr(current_model, 'predict_proba'):
+                    test_scores = current_model.predict_proba(test_X)[:, 1]
+                elif hasattr(current_model, 'decision_function'):
+                    test_scores = current_model.decision_function(test_X)
+                else:
+                    test_scores = test_y_pred.astype(float)  # 回退
+
+            # 性能评估 - 使用连续分数
+            fpr, tpr, thresholds = roc_curve(test_y, test_scores)
             auc_score = auc(fpr, tpr)
             
             train_acc = balanced_accuracy_score(train_y, train_y_pred)
