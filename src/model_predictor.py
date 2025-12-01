@@ -164,14 +164,14 @@ class PredictionManager:
         
         try:
             # 检测特征
-            training_features, normalization_factor = self.feature_detector.load_training_features()
+            training_features, normalization_method = self.feature_detector.load_training_features()
             
             if training_features is None:
                 return {"success": False, "error": "无法检测训练特征"}
             
             # 处理样本
             sample_features = self.feature_detector.process_prediction_sample(
-                file_path, training_features, normalization_factor
+                file_path, training_features, normalization_method
             )
             
             # 预测
@@ -207,7 +207,7 @@ class PredictionManager:
                 "max_probability": max_probability,
                 "file_name": os.path.basename(file_path),
                 "n_features": len(training_features),
-                "normalization_factor": normalization_factor
+                "normalization_method": normalization_method
             }
             
             log_message(f"预测完成 - 样本: {result['file_name']}, 结果: {predicted_class}", "SUCCESS")
