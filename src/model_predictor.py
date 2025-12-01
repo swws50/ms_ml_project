@@ -17,7 +17,7 @@ from datetime import datetime
 from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
 from data_store import class_manager
-from feature_detector import FeatureDetector
+from data_processing import FeatureDetector
 from utils import log_message
 from validation_decorators import require_data_store, safe_model_operation
 

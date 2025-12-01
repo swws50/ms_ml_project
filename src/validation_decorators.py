@@ -158,8 +158,8 @@ def require_data_store(data_type="training_data"):
                     
             elif data_type == "classification":
                 classification = data_store.get_file_classification()
-                if not classification['class_0_files'] and not classification['class_1_files']:
-                    error_msg = "未找到文件分类信息，请先进行文件分类"
+                if not classification.get('class_0_name') or not classification.get('class_1_name'):
+                    error_msg = "未找到类别信息，请先加载训练数据"
                     log_message(error_msg, "ERROR")
                     messagebox.showerror("分类错误", error_msg)
                     return None

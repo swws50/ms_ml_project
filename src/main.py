@@ -191,7 +191,7 @@ class MainGUIManager:
         )
         menubar.add_cascade(label="类别", menu=class_menu)
         class_menu.add_command(
-            label="\n类别名称设置\n",
+            label="查看\设置类别名称",
             command=self._show_class_settings_dialog
         )
 
@@ -394,25 +394,21 @@ class MainGUIManager:
             self.root.after(500, self.help_system.show_wizard)
     
     # 业务逻辑处理方法 
-    
     def handle_file_select(self):
         """处理文件选择"""
-        # 获取控制面板的组件引用
         control_panel = self.ui_panels['control']
         
-        # 调用原有的数据处理逻辑
-        row, column, df = open_data_file(
-            control_panel.components['file_status'],  # 传递状态标签
-            control_panel.components['start_button'], # 传递训练按钮
-        )
+        # 调用数据加载（不再传递UI组件）
+        row, column, df, file_path = open_data_file()
 
         if row is not None and column is not None:
-            # 将数据存储到data_store模块
+            # 存储数据
             data_store.set_training_data(row, column, df)
             log_message("训练数据已加载到数据存储模块", "SUCCESS")
             
-            # 更新UI状态
-            control_panel.update_file_status("已选择")
+            # 统一更新UI状态
+            filename = os.path.basename(file_path)
+            control_panel.update_file_status(f"已选择: {filename}")
             control_panel.enable_training(True)
             
             # 推进步骤

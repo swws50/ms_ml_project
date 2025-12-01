@@ -34,23 +34,23 @@ SPACING_DIFFERENCE = 1.5         # 峰间距要求
 
 # 模型配置
 MODEL_CONFIGS = {
-    "RandomForestClassifier": {"n_estimators": 500},
-    "LinearSVC": {"max_iter": 10000},
-    "LinearDiscriminantAnalysis": {"solver": 'eigen', "shrinkage": 'auto'},
+    "RandomForestClassifier": {"n_estimators": 250},
+    "LinearSVC": {"max_iter": 5000},
+    "LinearDiscriminantAnalysis": {"solver": 'lsqr', "shrinkage": 'auto'},
     "LogisticRegressionCV": {
         "Cs": 20,
-        "penalty": 'l1',
+        "penalty": 'l2',
         "cv": 5,
         "cv_shuffle": True,
         "max_iter": 10000,
         "solver": 'liblinear',
         "scoring": 'balanced_accuracy',
-        "n_jobs": -1
+        "n_jobs":-1
     },
     "MLPClassifier": {
-        "hidden_layer_sizes": (100, 200, 100),
+        "hidden_layer_sizes": (100,),
         "activation": 'logistic',
-        "max_iter": 2000
+        "max_iter": 2500
     },
     "PLSRegression": {
         "n_components": 4,
@@ -142,30 +142,3 @@ def save_metric_file(data, filename, method='numpy'):
 def save_chart_file(figure, filename):
     """保存图表文件"""
     return output_manager.save_file(figure, 'chart', filename, 'matplotlib')
-
-    """
-    获取当前的类别映射 - 优先使用datastore中的类别
-
-    返回:
-        tuple: (正向映射dict, 反向映射dict)
-    """
-    try:
-        classification = data_store.get_file_classification()
-
-        # 直接使用datastore中的类别名称
-        forward_mapping = {
-            classification['class_0_name']: 0,
-            classification['class_1_name']: 1
-        }
-        reverse_mapping = {
-            0: classification['class_0_name'],
-            1: classification['class_1_name']
-        }
-        return forward_mapping, reverse_mapping
-
-    except Exception as e:
-        # 回退到默认映射
-        log_message(f"获取类别映射失败，使用默认值: {e}")
-        default_forward = {"类别0": 0, "类别1": 1}
-        default_reverse = {0: "类别0", 1: "类别1"}
-        return default_forward, default_reverse

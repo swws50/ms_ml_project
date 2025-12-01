@@ -1,114 +1,271 @@
-# data_processing.py - 数据处理模块
+# data_processing.py - 数据处理模块（合并feature_detector）
 
 # 标准库导入 
 import os
-import time
 
 # 第三方库导入 
 import numpy as np
 import pandas as pd
-import pyopenms as oms
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 
 # 本地模块导入 
-from config import (
-    OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE)
+from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
 from data_store import class_manager
 from output_manager import output_manager
-from utils import log_message, create_backup_filename
-from validation_decorators import safe_data_processing, handle_file_operations, validate_file_path
+from utils import log_message
+from validation_decorators import safe_data_processing
 
 
 
-def get_file_classification(file_path):
-    """根据文件路径获取分类"""
+
+
+class FeatureDetector:
+    """特征检测器 - 管理预测时的特征对齐和样本处理"""
     
-    classification = data_store.get_file_classification()
+    def __init__(self):
+        self.training_features = None
+        self.normalization_method = None  # 'max'/'sum'/'median'/None
+        self.training_data_path = None
     
-    if file_path in classification['class_0_files']:
-        return classification['class_0_name']
-    elif file_path in classification['class_1_files']:
-        return classification['class_1_name']
-    else:
-        return None
+    def load_training_features(self, force_reload=False):
+        """
+        加载训练特征和归一化方法
+        
+        返回:
+            tuple: (特征列表, 归一化方法) 或 (None, None)
+        """
+        if not force_reload and self.training_features is not None:
+            return self.training_features, self.normalization_method
+        
+        try:
+            # 获取训练数据路径
+            data_file = data_store.get_training_data_path()
+            if not data_file or not os.path.exists(data_file):
+                data_file = OUTPUT_FILES['processed_data']
+                if not os.path.exists(data_file):
+                    log_message("训练数据文件不存在", "ERROR")
+                    return None, None
+            
+            self.training_data_path = data_file
+            log_message(f"使用训练数据: {data_file}", "INFO")
+            
+            # 读取特征名
+            df = pd.read_csv(data_file, index_col=0)
+            feature_names = df.index.tolist()[1:]  # 跳过'class'行
+            
+            # 解析为数值
+            training_mz_values = []
+            for name in feature_names:
+                try:
+                    training_mz_values.append(float(name))
+                except ValueError:
+                    log_message(f"无法解析特征名: {name}, 跳过", "WARNING")
+            
+            # 从文件名检测归一化方法
+            self.normalization_method = self._detect_normalization_method()
+            self.training_features = training_mz_values
+            
+            log_message(f"检测到 {len(training_mz_values)} 个特征", "SUCCESS")
+            return training_mz_values, self.normalization_method
+            
+        except Exception as e:
+            log_message(f"检测训练特征失败: {str(e)}", "ERROR")
+            return None, None
+    
+    def _detect_normalization_method(self):
+        """从文件名推断归一化方法"""
+        if not self.training_data_path:
+            return None
+        
+        basename = os.path.basename(self.training_data_path)
+        
+        if '_max' in basename:
+            log_message("检测到归一化方法: max", "INFO")
+            return 'max'
+        elif '_sum' in basename:
+            log_message("检测到归一化方法: sum", "INFO")
+            return 'sum'
+        elif '_median' in basename:
+            log_message("检测到归一化方法: median", "INFO")
+            return 'median'
+        else:
+            log_message("使用原始数据（无归一化）", "INFO")
+            return None
+        
+    def process_prediction_sample(self, file_path, training_mz_values=None, norm_method=None):
+        """
+        处理预测样本文件
+        
+        参数:
+            file_path: 样本文件路径
+            training_mz_values: 训练特征列表（可选，自动加载）
+            norm_method: 归一化方法（可选，自动检测）
+            
+        返回:
+            np.array: 形状为 (1, n_features) 的特征向量
+        """
+        # 自动加载特征
+        if training_mz_values is None:
+            training_mz_values, detected_method = self.load_training_features()
+            if training_mz_values is None:
+                raise ValueError("无法检测训练特征")
+            norm_method = norm_method if norm_method is not None else detected_method
+        
+        # 读取原始数据
+        raw_data = pd.read_csv(file_path, sep=r'\s+', header=None)
+        
+        if raw_data.empty or raw_data.shape[1] < 2:
+            raise ValueError(f"文件格式错误: {file_path}")
+        
+        # 计算归一化统计值
+        intensities = raw_data.iloc[:, 1]
+        sample_stats = {
+            'max': intensities.max(),
+            'sum': intensities.sum(),
+            'median': intensities.median()
+        } if norm_method else None
+        
+        # 提取特征
+        results = []
+        for target_mz in training_mz_values:
+            intensity = self._extract_intensity(raw_data, target_mz, norm_method, sample_stats)
+            results.append(intensity)
+        
+        log_message(f"处理样本完成: {os.path.basename(file_path)}, 特征数: {len(results)}")
+        return np.array(results).reshape(1, -1)
+    
+    def _extract_intensity(self, raw_data, target_mz, norm_method, sample_stats):
+        """为指定m/z值提取强度"""
+        lower = target_mz - MZ_TOLERANCE
+        upper = target_mz + MZ_TOLERANCE
+        
+        filtered = raw_data[
+            (raw_data.iloc[:, 0] >= lower) & 
+            (raw_data.iloc[:, 0] <= upper)
+        ]
+        
+        if filtered.empty:
+            return 0.0
+        
+        max_intensity = filtered.iloc[:, 1].max()
+        
+        # 归一化
+        if norm_method and sample_stats:
+            factor = sample_stats.get(norm_method, 1)
+            if factor > 0:
+                return max_intensity / factor
+        
+        return max_intensity
+        
+    def validate_sample_file(self, file_path):
+        """
+        验证样本文件格式
+        
+        返回:
+            tuple: (是否有效, 错误信息)
+        """
+        try:
+            if not os.path.exists(file_path):
+                return False, "文件不存在"
+            
+            if not file_path.lower().endswith('.txt'):
+                return False, "需要.txt格式"
+            
+            data = pd.read_csv(file_path, sep=r'\s+', header=None, nrows=5)
+            
+            if data.empty:
+                return False, "文件为空"
+            
+            if data.shape[1] < 2:
+                return False, "需要至少两列数据（m/z和强度）"
+            
+            data.iloc[:, 0].astype(float)
+            data.iloc[:, 1].astype(float)
+            
+            return True, "格式正确"
+            
+        except ValueError:
+            return False, "m/z和强度必须是数值"
+        except Exception as e:
+            return False, f"验证失败: {str(e)}"
+    
+    def get_feature_info(self):
+        """获取当前特征信息"""
+        if self.training_features is None:
+            self.load_training_features()
+        
+        return {
+            "n_features": len(self.training_features) if self.training_features else 0,
+            "mz_range": (min(self.training_features), max(self.training_features)) if self.training_features else None,
+            "normalization_method": self.normalization_method,
+            "training_data_path": self.training_data_path,
+            "tolerance": MZ_TOLERANCE
+        }
+    
+    def clear_cache(self):
+        """清空缓存"""
+        self.training_features = None
+        self.normalization_method = None
+        self.training_data_path = None
+        log_message("特征检测缓存已清空", "INFO")
+
 
 @safe_data_processing(min_samples=5)
-def open_data_file(normalization_label, start_button):
+def open_data_file():
     """
     打开并加载已处理的特征矩阵.csv文件，准备机器学习模型训练。
-    
-    参数:
-        normalization_label: 显示文件选择状态的标签
-        start_button: 训练开始按钮
-        progress_bar: 进度条组件
         
     返回:
-        tuple: (row, column, df) 特征矩阵、标签和原始DataFrame
+        tuple: (row, column, df, file_path) 特征矩阵、标签、DataFrame、文件路径
+               失败时返回 (None, None, None, None)
     """
     initial_dir = str(output_manager.get_path('data', ''))
-    
-    # 如果data文件夹不存在，回退到当前目录
     if not os.path.exists(initial_dir):
         initial_dir = "/"
     
     file_path = filedialog.askopenfilename(
-        initialdir=initial_dir,  # 默认打开data文件夹
+        initialdir=initial_dir,
         title="选择CSV文件",
         filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
     )
     
     if not file_path:
         log_message("用户取消了文件选择")
-        return None, None, None
+        return None, None, None, None
     
     data_store.set_training_data_path(file_path)
-    
     log_message(f"正在加载文件: {os.path.basename(file_path)}")
-    
     
     df = pd.read_csv(file_path, index_col=0)
     df = df.iloc[:, 1:]
     
-    # 清除旧的分类信息，强制使用CSV中的实际标签
     data_store.clear_file_classification()
-
-    # 更新 CustomTkinter 控件状态 
-    normalization_label.configure(text="已选择")
-    start_button.configure(state='normal')
     log_message("数据文件已成功加载")
 
-    # 处理数据
+    # 解析数据
     row = df.iloc[1:, :].values.T
-    ylabels = df.iloc[0, :].values
-    ylabels = pd.Series(ylabels).astype(str)
+    ylabels = pd.Series(df.iloc[0, :].values).astype(str)
 
-    # 从CSV读取类别并保存到datastore
+    # 保存类别信息到datastore
     unique_labels = ylabels.unique()
     if len(unique_labels) >= 2:
-        classification_data = {
+        data_store.set_file_classification({
             'class_0_name': str(unique_labels[0]),
             'class_1_name': str(unique_labels[1]),
-            'class_0_files': [],  # CSV模式下不需要文件列表
+            'class_0_files': [],
             'class_1_files': []
-        }
-        data_store.set_file_classification(classification_data)
-        log_message(f"从CSV读取类别并保存: {unique_labels[0]}, {unique_labels[1]}")
+        })
+        log_message(f"从CSV读取类别: {unique_labels[0]}, {unique_labels[1]}")
         
     log_message(f"数据形状: {row.shape}, 样本数: {row.shape[0]}, 特征数: {row.shape[1]}")
     log_message(f"类别标签统计: {dict(ylabels.value_counts())}")
 
-    # 检查类别数量
     if len(ylabels.value_counts()) < 2:
-        warning_msg = "数据中只有一种类别，需要至少两种类别才能训练模型"
-        messagebox.showwarning("警告", warning_msg)
-        log_message(f"警告：{warning_msg}")
+        messagebox.showwarning("警告", "数据中只有一种类别，需要至少两种类别才能训练模型")
         
     # 标签编码
     column = np.array([class_manager.encode(label) for label in ylabels])
-
-
     log_message("标签编码完成，数据预处理成功")
 
-    return row, column, df
+    return row, column, df, file_path
