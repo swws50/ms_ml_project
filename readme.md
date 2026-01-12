@@ -1,375 +1,442 @@
-🔬 诊断分析工具 - 智能质谱数据分析系统
-======================
+# DETEQX
 
-📖 项目简介
--------
+**基于质谱指纹图谱和AI的疾病阴阳性筛查系统**  
+基于 SALDI 质谱与脂质指纹分析的肝癌早筛智能诊断系统
 
-基于机器学习的质谱数据分析系统，专为疾病诊断设计。系统采用智能峰发现技术，自动提取最优特征，支持多种分类算法，提供端到端的数据分析解决方案。
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
+[![Version](https://img.shields.io/badge/Version-1.9.10.2-green.svg)]()
 
-**当前版本**: v1.8.6.4  
-**最新更新**: 2025年8月29日
-🌟 核心特性
--------
+---
 
-### 🧠 智能分析
+## 📖 项目简介
 
-* **智能峰发现**: 集成 pyOpenMS 专业质谱分析库，自动发现最优特征峰
-* **ML导向算法**: 基于机器学习友好性评分的共识峰选择
-* **动态归一化**: 全局扫描自动确定归一化因子
+DETEQX 是一套端到端的质谱数据分析系统，立项起初专为肝细胞癌（HCC）早期筛查设计，不过对于所有疾病都可适用。系统通过分析血清样本的 SALDI 质谱数据（0-1000 m/z 范围），利用脂质指纹特征构建机器学习分类模型，实现对肝癌与正常样本的智能区分。
 
-### 🎯 分类预测
+### 核心能力
 
-* **多算法支持**: 随机森林、逻辑回归、神经网络、PLS回归等
-* **智能预测**: 自动适配训练特征，支持任意类别名称
-* **性能评估**: 混淆矩阵、ROC曲线、交叉验证等完整评估体系
+- **智能峰发现**：集成 pyOpenMS 专业质谱分析，自动发现并筛选最优特征峰
+- **样本级归一化**：支持 Max/Sum/Median 三种归一化方法，消除技术变异
+- **严格交叉验证**：RepeatedStratifiedKFold (5折×20重复)，符合医疗AI验证标准
+- **多算法支持**：PLS、Random Forest、SVM、LDA、Logistic Regression、MLP
+- **完整评估体系**：95%置信区间、ROC曲线、混淆矩阵、敏感度/特异度分析
 
-### 🎨 用户界面
+---
 
-* **模块化设计**: 数据预处理、模型训练、结果展示、样本预测独立面板
-* **实时进度**: 六步骤进度指示器，训练状态实时跟踪
-* **统一图标**: 主窗口和子窗口图标一致性管理
-
-### 🔄 灵活处理
-
-* **文件夹分类**: 支持文件夹选择进行数据分类（推荐）
-* **传统命名**: 兼容HC/LC文件命名规则
-* **自定义类别**: 支持任意类别名称，不限于HC/LC
-
-📁 项目架构
--------
-
-    诊断分析工具/
-    ├── src/             # 📦 模块化核心组件
-    │   ├── main.py                # 🎮 程序入口和主界面管理器
-    │   ├── data_processing.py     # 🔧 数据预处理模块
-    │   ├── data_preprocessor.py   # 📂 文件分类对话框
-    │   ├── model_training.py      # 🤖 模型训练引擎
-    │   ├── model_predictor.py     # 🔮 样本预测模块
-    │   ├── feature_detector.py    # 🎯 特征检测与处理
-    │   ├── ui_components.py       # 🎨 UI组件库
-    │   ├── visualization.py       # 📊 图表生成模块
-    │   ├── help_system.py         # ❓ 帮助系统和向导
-    │   ├── config.py              # ⚙️ 配置管理
-    │   ├── data_store.py          # 💾 数据存储管理
-    │   ├── utils.py               # 🛠️ 工具函数库
-    │   └── output_manager.py      # 📤 输出文件管理
-    ├── requirements.txt           # 📋 依赖包列表
-    └── README.md                  # 📚 使用说明
-
-🛠️ 环境配置
---------
+## 🔧 环境配置
 
 ### 系统要求
 
-* **Python版本**: 3.8 或更高版本
-* **操作系统**: Windows / macOS / Linux
-* **内存**: 建议 4GB 以上（大数据集处理）
+- **Python**: 3.8+
+- **操作系统**: Windows / macOS / Linux
+- **内存**: 建议 4GB+
 
 ### 依赖安装
 
-    # 安装所有依赖包
-    pip install -r requirements.txt
+```bash
+pip install -r requirements.txt
+```
 
 ### 核心依赖
 
-    numpy >= 1.21.0          # 数值计算
-    pandas >= 1.3.0          # 数据处理
-    scikit-learn >= 1.0.0    # 机器学习算法
-    matplotlib >= 3.5.0      # 图表绘制
-    customtkinter >= 5.0.0   # 现代GUI界面
-    pyopenms >= 3.0.0        # 质谱数据专业处理
-    joblib >= 1.1.0          # 模型序列化
-
-🚀 快速开始
--------
-
-### 启动程序
-
-    python main.py
-
-### 核心工作流程
-
-```mermaid
-    graph TD
-        A[启动程序] --> B[数据预处理]
-        B --> E[选择ML算法]
-        E --> F[模型训练]
-        F --> G[性能评估]
-        G --> H[预测新样本]
+```
+numpy >= 1.21.0
+pandas >= 1.3.0
+scikit-learn >= 1.0.0
+scipy >= 1.7.0
+matplotlib >= 3.5.0
+customtkinter >= 5.0.0
+pyopenms >= 3.0.0
+joblib >= 1.1.0
+pillow >= 9.0.0          # 登录界面图片显示
 ```
 
-📋 详细使用指南
----------
+---
+
+## 🚀 快速开始
+
+```bash
+# 直接启动主程序
+python main.py
+
+# 或通过登录界面启动（演示用）
+python login_system.py
+```
+
+### 标准工作流程
+
+```
+┌─────────────────┐
+│  1. 数据预处理   │  选择原始质谱文件夹 → 分类 → 选择归一化方法
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  2. 特征提取     │  pyOpenMS峰发现 → 共识峰筛选 → 构建特征矩阵
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  3. 模型训练     │  选择算法 → 5×20交叉验证 → 保存最优模型
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  4. 性能评估     │  ROC曲线 / 混淆矩阵 / 95%CI / 敏感度特异度
+└────────┬────────┘
+         ↓
+┌─────────────────┐
+│  5. 样本预测     │  加载新样本 → 自动归一化 → 输出分类结果
+└─────────────────┘
+```
+
+---
+
+## 📁 项目架构
+
+```
+DETEQX/
+├── src/
+│   │
+│   │  # ===== 核心模块 =====
+│   ├── main.py                    # 程序入口，主界面管理 (MainGUIManager)
+│   ├── config.py                  # 全局配置参数
+│   ├── data_store.py              # 运行时数据仓库 + ClassMappingManager
+│   │
+│   │  # ===== 数据处理 =====
+│   ├── data_preprocessor.py       # 数据预处理核心（峰发现+归一化）
+│   ├── data_processing.py         # 数据加载 + FeatureDetector
+│   │
+│   │  # ===== 机器学习 =====
+│   ├── model_training.py          # 模型训练引擎
+│   ├── model_predictor.py         # 样本预测管理
+│   │
+│   │  # ===== 界面组件 =====
+│   ├── ui_components.py           # GUI组件库（各类Panel）
+│   ├── help_system.py             # 帮助系统与用户向导
+│   ├── visualization.py           # 图表生成（含95%CI）
+│   ├── print_manager.py           # 诊断报告打印
+│   │
+│   │  # ===== 项目管理 =====
+│   ├── project_manager.py         # 多项目管理（创建/切换/删除）
+│   ├── output_manager.py          # 输出文件管理
+│   │
+│   │  # ===== 辅助模块 =====
+│   ├── login_system.py            # 登录界面（演示用，无实际验证）
+│   ├── parameter_tuning_window.py # 模型参数调优窗口
+│   ├── automated_workflow.py      # 自动化工作流（⚠️ 暂不可用）
+│   ├── validation_decorators.py   # 验证装饰器
+│   └── utils.py                   # 工具函数
+│
+├── outputs/                       # 输出目录（按项目隔离）
+│   └── {project_name}/
+│       ├── data/                  # 处理后的特征矩阵
+│       ├── models/                # 训练好的模型文件
+│       ├── metrics/               # 评估指标数据
+│       └── charts/                # 可视化图表
+│           └── archive/           # 历史图表归档
+│
+├── assets/                        # 图标资源
+├── requirements.txt
+└── README.md
+```
+
+### 核心模块职责
+
+| 模块                           | 职责             | 关键类/函数                                               |
+| ---------------------------- | -------------- | ---------------------------------------------------- |
+| `data_preprocessor.py`       | 峰发现、归一化、特征矩阵构建 | `DataPreprocessor`, `NormalizationManager`           |
+| `data_processing.py`         | 数据加载、预测样本处理    | `FeatureDetector`, `open_data_file()`                |
+| `data_store.py`              | 全局状态管理、类别映射    | `ClassMappingManager` (单例)                           |
+| `model_training.py`          | 交叉验证训练、模型保存    | `ModelTrainer`, `train_model()`                      |
+| `model_predictor.py`         | 样本预测、结果格式化     | `PredictionManager`                                  |
+| `visualization.py`           | 图表生成、性能指标计算    | `MetricsCalculator`, `generate_performance_charts()` |
+| `project_manager.py`         | 多项目管理          | `ProjectManager`, `ProjectCreationWizard`            |
+| `parameter_tuning_window.py` | 模型超参数调整        | `ParameterTuningWindow`                              |
+
+### 辅助模块说明
 
-### 步骤1: 数据预处理 📂
+| 模块                              | 说明                  | 状态             |
+| ------------------------------- | ------------------- | -------------- |
+| `login_system.py`               | 演示用登录界面，任意输入可通过     | ✅ 可用           |
+| `automated_workflow.py`         | 一键完成预处理→训练→预测的自动化流程 | ⚠️ 暂不可用（未级联更新） |
+| `consensus_peak_diagnostics.py` | 共识峰诊断调试脚本           | 🔧 开发调试用       |
 
-**文件夹分类模式（推荐）**
-
-1. 点击**数据预处理面板**的"选择数据文件夹"
-2. 选择包含原始质谱数据的文件夹
-3. 在分类对话框中为每个类别选择对应文件夹
-4. 输入自定义类别名称（如"健康"、"患病"）
-5. 确认分类，等待处理完成
+---
 
-**传统命名模式**
+## ⚙️ 配置参数
 
-* 文件名以类别标识开头（如 `HC001.txt`, `LC002.txt`）
-* 直接选择包含所有文件的文件夹进行处理
-
-### 步骤2: 智能特征提取 🎯
-
-**智能峰发现模式（默认）**
-
-* 使用 pyOpenMS 自动发现质谱峰
-* 应用ML导向共识峰算法筛选最优特征
-* 自动选择50个最具区分性的特征
-
-**关键参数**（config.py中可调）:
-    MAX_FEATURES = 50           # 最大特征数量
-    MIN_OCCURRENCE_RATE = 0.2   # 最小出现频率（20%）
-    MIN_FOLD_CHANGE = 1.3       # 最小倍数变化（30%差异）
+### 特征选择参数 (`config.py`)
 
-### 步骤3: 模型训练 🤖
+```python
+MAX_FEATURES = 50           # 最大特征数量
+MIN_OCCURRENCE_RATE = 0.5   # 最小出现频率（50%样本中出现）
+MIN_FOLD_CHANGE = 1.3       # 最小倍数变化（30%强度差异）
+MZ_TOLERANCE = 0.2          # m/z匹配容差
+```
 
-1. 点击"选择整理好的excel文件"，加载预处理结果
-2. 从**模型选择**菜单选择算法：
-   * `LogisticRegressionCV`: 小数据集首选
-   * `RandomForestClassifier`: 大数据集推荐
-   * `PLSRegression`: 高维数据专用
-   * `MLPClassifier`: 复杂模式识别
-3. 点击"开始分析"启动训练（500轮交叉验证）
+### 峰检测参数 (pyOpenMS)
 
-### 步骤4: 性能评估 📊
+```python
+SIGNAL_TO_NOISE = 1.0       # 信噪比阈值
+SPACING_DIFFERENCE = 1.5    # 峰间距要求
+```
 
-训练完成后自动生成：
+### 交叉验证配置
 
-* **准确率统计**: 平均准确率和标准偏差
-* **混淆矩阵**: 分类结果详细展示
-* **ROC曲线**: AUC值和诊断能力评估
-* **特征重要性**: 关键m/z值贡献分析
+```python
+CV_SPLITS = 5               # 5折交叉验证
+CV_REPEATS = 20             # 重复20次
+CV_RANDOM_STATE = 42        # 随机种子（可复现）
+# 总训练次数: 5 × 20 = 100
+```
 
-### 步骤5: 样本预测 🔮
+### 支持的模型
 
-1. 点击"选择要检测的txt文件"
-2. 选择未知样本文件
-3. 系统自动匹配训练特征并给出预测结果
-4. 查看分类结果和置信度评估
+| 模型                         | 配置               | 适用场景         |
+| -------------------------- | ---------------- | ------------ |
+| **PLSRegression** (默认)     | n_components=4   | 质谱数据首选，高维小样本 |
+| RandomForestClassifier     | n_estimators=250 | 大数据集，稳定性优先   |
+| LinearSVC                  | max_iter=5000    | 线性可分数据       |
+| LinearDiscriminantAnalysis | shrinkage='auto' | 降维+分类        |
+| LogisticRegressionCV       | Cs=20, cv=5      | 小数据集，可解释性    |
+| MLPClassifier              | hidden=(100,)    | 复杂非线性模式      |
 
-### 步骤6: 结果导出 📄
+> 💡 可通过菜单栏"参数调优"窗口修改模型超参数
 
-* **报告生成**: 支持病人信息录入和诊断报告打印
-* **结果保存**: 自动保存所有训练结果和图表文件
-* **批量预测**: 支持多个样本的批量分析
+---
 
-📊 输出文件结构
----------
+## 🔬 技术要点
 
-    outputs/
-    ├── data/                      # 📁 数据文件
-    │   ├── normalized_ms_data.csv # 归一化特征矩阵
-    │   └── intelligent_normalization_factor.txt # 动态归一化因子
-    ├── models/                    # 🤖 模型文件
-    │   └── best_model.joblib      # 最优训练模型
-    ├── results/                   # 📈 训练结果
-    │   ├── Con_matrix_SVM.csv     # 混淆矩阵统计
-    │   ├── Fscore_SVM.csv         # F1分数统计
-    │   ├── 2C_auc_SVM.csv         # AUC值统计
-    │   └── PLS_optimal_thresholds.csv # PLS最优阈值
-    └── charts/                    # 📊 评估图表
-        ├── Training and Test Balanced Accuracy.png
-        ├── Weighted Average Precision, Recall, and F1-score.png
-        ├── Mean Confusion Matrix.png
-        ├── Mean ROC Curve.png
-        └── PLS_optimal_thresholds.png
+### 1. 归一化架构 (v1.9.8+)
 
-⚙️ 高级配置
--------
+**设计原则**：样本级归一化（within-sample），非跨样本操作，无数据泄露风险。
 
-### 智能峰发现参数调整
+```
+原始质谱数据
+     ↓
+峰发现（pyOpenMS）
+     ↓
+收集统计特征 {max, sum, median}
+     ↓
+应用归一化: intensity_norm = intensity_raw / stat_value
+     ↓
+特征选择 → 矩阵构建
+```
 
-编辑 `config.py` 文件中的关键参数：
-    # 特征选择控制
-    MAX_FEATURES = 50              # 最大特征数量（30-100）
-    MIN_OCCURRENCE_RATE = 0.2      # 最小出现频率（0.15-0.3）
-    MIN_FOLD_CHANGE = 1.3          # 最小倍数变化（1.2-1.5）
+**归一化方法对比**：
 
-    # 峰检测参数
-    SIGNAL_TO_NOISE = 1.0          # 信噪比阈值
-    SPACING_DIFFERENCE = 1.5       # 峰间距要求
-    MZ_TOLERANCE = 0.2             # m/z匹配容差
+| 方法           | 公式            | 特点             |
+| ------------ | ------------- | -------------- |
+| **max** (推荐) | I / I_max     | 保持相对强度，范围[0,1] |
+| sum (TIC)    | I / Σ(I)      | 消除进样量差异        |
+| median       | I / median(I) | 对极端值稳健         |
 
-### 推荐参数配置
+**预测时归一化**：从训练数据文件名自动推断（如 `data_max.csv` → max方法）
 
-| 研究类型    | MAX_FEATURES | MIN_OCCURRENCE_RATE | MIN_FOLD_CHANGE | 适用场景      |
-| ------- | ------------ | ------------------- | --------------- | --------- |
-| **保守型** | 30           | 0.3                 | 1.5             | 小样本、高精度要求 |
-| **标准型** | 50           | 0.2                 | 1.3             | 一般研究、平衡性能 |
-| **探索型** | 100          | 0.15                | 1.2             | 大样本、特征发现  |
+### 2. 交叉验证方法 (v1.9.7+)
 
-🎯 算法选择指南
----------
+**从 Monte Carlo 升级为 RepeatedStratifiedKFold**：
 
-### 推荐算法对比
+| 对比项    | 旧方法 (v1.9.6) | 新方法 (v1.9.7+)           |
+| ------ | ------------ | ----------------------- |
+| 方式     | 500次随机采样     | 5折×20重复                 |
+| 样本测试次数 | 不均匀          | 每样本恰好20次                |
+| 方差估计   | 可能低估         | 无偏估计                    |
+| 计算时间   | 基准           | ~20%基准                  |
+| 符合标准   | -            | FDA/NMPA, Nature/Lancet |
 
-| 算法                         | 适用数据量 | 训练速度 | 解释性 | 精度  | 推荐场景         |
-| -------------------------- | ----- | ---- | --- | --- | ------------ |
-| **LogisticRegressionCV**   | 小-中   | 快    | 高   | 中-高 | 临床验证、特征重要性分析 |
-| **RandomForestClassifier** | 中-大   | 中    | 中   | 高   | 大规模筛查、稳定性优先  |
-| **PLSRegression**          | 小-中   | 快    | 中   | 中-高 | 质谱数据首选、高维数据  |
-| **MLPClassifier**          | 大     | 慢    | 低   | 高   | 复杂模式识别、非线性关系 |
+### 3. 类别映射管理 (v1.9.9+)
 
-### 选择建议
+**统一使用 `ClassMappingManager` 单例**：
 
-* **首次使用**: 推荐 `PLSRegression`（专为质谱数据优化）
-* **小数据集** (<100样本): `LogisticRegressionCV`
-* **大数据集** (>500样本): `RandomForestClassifier`
-* **追求精度**: `MLPClassifier`（需要大样本）
+```python
+from data_store import class_manager
 
-🛠️ 故障排除
---------
+# 读取
+class_manager.class_0_name      # 'HCC'
+class_manager.class_1_name      # 'Normal'
+class_manager.names             # ('HCC', 'Normal')
 
-### 常见问题解决
+# 编码/解码
+class_manager.encode('HCC')     # 0
+class_manager.decode(0)         # 'HCC'
 
-#### 安装问题
+# 设置
+class_manager.set_names('HCC', 'Normal')
+```
 
-**问题**: pyOpenMS安装失败  
-**解决**:
-    # Windows
-    conda install -c conda-forge pyopenms
+### 4. 可视化与统计 (v1.9.5+)
 
-    # macOS/Linux  
-    pip install pyopenms
+**MetricsCalculator 统一计算所有指标**，避免重复计算：
 
-**问题**: CustomTkinter界面异常  
-**解决**: 确保Python版本3.8+，更新所有依赖包
+- 所有图表包含 **95%置信区间**（t分布）
+- 性能指标表格输出为 CSV（便于复制）
+- 图表归档系统：`/charts/` 存最新，`/charts/archive/` 存历史
 
-#### 数据处理问题
+### 5. 多项目管理
 
-**问题**: "未发现任何有效峰"  
-**解决**:
+**ProjectManager 支持**：
 
-* 检查输入文件格式（两列：m/z值和强度）
-* 降低`SIGNAL_TO_NOISE`参数值
-* 确保数据不全为零
+- 创建/删除/切换项目
+- 每个项目独立的输出目录
+- 项目描述和元信息管理
 
-**问题**: "未识别出共识特征峰"  
-**解决**:
+---
 
-* 降低`MIN_OCCURRENCE_RATE`和`MIN_FOLD_CHANGE`参数
-* 增加样本数量确保足够的类别覆盖
-* 检查两类样本是否有明显差异
+## 📊 输出文件
 
-**问题**: "特征值不匹配的bug"  
-**解决**: 重新完整执行"数据预处理→模型训练→样本预测"流程
+### 数据文件
 
-#### 性能问题
+```
+outputs/{project}/data/
+└── data_{method}.csv          # 特征矩阵（method: max/sum/median/raw）
+```
 
-**问题**: 训练过程界面冻结  
-**说明**: 正常现象，500轮交叉验证需要1-3分钟 **建议**: 耐心等待或选择更快的算法
+**CSV结构**：
 
-**问题**: 内存不足  
-**解决**:
+```
+m/z_123.45, m/z_234.56, ..., label
+0.85,       0.23,       ..., HCC
+0.12,       0.67,       ..., Normal
+```
 
-* 关闭其他程序释放内存
-* 减少`MAX_FEATURES`和`TRAINING_ITERATIONS`参数
-* 处理更小的数据集
+### 模型文件
 
-🔄 版本更新历史
----------
+```
+outputs/{project}/models/
+└── {ModelType}_{timestamp}.joblib    # 如 PLSRegression_20251201_143022.joblib
+```
 
-### v1.8.6.4 (当前版本)
+### 评估图表
 
-* 修复子窗口图标显示问题
-* 完善UI模块化架构
-* 统一图标管理系统
+```
+outputs/{project}/charts/
+├── ClassPerformance.png      # Sensitivity/Specificity/Precision 小提琴图
+├── BalanceMetrics.png        # F1-Score/MCC 小提琴图
+├── ConfusionMatrix.png       # 平均混淆矩阵
+├── ROC_Curve.png             # ROC曲线（含AUC±CI）
+├── MetricsTable.csv          # 性能指标汇总表
+├── PLS_Thresholds.png        # PLS阈值分布（仅PLS模型）
+└── archive/
+    └── 20251201_143022/      # 历史归档
+```
 
-### v1.8.1 (重要更新)
+---
 
-* UI面板集成，4列布局优化
-* 数据预处理面板独立化
-* 修复布局重叠问题
+## 🔄 版本历史
 
-### v1.7.0 (架构重构)
+### v1.9.10.x (2025-12)
 
-* 模块化重构，代码拆分为多个专门模块
-* 修复硬编码路径bug
-* 统一类别映射管理
+- 修复 ROC 曲线使用硬标签的 Bug（改用连续分数）
+- 合并 `feature_detector.py` 到 `data_processing.py`
+- 统一 `normalization_method` 命名规范
 
-### v1.6.0 (文件夹分类)
+### v1.9.9 (2025-11)
 
-* 文件夹选择替代文件命名规则
-* 支持任意类别名称
-* 实时预览分类结果
+- 引入 `ClassMappingManager` 集中管理类别映射
+- 新增菜单栏"类别设置"对话框
 
-### v1.5.0 (智能峰发现)
+### v1.9.8.x (2025-11) ⭐ 重大更新
 
-* 集成pyOpenMS专业质谱分析
-* ML导向共识峰算法
-* 动态归一化系统
+- **归一化架构重构**：样本级归一化，支持 max/sum/median
+- **新增 Max 归一化**：性能优于 TIC，成为默认方法
+- **预测时自动归一化**：从文件名推断训练时使用的方法
+- **图表归档系统**：latest + archive 模式
 
-🔧 开发者信息
---------
+### v1.9.7 (2025-11) ⭐ 重大更新
 
-### 代码架构
+- **交叉验证升级**：Monte Carlo → RepeatedStratifiedKFold
+- 训练次数从 500 降至 100，统计可靠性反而提升
+- 新增 95%CI 报告
 
-    # 主要模块关系
-    MainGUIManager -> 协调所有组件
-    ├── DataPreprocessor -> 数据预处理和文件分类
-    ├── TrainingUI -> 模型训练界面逻辑  
-    ├── PredictionManager -> 样本预测和模型信息
-    ├── HelpSystem -> 帮助系统和进度跟踪
-    └── UI Components -> 模块化界面组件
-        ├── ControlPanel -> 操作控制面板
-        ├── ResultPanel -> 训练结果显示
-        ├── PredictionPanel -> 预测结果面板
-        ├── VisualizationPanel -> 图表显示面板
-        └── InfoPanel -> 运行日志面板
+### v1.9.5.x (2025-10)
 
-### 关键技术特性
+- 可视化模块重构，引入 `MetricsCalculator`
+- 所有图表增加 95%置信区间显示
+- 性能提升约 37.5%
+- 新增登录界面（演示用），启用方式见下方说明
 
-* **模块化设计**: 功能拆分，易于维护扩展
-* **数据持久化**: data_store模块统一管理运行时数据
-* **错误处理**: 装饰器模式统一异常处理
-* **界面组件化**: BasePanel基础类提供通用功能
-* **进度跟踪**: 六步骤指示器引导用户操作
+---
 
-💡 使用技巧
--------
+## 🛠️ 故障排除
 
-### 数据准备建议
+### 常见问题
 
-1. **文件命名**: 使用有意义的文件名便于分类识别
-2. **数据质量**: 确保原始质谱数据信噪比良好
-3. **样本平衡**: 尽量保持两类样本数量接近
+**Q: "未发现任何有效峰"**
 
-### 参数调优策略
+- 检查输入文件格式（两列：m/z 和 intensity）
+- 尝试降低 `SIGNAL_TO_NOISE` 参数
 
-1. **起始参数**: 使用默认配置进行首次分析
-2. **性能优化**: 根据结果调整特征数量和阈值
-3. **交叉验证**: 多次运行验证结果稳定性
+**Q: "共识特征峰数量不足"**
 
-### 工作流程优化
+- 降低 `MIN_OCCURRENCE_RATE`（如 0.3）
+- 降低 `MIN_FOLD_CHANGE`（如 1.2）
+- 确认两类样本有足够差异
 
-1. **批量处理**: 一次处理多个同类样本提高效率
-2. **结果备份**: 重要结果及时导出备份
-3. **模型复用**: 训练好的模型可以重复用于预测
+**Q: 预测结果与训练不一致**
 
-📞 技术支持
--------
+- 确认使用正确的训练数据文件（文件名包含归一化方法）
+- 检查日志是否显示"检测到归一化方法: xxx"
 
-### 获取帮助
+**Q: 界面冻结**
 
-* **内置帮助**: 程序内"使用向导"详细指导
-* **悬停提示**: 界面元素悬停显示操作说明
-* **日志系统**: 运行信息面板实时显示操作状态
+- 正常现象，100轮交叉验证需要约1-2分钟
+- 可在 `config.py` 中临时降低 `CV_REPEATS` 加速测试
 
-### 报告问题
+---
 
-如遇到技术问题，请记录：
+## 📝 开发备忘
 
-1. 错误消息的完整文本
-2. 操作步骤和输入文件
-3. 系统环境（Python版本、操作系统）
-4. 程序日志中的相关信息
+### 启用登录界面
 
-* * *
+修改 `main.py` 末尾的启动代码：
+
+```python
+# 直接启动（默认）
+if __name__ == "__main__":
+    root = ctk.CTk()
+    app = MainGUIManager(root)
+    root.mainloop()
+
+# 通过登录界面启动（取消注释以下代码）
+# if __name__ == "__main__":
+#     from login_system import SimpleLogin
+#     login = SimpleLogin()
+#     login.run()
+```
+
+### 添加新功能
+
+1. **UI功能**：在 `ui_components.py` 创建新 Panel 类
+2. **业务逻辑**：创建新 Manager 类
+3. **数据操作**：在 `data_store.py` 添加管理函数
+4. **配置参数**：在 `config.py` 添加常量
+
+### 关键设计模式
+
+- **中介者模式**：`MainGUIManager` 协调所有组件
+- **单例模式**：`data_store`, `class_manager`, `output_manager`
+- **装饰器模式**：`validation_decorators.py` 统一错误处理
+
+### 日志记录
+
+```python
+from utils import log_message
+log_message("操作成功", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
+```
+
+### 待修复/完善
+
+- [ ] `automated_workflow.py` - 需要级联更新以适配新架构
+- [ ] 批次效应处理 - 跨批次验证显示约10%准确率下降
+
+---
+
+## 📚 相关文档
+
+- `docs/normalization_methods.md` - 归一化方法技术文档
+- `docs/cross_validation_guide.md` - 交叉验证方法对比
+- `docs/feature_selection_guide.md` - 特征数量选择指南
+
+---
+
+**最后更新**: 2025年1月  
+**当前版本**: v1.9.10.2
