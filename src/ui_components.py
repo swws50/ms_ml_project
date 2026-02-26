@@ -155,11 +155,7 @@ class PreprocessingPanel(BasePanel):
     def update_status(self, status_text, color='black'):
         """更新状态显示"""
         self.components['status_label'].configure(text=f"状态：{status_text}", text_color=color)
-    
-    def set_button_state(self, enabled=True):
-        """设置按钮状态"""
-        state = 'normal' if enabled else 'disabled'
-        self.components['preprocess_button'].configure(state=state)
+
 
 
 class ControlPanel(BasePanel):
@@ -257,10 +253,6 @@ class ControlPanel(BasePanel):
         """启用/禁用训练按钮"""
         state = 'normal' if enabled else 'disabled'
         self.components['start_button'].configure(state=state)  
-    
-    def get_selected_model(self):
-        """获取选择的模型"""
-        return self.current_model or self.components['model_menu'].get()
 
 
 
@@ -480,22 +472,6 @@ class PredictionPanel(BasePanel):
         self.components['result_textbox'].delete("1.0", "end")
         self.components['result_textbox'].insert("1.0", result_text)
         self.components['result_textbox'].configure(text_color=color)
-    
-
-    def _update_compatibility_status(self):
-        """更新兼容性状态显示"""
-        if self.current_model_selection:
-            if self.current_model_selection == "自动检测":
-                status = "兼容性: 自动匹配"
-                color = "blue"
-            else:
-                status = "兼容性: 手动选择"
-                color = "green"
-        else:
-            status = "兼容性: 未检测"
-            color = "gray"
-        
-        self.components['compatibility_status'].configure(text=status, text_color=color)
 
     def _copy_result_to_clipboard(self):
         """复制预测结果到剪贴板"""
@@ -575,14 +551,6 @@ class VisualizationPanel(BasePanel):
         """获取占位框架（供其他模块使用）"""
         return self.components['placeholder']
     
-    def show_loading(self, message="正在生成图表..."):
-        """显示加载状态"""
-        self.components['placeholder_label'].configure(text=message)
-    
-    def reset_placeholder(self):
-        """重置为默认占位状态"""
-        self.components['placeholder_label'].configure(text="训练完成后，模型评估图表将在此显示")
-    
     def clear_content(self):
         """清空可视化内容，恢复到初始状态"""
         try:
@@ -631,11 +599,3 @@ class InfoPanel(BasePanel):
         """获取文本框（供日志系统使用）"""
         return self.components['text_box']
     
-    def append_message(self, message):
-        """添加消息"""
-        self.components['text_box'].insert("end", message + "\n")
-        self.components['text_box'].see("end")
-    
-    def clear_messages(self):
-        """清空消息"""
-        self.components['text_box'].delete("1.0", "end")
