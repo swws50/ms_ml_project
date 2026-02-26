@@ -594,19 +594,6 @@ class MainGUIManager:
                 delattr(self.prediction_manager, 'temp_model_path')
             self._set_operation_running(False)
                             
-                  
-    def update_training_results(self, train_acc, test_acc, model_status, score=None):
-        """更新训练结果（供训练模块调用）"""
-        if self.ui_panels['result']:
-            result_panel = self.ui_panels['result']
-            result_panel.update_train_accuracy(train_acc)
-            result_panel.update_test_accuracy(test_acc)
-            result_panel.update_model_status(model_status, score)
-    
-    def show_prediction_result(self, result_text, color='black'):
-        """显示预测结果（供预测模块调用）"""
-        if self.ui_panels['prediction']:
-            self.ui_panels['prediction'].update_result(result_text, color)
 
 if __name__ == "__main__":
     
