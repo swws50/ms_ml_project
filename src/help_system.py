@@ -229,12 +229,6 @@ class HelpSystem:
             self.current_step_index = next_index
             self.update_progress_display()
 
-    def get_current_step(self):
-        """获取当前步骤信息"""
-        if self.current_step_index < len(self.steps):
-            return self.steps[self.current_step_index]
-        return None
-
     def add_hover_tip(self, widget, key_or_text, custom_style=None, delay_ms=1000):
         """
         为控件添加悬停提示 - 延迟显示版本

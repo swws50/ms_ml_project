@@ -57,19 +57,6 @@ class DataPreprocessor:
         """显示文件分类对话框"""
         self.root = parent_root
         self._create_classification_window()
-    
-    def process_classified_files(self, root):
-        """主处理函数"""
-        self.root = root
-        classification = data_store.get_file_classification()
-        file_paths = classification['class_0_files'] + classification['class_1_files']
-        
-        if not file_paths:
-            log_message("未找到已分类的文件", "WARNING")
-            messagebox.showerror("错误", "未找到已分类的文件，请先进行文件分类")
-            return
-        
-        self._execute_processing(file_paths)
 
     # 第二部分：核心三阶段处理流程
     def _execute_processing(self, file_paths: List[str]):
@@ -805,42 +792,7 @@ class DataPreprocessor:
             
             self._update_preview(None, class_0_name_var, class_1_name_var)
     
-    def _create_normalization_settings_ui(self):
-        """创建归一化设置UI"""
-        norm_frame = ctk.CTkFrame(self.classification_window)
-        norm_frame.pack(fill='x', padx=20, pady=10)
-        
-        ctk.CTkLabel(norm_frame, text="归一化设置:", 
-                    font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=10, pady=5)
-        
-        # 归一化方法选择（包含"不归一化"选项）
-        method_frame = ctk.CTkFrame(norm_frame, fg_color="transparent")
-        method_frame.pack(fill='x', padx=10, pady=5)
-        
-        ctk.CTkLabel(method_frame, text="归一化方法:").pack(side='left', padx=5)
-        
-        self.normalization_method_var = ctk.StringVar(value="max (最大峰)")
-        self.normalization_method_combobox = ctk.CTkComboBox(
-            method_frame,
-            values=["不归一化", "sum (总和)", "median (中位数)", "max (最大峰)"],
-            variable=self.normalization_method_var,
-            state="readonly",
-            width=150
-        )
-        self.normalization_method_combobox.pack(side='left', padx=5)
-        
-        # 说明文本
-        info_frame = ctk.CTkFrame(norm_frame, fg_color="transparent")
-        info_frame.pack(fill='x', padx=10, pady=5)
-        
-        info_text = ctk.CTkLabel(
-            info_frame,
-            text="💡 归一化会在峰发现阶段对每个样本单独应用",
-            font=ctk.CTkFont(size=10),
-            text_color="gray"
-        )
-        info_text.pack(anchor='w', padx=5)
-        
+    
     def _update_preview(self, preview_text, class_0_name_var, class_1_name_var):
         """更新预览信息"""
         # 使用保存的引用或传入的参数
