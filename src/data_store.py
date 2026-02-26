@@ -69,11 +69,6 @@ class ClassMappingManager:
         _file_classification['class_0_name'] = class_0
         _file_classification['class_1_name'] = class_1
     
-    def reset(self):
-        """重置为默认值"""
-        _file_classification['class_0_name'] = "类别0"
-        _file_classification['class_1_name'] = "类别1"
-    
     # ========== 编码/解码 ==========
     
     def encode(self, name: str) -> int:
@@ -89,13 +84,6 @@ class ClassMappingManager:
         if label not in mapping:
             raise ValueError(f"无效标签: {label}")
         return mapping[label]
-    
-    def safe_encode(self, name: str, default: int = -1) -> int:
-        """安全编码，失败返回默认值"""
-        try:
-            return self.encode(name)
-        except ValueError:
-            return default
 
 
 # 全局单例
@@ -139,13 +127,6 @@ def get_class_names():
     """获取类别名称 - 返回 (class_0_name, class_1_name)"""
     return _file_classification['class_0_name'], _file_classification['class_1_name']
 
-def get_class_files(class_index):
-    """获取指定类别的文件列表"""
-    if class_index == 0:
-        return _file_classification['class_0_files'].copy()
-    elif class_index == 1:
-        return _file_classification['class_1_files'].copy()
-    return []
 
 def get_all_files():
     """获取所有分类文件"""
@@ -243,9 +224,6 @@ def get_latest_prediction():
     """获取最新预测结果"""
     return _latest_prediction.copy() if _latest_prediction else None
 
-def has_latest_prediction():
-    """检查是否有预测结果"""
-    return _latest_prediction is not None
 
 
 # ==================== 数据清理函数 ====================
@@ -305,12 +283,5 @@ def get_system_status():
         'training_data': get_training_data_info(),
         'model': get_latest_model_info()
     }
-
-def is_ready_for_training():
-    """检查是否准备好进行模型训练"""
-    missing = []
-    if not has_training_data():
-        missing.append("训练数据")
-    return (len(missing) == 0, missing)
 
 
