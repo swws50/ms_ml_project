@@ -5,7 +5,7 @@ import os
 
 # 第三方库导入 
 import customtkinter as ctk
-from tkinter import filedialog, messagebox,PhotoImage, simpledialog
+from tkinter import filedialog, messagebox,PhotoImage
 
 # 本地模块导入 
 from config import MODEL_CONFIGS, DEFAULT_MODEL

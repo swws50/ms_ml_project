@@ -3,7 +3,7 @@
 import os
 import time
 from pathlib import Path
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 import customtkinter as ctk
 
 from utils import log_message, set_window_icon
