@@ -158,58 +158,6 @@ class FeatureDetector:
         
         return max_intensity
         
-    def validate_sample_file(self, file_path):
-        """
-        验证样本文件格式
-        
-        返回:
-            tuple: (是否有效, 错误信息)
-        """
-        try:
-            if not os.path.exists(file_path):
-                return False, "文件不存在"
-            
-            if not file_path.lower().endswith('.txt'):
-                return False, "需要.txt格式"
-            
-            data = pd.read_csv(file_path, sep=r'\s+', header=None, nrows=5)
-            
-            if data.empty:
-                return False, "文件为空"
-            
-            if data.shape[1] < 2:
-                return False, "需要至少两列数据（m/z和强度）"
-            
-            data.iloc[:, 0].astype(float)
-            data.iloc[:, 1].astype(float)
-            
-            return True, "格式正确"
-            
-        except ValueError:
-            return False, "m/z和强度必须是数值"
-        except Exception as e:
-            return False, f"验证失败: {str(e)}"
-    
-    def get_feature_info(self):
-        """获取当前特征信息"""
-        if self.training_features is None:
-            self.load_training_features()
-        
-        return {
-            "n_features": len(self.training_features) if self.training_features else 0,
-            "mz_range": (min(self.training_features), max(self.training_features)) if self.training_features else None,
-            "normalization_method": self.normalization_method,
-            "training_data_path": self.training_data_path,
-            "tolerance": MZ_TOLERANCE
-        }
-    
-    def clear_cache(self):
-        """清空缓存"""
-        self.training_features = None
-        self.normalization_method = None
-        self.training_data_path = None
-        log_message("特征检测缓存已清空", "INFO")
-
 
 @safe_data_processing(min_samples=5)
 def open_data_file():
