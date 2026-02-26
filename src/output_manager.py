@@ -1,9 +1,8 @@
 # output_manager.py - 支持项目管理的输出文件管理
+# v1.9.8.3 - 清理未使用的方法
 
 # 标准库导入
 import os
-import subprocess
-import sys
 import json
 import shutil
 from pathlib import Path
@@ -95,13 +94,6 @@ class OutputManager:
                 archive_path.mkdir(parents=True, exist_ok=True)
 
         log_message(f"项目目录已创建: {project_path.absolute()}")
-
-    def create_directories(self):
-        """创建当前项目的基本输出目录（保持向后兼容）"""
-        if self.current_project:
-            self._create_project_directories(self.current_project)
-        else:
-            log_message("错误：没有设置当前项目", "ERROR")
 
     # ===== 训练会话管理 =====
     
@@ -210,46 +202,8 @@ class OutputManager:
                     break
         
         return sessions
-    
-    def cleanup_old_archives(self, keep_count=10):
-        """
-        清理旧的归档，只保留最近的N次
-        
-        参数:
-            keep_count: 保留的归档数量
-            
-        返回:
-            int: 删除的归档数量
-        """
-        if not self.current_project:
-            return 0
-        
-        archive_base = self.base_dir / self.current_project / 'charts' / 'archive'
-        
-        if not archive_base.exists():
-            return 0
-        
-        # 获取所有归档目录，按时间倒序排列
-        archive_dirs = sorted(
-            [d for d in archive_base.iterdir() if d.is_dir()],
-            key=lambda x: x.name,
-            reverse=True
-        )
-        
-        # 删除超出保留数量的归档
-        deleted_count = 0
-        for archive_dir in archive_dirs[keep_count:]:
-            try:
-                shutil.rmtree(archive_dir)
-                deleted_count += 1
-                log_message(f"已删除旧归档: {archive_dir.name}")
-            except Exception as e:
-                log_message(f"删除归档失败 {archive_dir.name}: {e}", "WARNING")
-        
-        if deleted_count > 0:
-            log_message(f"共清理 {deleted_count} 个旧归档，保留最近 {keep_count} 次")
-        
-        return deleted_count
+
+    # ===== 路径和文件操作 =====
 
     def get_path(self, category, filename=None):
         """
@@ -319,52 +273,6 @@ class OutputManager:
         except Exception as e:
             log_message(f"保存文件失败 {filename}: {str(e)}", "ERROR")
             return None
-
-    def get_results_summary(self):
-        """获取当前项目的结果文件夹内容摘要"""
-        summary = {"current_project": self.current_project}
-
-        for category in ['data', 'models', 'metrics', 'charts', 'predictions']:
-            category_dir = self.base_dir / self.current_project / category
-            if category_dir.exists():
-                # 对于charts，排除archive目录
-                if category == 'charts':
-                    files = [f for f in category_dir.glob('*') 
-                             if f.is_file() and f.name != 'archive']
-                else:
-                    files = list(category_dir.glob('*'))
-                summary[category] = {
-                    'count': len(files),
-                    'files': [f.name for f in files if f.is_file()]
-                }
-            else:
-                summary[category] = {'count': 0, 'files': []}
-        
-        # 添加归档信息
-        archive_sessions = self.get_archive_sessions(limit=5)
-        summary['chart_archives'] = {
-            'count': len(archive_sessions),
-            'recent': archive_sessions
-        }
-
-        return summary
-
-    def open_output_folder(self):
-        """打开当前项目的输出文件夹（跨平台）"""
-        project_path = self.base_dir / self.current_project
-
-        try:
-            if sys.platform == "win32":
-                os.startfile(project_path)
-            elif sys.platform == "darwin":  # macOS
-                subprocess.run(["open", project_path])
-            else:  # Linux
-                subprocess.run(["xdg-open", project_path])
-
-            log_message(f"已打开项目文件夹 [{self.current_project}]: {project_path}")
-
-        except Exception as e:
-            log_message(f"无法打开文件夹: {str(e)}", "WARNING")
 
     # ===== 项目管理功能 =====
 
