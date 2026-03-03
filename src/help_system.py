@@ -485,19 +485,72 @@ class HelpSystem:
     def show_about(self):
         """显示关于信息"""
         about_window = ctk.CTkToplevel(self.root)
-        about_window.title("关于诊断分析工具")
-        about_window.geometry("400x300")
+        about_window.title("关于")
+        about_window.geometry("400x400")
         about_window.resizable(False, False)
+        about_window.transient(self.root)
+        about_window.grab_set()
         set_window_icon(about_window)
+        
+        # ===== 软件名称 =====
+        ctk.CTkLabel(
+            about_window,
+            text="🔬 DETEQX",  # 改成喜欢的
+            font=ctk.CTkFont(size=26, weight="bold")
+        ).pack(pady=(30, 5))
+        
+        # ===== 一句话介绍 =====
+        ctk.CTkLabel(
+            about_window,
+            text="随便写点什么slogan",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        ).pack()
+        
+        # ===== 版本 =====
+        ctk.CTkLabel(
+            about_window,
+            text="v1.9.12.2",
+            font=ctk.CTkFont(size=11)
+        ).pack(pady=(20, 5))
+        
+        # ===== 正文区域（随便写）=====
+        content = """
+    这里随便写点什么
 
-        ctk.CTkLabel(about_window, text="诊断分析工具",
-                     font=ctk.CTkFont(size=16, weight="bold")).pack(pady=15)
-        ctk.CTkLabel(about_window, text="版本: 1.0",
-                     font=ctk.CTkFont(size=12)).pack(pady=5)
-        ctk.CTkLabel(about_window, text="本工具用于质谱数据分析和疾病诊断模型构建。",
-                     wraplength=350).pack(pady=10)
-        ctk.CTkLabel(about_window, text="支持多种机器学习模型，包括逻辑回归、随机森林、神经网络、PLS回归等。",
-                     wraplength=350).pack(pady=5)
+    可以是项目介绍
+    可以是碎碎念
+    可以是致谢
+    可以是彩蛋 🥚
 
-        ctk.CTkButton(about_window, text="确定",
-                      command=about_window.destroy).pack(pady=20)
+    总之想写啥写啥
+        """
+        
+        ctk.CTkLabel(
+            about_window,
+            text=content.strip(),
+            font=ctk.CTkFont(size=11),
+            justify="center"
+        ).pack(pady=20)
+        
+        # ===== 底部署名 =====
+        ctk.CTkLabel(
+            about_window,
+            text="by 邱成桐(负责想法)  claude(负责实现) 和 陶鉴（负责划水）· 2025",
+            font=ctk.CTkFont(size=10),
+            text_color="gray"
+        ).pack(pady=(10, 0))
+        
+        # ===== 关闭按钮 =====
+        ctk.CTkButton(
+            about_window,
+            text="好的",
+            width=80,
+            command=about_window.destroy
+        ).pack(pady=20)
+        
+        # 居中
+        about_window.update_idletasks()
+        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 380) // 2
+        about_window.geometry(f"+{x}+{y}")

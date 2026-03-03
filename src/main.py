@@ -141,44 +141,24 @@ class MainGUIManager:
             borderwidth=2,
             relief='raised'
         )
-        menubar.add_cascade(label="文件", menu=project_menu)
+        menubar.add_cascade(label="📁 文件", menu=project_menu)
         project_menu.add_command(
             label="\n打开项目管理\n",
             command=lambda: self.project_manager.show_manager_dialog(self.root)
         )
 
-        # 自动化流程菜单
-        auto_menu = Menu(menubar, tearoff=0)
-        auto_menu.configure(
-            font=("Microsoft YaHei UI", 14),
-            bg='#f0f0f0',
-            activebackground='#0078d4',
-            activeforeground='white',
-            borderwidth=2,
-            relief='raised'
-        )
-        menubar.add_cascade(label="自动化", menu=auto_menu)
-        auto_menu.add_command(
-            label="\n启动自动化流程\n",
+        # 自动化 - 直接作为按钮
+        menubar.add_command(
+            label="⚡自动化",
             command=self.automated_workflow.start_workflow
         )
-        
-        # 重置/终止菜单
-        action_menu = Menu(menubar, tearoff=0)
-        action_menu.configure(
-            font=("Microsoft YaHei UI", 14),
-            bg='#f0f0f0',
-            activebackground='#0078d4',
-            activeforeground='white',
-            borderwidth=2,
-            relief='raised'
-        )
-        menubar.add_cascade(label="重置", menu=action_menu)
-        action_menu.add_command(
-            label="\n重置进度/终止训练\n",
+
+            # 重置 - 直接作为按钮
+        menubar.add_command(
+            label="🔄 重置",
             command=self._handle_action_button
         )
-        
+            
         # 类别设置菜单
         class_menu = Menu(menubar, tearoff=0)
         class_menu.configure(
@@ -189,7 +169,7 @@ class MainGUIManager:
             borderwidth=2,
             relief='raised'
         )
-        menubar.add_cascade(label="类别", menu=class_menu)
+        menubar.add_cascade(label="🏷 类别", menu=class_menu)
         class_menu.add_command(
             label="查看\设置类别名称",
             command=self._show_class_settings_dialog
@@ -205,7 +185,7 @@ class MainGUIManager:
             borderwidth=2,
             relief='raised'
         )
-        menubar.add_cascade(label="专业", menu=pro_menu)
+        menubar.add_cascade(label="🔧 专业", menu=pro_menu)
         
         # 参数调优子菜单项
         pro_menu.add_command(
@@ -224,7 +204,7 @@ class MainGUIManager:
             borderwidth=2,
             relief='raised'
         )
-        menubar.add_cascade(label="打印", menu=print_menu)
+        menubar.add_cascade(label="🖨 打印", menu=print_menu)
         print_menu.add_command(
             label="\n生成打印报告\n",
             command=self.handle_print_report
@@ -240,15 +220,21 @@ class MainGUIManager:
             borderwidth=2,
             relief='raised'
         )
-        menubar.add_cascade(label="帮助", menu=help_menu)
+        menubar.add_cascade(label="❓帮助", menu=help_menu)
         help_menu.add_command(
             label="\n打开使用向导\n",
             command=self.help_system.show_wizard
         )
         
+        help_menu.add_separator()  # 分隔线
+        
+        help_menu.add_command(
+            label="关于 DETEQX",
+            command=self.help_system.show_about
+        )
         self._is_operation_running = False
         self.action_btn = None
-
+        
         # 创建隐藏的虚拟按钮以保持兼容性
         self.action_btn = ctk.CTkButton(self.root, text="")
         # 不要grid或pack，让它隐藏
