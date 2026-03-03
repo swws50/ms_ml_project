@@ -225,9 +225,7 @@ class MainGUIManager:
             label="\n打开使用向导\n",
             command=self.help_system.show_wizard
         )
-        
-        help_menu.add_separator()  # 分隔线
-        
+                
         help_menu.add_command(
             label="关于 DETEQX",
             command=self.help_system.show_about

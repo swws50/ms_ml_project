@@ -487,7 +487,7 @@ class HelpSystem:
         """显示关于信息"""
         about_window = ctk.CTkToplevel(self.root)
         about_window.title("关于")
-        about_window.geometry("400x500")
+        about_window.geometry("400x520")
         about_window.resizable(False, False)
         about_window.transient(self.root)
         about_window.grab_set()
@@ -554,7 +554,7 @@ class HelpSystem:
         # ===== 底部署名 =====
         ctk.CTkLabel(
             about_window,
-            text="by 邱成桐(负责想法)  claude(负责实现) 和 陶鉴（负责划水）· 2025",
+            text="by 邱成桐(负责想法)  claude(负责实现) 和 陶鉴（负责划水）· 2026",
             font=ctk.CTkFont(size=10),
             text_color="gray"
         ).pack(pady=(10, 0))
@@ -570,5 +570,5 @@ class HelpSystem:
         # 居中
         about_window.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 500) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 520) // 2
         about_window.geometry(f"+{x}+{y}")
