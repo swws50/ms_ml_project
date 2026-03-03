@@ -88,7 +88,18 @@ class ProjectManager:
         except Exception as e:
             log_message(f"删除项目失败: {e}", "ERROR")
             return False
-    
+
+
+# 项目名称预设模板
+PROJECT_NAME_PRESETS = [
+    "Clinical_Validation",
+    "Method_Development",
+    "Batch_Analysis",
+    "临床样本分析",
+    "方法学验证",
+    "质控测试",
+    "测试",
+]
 
 
 class ProjectCreationWizard:
@@ -101,7 +112,7 @@ class ProjectCreationWizard:
         
         self.dialog = ctk.CTkToplevel(parent)
         self.dialog.title("创建新项目")
-        self.dialog.geometry("450x600")
+        self.dialog.geometry("450x650")
         self.dialog.transient(parent)
         self.dialog.grab_set()
         set_window_icon(self.dialog)
@@ -126,9 +137,49 @@ class ProjectCreationWizard:
         
         ctk.CTkLabel(name_frame, text="项目名称 *:", 
                     font=ctk.CTkFont(weight="bold")).pack(anchor="w")
-        self.name_entry = ctk.CTkEntry(name_frame, placeholder_text="请输入项目名称")
-        self.name_entry.pack(fill="x", pady=(5, 0))
+        
+        # 输入框和日期按钮的水平容器
+        name_input_frame = ctk.CTkFrame(name_frame, fg_color="transparent")
+        name_input_frame.pack(fill="x", pady=(5, 0))
+        
+        self.name_entry = ctk.CTkEntry(name_input_frame, placeholder_text="请输入项目名称（支持中英文）")
+        self.name_entry.pack(side="left", fill="x", expand=True)
+        
+        # 添加日期按钮
+        date_btn = ctk.CTkButton(
+            name_input_frame, 
+            text="+ 日期",
+            width=60, height=28,
+            font=ctk.CTkFont(size=11),
+            command=self._append_datetime
+        )
+        date_btn.pack(side="left", padx=(5, 0))
+        
         self.name_entry.focus()
+        
+        # 预设名称快捷按钮
+        preset_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        preset_frame.pack(fill="x", pady=(10, 5))
+        
+        ctk.CTkLabel(preset_frame, text="快速填充:", 
+                    font=ctk.CTkFont(size=11)).pack(anchor="w")
+        
+        # 预设按钮容器（使用网格布局）
+        preset_buttons_frame = ctk.CTkFrame(preset_frame, fg_color="transparent")
+        preset_buttons_frame.pack(fill="x", pady=(5, 0))
+        
+        # 创建预设按钮，每行4个
+        for i, preset in enumerate(PROJECT_NAME_PRESETS):
+            row = i // 4
+            col = i % 4
+            btn = ctk.CTkButton(
+                preset_buttons_frame, 
+                text=preset[:12] + "..." if len(preset) > 12 else preset,
+                width=95, height=26,
+                font=ctk.CTkFont(size=10),
+                command=lambda p=preset: self._fill_preset(p)
+            )
+            btn.grid(row=row, column=col, padx=2, pady=2)
         
         # 项目描述
         desc_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -159,7 +210,7 @@ class ProjectCreationWizard:
         info_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         info_frame.pack(fill="x", pady=(15, 5))
         
-        info_text = "提示：项目名称将用作文件夹名称，建议使用英文或数字"
+        info_text = "提示：项目名称支持中英文、数字、空格及常见符号（_-.）"
         info_label = ctk.CTkLabel(info_frame, text=info_text, 
                                  font=ctk.CTkFont(size=10),
                                  text_color="gray")
@@ -178,6 +229,24 @@ class ProjectCreationWizard:
         # 绑定回车键
         self.dialog.bind('<Return>', lambda e: self._create_project())
     
+    def _append_datetime(self):
+        """在项目名称后追加当前日期时间"""
+        now = datetime.now()
+        # 格式: -年-月-日 时.分 (Windows兼容格式)
+        date_str = f"-{now.year}-{now.month}-{now.day} {now.hour}.{now.minute:02d}"
+        
+        # 获取当前输入内容并追加日期
+        current_text = self.name_entry.get()
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, current_text + date_str)
+        self.name_entry.focus()
+    
+    def _fill_preset(self, preset_name):
+        """填充预设名称"""
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, preset_name)
+        self.name_entry.focus()
+    
     def _create_project(self):
         """创建项目"""
         name = self.name_entry.get().strip()
@@ -187,8 +256,9 @@ class ProjectCreationWizard:
             return
         
         # 验证项目名称格式
-        if not self._validate_project_name(name):
-            messagebox.showerror("错误", "项目名称只能包含字母、数字、下划线和短横线")
+        is_valid, error_msg = self._validate_project_name(name)
+        if not is_valid:
+            messagebox.showerror("错误", error_msg)
             self.name_entry.focus()
             return
         
@@ -220,11 +290,55 @@ class ProjectCreationWizard:
             messagebox.showerror("错误", f"项目 '{name}' 已存在或创建失败")
     
     def _validate_project_name(self, name):
-        """验证项目名称格式"""
+        """
+        验证项目名称格式
+        
+        支持：
+        - 中文字符
+        - 英文字母（大小写）
+        - 数字
+        - 下划线 _
+        - 短横线 -
+        - 点号 .
+        - 空格（但不能只有空格，且首尾空格会被去除）
+        
+        禁止：
+        - 文件系统保留字符：/ \\ : * ? " < > |
+        - 空字符串
+        - 过长的名称（超过100字符）
+        
+        Returns:
+            tuple: (is_valid: bool, error_message: str)
+        """
         import re
-        # 只允许字母、数字、下划线和短横线
-        pattern = r'^[a-zA-Z0-9_-]+$'
-        return re.match(pattern, name) is not None
+        
+        # 检查长度
+        if len(name) > 100:
+            return False, "项目名称不能超过100个字符"
+        
+        if len(name) < 1:
+            return False, "项目名称不能为空"
+        
+        # 检查文件系统禁止的字符
+        forbidden_chars = r'[/\\:*?"<>|]'
+        if re.search(forbidden_chars, name):
+            return False, "项目名称不能包含以下字符：/ \\ : * ? \" < > |"
+        
+        # 检查是否只包含空格
+        if name.strip() == "":
+            return False, "项目名称不能只包含空格"
+        
+        # 检查首尾是否有点号（某些文件系统的限制）
+        if name.startswith('.') or name.endswith('.'):
+            return False, "项目名称不能以点号开头或结尾"
+        
+        # 允许的字符：中文、英文、数字、下划线、短横线、点号、空格
+        # 使用Unicode范围匹配中文字符
+        allowed_pattern = r'^[\u4e00-\u9fa5a-zA-Z0-9_\-. ]+$'
+        if not re.match(allowed_pattern, name):
+            return False, "项目名称只能包含中英文、数字、空格及符号（_-.）"
+        
+        return True, ""
     
     def _cancel(self):
         """取消创建"""
@@ -235,8 +349,8 @@ class ProjectCreationWizard:
         """居中显示对话框"""
         self.dialog.update_idletasks()
         x = (self.dialog.winfo_screenwidth() // 2) - (450 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (600 // 2)
-        self.dialog.geometry(f"450x600+{x}+{y}")
+        y = (self.dialog.winfo_screenheight() // 2) - (650 // 2)
+        self.dialog.geometry(f"450x650+{x}+{y}")
 
 
 class ProjectManagerDialog:
@@ -245,6 +359,7 @@ class ProjectManagerDialog:
     def __init__(self, parent, project_manager):
         self.parent = parent
         self.project_manager = project_manager
+        self.selected_project = None  # 修复：初始化选中状态
         
         self.dialog = ctk.CTkToplevel(parent)
         self.dialog.title("项目管理")
@@ -299,6 +414,12 @@ class ProjectManagerDialog:
         ctk.CTkLabel(title_frame, text="项目列表", 
                     font=ctk.CTkFont(size=16, weight="bold")).pack(side="left")
         
+        # 选中状态提示
+        self.selection_hint = ctk.CTkLabel(title_frame, text="", 
+                                          font=ctk.CTkFont(size=11),
+                                          text_color="orange")
+        self.selection_hint.pack(side="right")
+        
         # 项目表格容器
         self.table_frame = ctk.CTkScrollableFrame(list_frame)
         self.table_frame.pack(fill="both", expand=True, padx=10, pady=5)
@@ -328,13 +449,13 @@ class ProjectManagerDialog:
             widget.destroy()
         
         # 配置主表格的列宽度
-        self.table_frame.grid_columnconfigure(0, weight=0, minsize=150)
-        self.table_frame.grid_columnconfigure(1, weight=0, minsize=120)
-        self.table_frame.grid_columnconfigure(2, weight=0, minsize=80)
+        self.table_frame.grid_columnconfigure(0, weight=0, minsize=220)
+        self.table_frame.grid_columnconfigure(1, weight=0, minsize=140)
+        self.table_frame.grid_columnconfigure(2, weight=0, minsize=100)
         self.table_frame.grid_columnconfigure(3, weight=1, minsize=200)
         
         # 创建表头
-        headers = ["项目名称", "创建时间", "文件数量", "描述"]
+        headers = ["项目名称", "创建时间                 ", "文件数量", "描述"]
         for i, header in enumerate(headers):
             label = ctk.CTkLabel(self.table_frame, text=header, 
                             font=ctk.CTkFont(weight="bold"))
@@ -350,20 +471,27 @@ class ProjectManagerDialog:
             
             # 创建行容器框架
             row_frame = ctk.CTkFrame(self.table_frame, fg_color="transparent", corner_radius=5)
-            if project_name == current_project:
+            is_current = (project_name == current_project)
+            is_selected = (project_name == self.selected_project)
+            
+            # 设置边框样式
+            if is_selected and not is_current:
+                row_frame.configure(border_width=2, border_color="orange")
+            elif is_current:
                 row_frame.configure(border_width=2, border_color="blue")
+            
             row_frame.grid(row=row, column=0, columnspan=4, sticky="ew", padx=2, pady=1)
             
             # 配置行容器的列宽度
-            row_frame.grid_columnconfigure(0, weight=0, minsize=140)
-            row_frame.grid_columnconfigure(1, weight=0, minsize=110) 
-            row_frame.grid_columnconfigure(2, weight=0, minsize=70)
-            row_frame.grid_columnconfigure(3, weight=1, minsize=190)
+            row_frame.grid_columnconfigure(0, weight=0, minsize=220)
+            row_frame.grid_columnconfigure(1, weight=0, minsize=140) 
+            row_frame.grid_columnconfigure(2, weight=0, minsize=100)
+            row_frame.grid_columnconfigure(3, weight=1, minsize=200)
             
             # 在行容器内创建标签
             name_label = ctk.CTkLabel(row_frame, text=project_name,
-                                    font=ctk.CTkFont(weight="bold" if project_name == current_project else "normal"),
-                                    text_color="blue" if project_name == current_project else "black")
+                                    font=ctk.CTkFont(weight="bold" if is_current else "normal"),
+                                    text_color="blue" if is_current else "black")
             name_label.grid(row=0, column=0, padx=5, pady=3, sticky="w")
             
             created_date = project_info.get('created_date', '未知') if project_info else '未知'
@@ -383,7 +511,7 @@ class ProjectManagerDialog:
             self.project_rows.append({
                 'name': project_name,
                 'frame': row_frame,
-                'is_current': project_name == current_project
+                'is_current': is_current
             })
             
             # 绑定点击事件
@@ -391,26 +519,43 @@ class ProjectManagerDialog:
             
             row += 1
 
-        #  默认选中当前项目
-        if current_project:
-            self.selected_project = current_project
+        # 更新选中状态提示
+        self._update_selection_hint()
+
     def _bind_row_click(self, row_frame, project_name):
         """绑定行点击事件"""
         def on_click(event):
             self.selected_project = project_name
-            # 清除所有边框
+            # 更新所有行的边框样式
             for row_info in self.project_rows:
-                if row_info['is_current']:
-                    row_info['frame'].configure(border_width=2, border_color="blue")
+                frame = row_info['frame']
+                is_current = row_info['is_current']
+                is_selected = (row_info['name'] == project_name)
+                
+                if is_selected and not is_current:
+                    frame.configure(border_width=2, border_color="orange")
+                elif is_current:
+                    frame.configure(border_width=2, border_color="blue")
                 else:
-                    row_info['frame'].configure(border_width=0)
-            # 给选中的行添加橙色边框
-            if not any(row['name'] == project_name and row['is_current'] for row in self.project_rows):
-                row_frame.configure(border_width=2, border_color="orange")
+                    frame.configure(border_width=0)
+            
+            # 更新选中状态提示
+            self._update_selection_hint()
         
         row_frame.bind("<Button-1>", on_click)
         for child in row_frame.winfo_children():
             child.bind("<Button-1>", on_click)
+    
+    def _update_selection_hint(self):
+        """更新选中状态提示"""
+        if self.selected_project:
+            current = self.project_manager.get_current_project()
+            if self.selected_project == current:
+                self.selection_hint.configure(text=f"已选中：{self.selected_project}（当前）")
+            else:
+                self.selection_hint.configure(text=f"已选中：{self.selected_project}")
+        else:
+            self.selection_hint.configure(text="请点击选择项目")
         
     def _quick_create(self):
         """快速创建项目"""
@@ -422,23 +567,22 @@ class ProjectManagerDialog:
     
     def _switch_project(self):
         """切换项目"""
-        if not hasattr(self, 'selected_project'):
-            messagebox.showinfo("提示", "请先选择要切换的项目")
+        # 修复：使用明确的 None 检查
+        if self.selected_project is None:
+            messagebox.showinfo("提示", "请先点击选择要切换的项目")
             return
         
         if self.selected_project == self.project_manager.get_current_project():
             return  # 静默处理，不显示提示
         
         if self.project_manager.switch_project(self.selected_project):
-            self._refresh_display()  # 直接刷新，不显示成功消息
-            # 清除选择状态
-            if hasattr(self, 'selected_project'):
-                delattr(self, 'selected_project')
+            self._refresh_display()  # 刷新会保持 selected_project
     
     def _delete_project(self):
         """删除项目"""
-        if not hasattr(self, 'selected_project'):
-            messagebox.showinfo("提示", "请先选择要删除的项目")
+        # 修复：使用明确的 None 检查
+        if self.selected_project is None:
+            messagebox.showinfo("提示", "请先点击选择要删除的项目")
             return
         
         all_projects = self.project_manager.get_all_projects()
@@ -458,13 +602,14 @@ class ProjectManagerDialog:
         
         if response is not None:  # 用户没有选择取消
             delete_files = response  # True=删除文件，False=保留文件
+            project_to_delete = self.selected_project
             
-            if self.project_manager.delete_project(self.selected_project, delete_files):
+            if self.project_manager.delete_project(project_to_delete, delete_files):
                 action = "及文件" if delete_files else "配置"
-                messagebox.showinfo("成功", f"项目 '{self.selected_project}' 的{action}已删除")
+                messagebox.showinfo("成功", f"项目 '{project_to_delete}' 的{action}已删除")
+                # 清除选中状态（因为项目已被删除）
+                self.selected_project = None
                 self._refresh_display()
-                if hasattr(self, 'selected_project'):
-                    delattr(self, 'selected_project')
             else:
                 messagebox.showerror("错误", "删除项目失败")
     
@@ -473,11 +618,13 @@ class ProjectManagerDialog:
         self.project_manager.refresh_projects()
         current_project = self.project_manager.get_current_project()
         self.current_label.configure(text=current_project)
-        self._create_project_table()
         
-        # 默认选中当前项目
-        if current_project:
+        # 修复：如果之前选中的项目已不存在，重置为当前项目
+        all_projects = self.project_manager.get_all_projects()
+        if self.selected_project not in all_projects:
             self.selected_project = current_project
+        
+        self._create_project_table()
 
         
     def _center_dialog(self):
@@ -486,5 +633,3 @@ class ProjectManagerDialog:
         x = (self.dialog.winfo_screenwidth() // 2) - (700 // 2)
         y = (self.dialog.winfo_screenheight() // 2) - (550 // 2)
         self.dialog.geometry(f"700x550+{x}+{y}")
-
-
