@@ -52,6 +52,9 @@ class DataPreprocessor:
         self.diagnostics = None
         self.enable_diagnostics = True  # 可通过设置禁用
 
+        # 静默模式（自动化工作流使用）
+        self.silent_mode = False
+
     # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
         """显示文件分类对话框"""
@@ -559,17 +562,20 @@ class DataPreprocessor:
     def _save_and_notify_results(self, feature_matrix, consensus_peaks, file_paths):
         """保存结果并显示通知"""
         success = self._save_results(feature_matrix)
-        
+
         if success:
             current_paths = get_output_paths()
             norm_status = f"已归一化({self.current_normalization_method})" if self.current_normalization_enabled else "未归一化"
             log_message("智能峰发现处理完成！", "SUCCESS")
-            messagebox.showinfo("处理完成", 
-                            f"智能峰发现完成！\n"
-                            f"• 发现 {len(consensus_peaks)} 个特征峰\n"
-                            f"• 处理 {len(file_paths)} 个样本\n"
-                            f"• 数据状态: {norm_status}\n"
-                            f"• 结果已保存为 {os.path.basename(current_paths['processed_data'])}")
+
+            # 静默模式下跳过弹窗（自动化工作流使用）
+            if not self.silent_mode:
+                messagebox.showinfo("处理完成",
+                                f"智能峰发现完成！\n"
+                                f"• 发现 {len(consensus_peaks)} 个特征峰\n"
+                                f"• 处理 {len(file_paths)} 个样本\n"
+                                f"• 数据状态: {norm_status}\n"
+                                f"• 结果已保存为 {os.path.basename(current_paths['processed_data'])}")
         else:
             self._handle_save_failure()
             

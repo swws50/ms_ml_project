@@ -1,15 +1,11 @@
 # automated_workflow.py - 自动化工作流程模块
 
 import os
-import time
-from pathlib import Path
 from tkinter import messagebox
-import customtkinter as ctk
 
-from utils import log_message, set_window_icon
+from utils import log_message
 from config import get_output_paths
 import data_store
-from output_manager import output_manager
 
 
 class AutomatedWorkflow:
@@ -58,43 +54,71 @@ class AutomatedWorkflow:
         """步骤2: 数据预处理"""
         log_message("步骤 2/4: 数据预处理", "INFO")
         log_message("请在弹出的窗口中完成文件分类和预处理操作", "INFO")
-        
+
+        # 启用静默模式，避免预处理完成后的弹窗阻塞自动化流程
+        self.gui_manager.data_preprocessor.silent_mode = True
+
         # 显示预处理对话框
         self.gui_manager.data_preprocessor.show_classification_dialog(self.root)
-        
+
         # 注册预处理完成的回调 - 通过监听
         self._monitor_preprocessing_completion()
     
+    def _find_latest_data_csv(self):
+        """查找最新的数据CSV文件（支持 data.csv 或 data_*.csv）"""
+        import glob
+
+        current_paths = get_output_paths()
+        base_path = current_paths['processed_data']
+        data_dir = os.path.dirname(base_path)
+
+        # 查找所有匹配的CSV文件
+        pattern = os.path.join(data_dir, "data*.csv")
+        csv_files = glob.glob(pattern)
+
+        if not csv_files:
+            return None
+
+        # 按修改时间排序，返回最新的
+        csv_files.sort(key=os.path.getmtime, reverse=True)
+        return csv_files[0]
+
     def _monitor_preprocessing_completion(self):
         """监听预处理是否完成"""
+        # 记录开始时间，只检测新生成的文件
+        import time
+        start_time = time.time()
+
         def check_completion():
-            # 检查CSV文件是否已生成
-            current_paths = get_output_paths()
-            csv_path = current_paths['processed_data']
-            
-            if os.path.exists(csv_path):
-                # 预处理完成,继续下一步
-                log_message("检测到预处理完成,继续自动化流程", "SUCCESS")
-                self.root.after(1000, self._training_step)  # 延迟1秒再继续
+            # 查找最新的数据CSV文件
+            csv_path = self._find_latest_data_csv()
+
+            if csv_path and os.path.getmtime(csv_path) > start_time:
+                # 找到新生成的文件，预处理完成
+                log_message(f"检测到预处理完成: {os.path.basename(csv_path)}", "SUCCESS")
+                # 保存找到的路径供后续使用
+                self._detected_csv_path = csv_path
+                self.root.after(1000, self._training_step)
             else:
                 # 继续监听
-                self.root.after(2000, check_completion)  # 每2秒检查一次
-        
+                self.root.after(2000, check_completion)
+
         # 开始监听
-        self.root.after(3000, check_completion)  # 3秒后开始首次检查
-    
+        self.root.after(3000, check_completion)
+
     def _training_step(self):
         """步骤3: 自动训练"""
         log_message("步骤 3/4: 自动加载数据并训练模型", "INFO")
-        
+
         try:
-            # 自动选择刚生成的CSV文件
-            current_paths = get_output_paths()
-            csv_path = current_paths['processed_data']
-            
-            if not os.path.exists(csv_path):
+            # 优先使用监听器检测到的路径，否则查找最新的CSV
+            csv_path = getattr(self, '_detected_csv_path', None) or self._find_latest_data_csv()
+
+            if not csv_path or not os.path.exists(csv_path):
                 messagebox.showerror("错误", "未找到预处理生成的CSV文件")
                 return
+
+            log_message(f"使用数据文件: {os.path.basename(csv_path)}")
             
             # 程序化加载CSV文件
             self._auto_load_csv(csv_path)
@@ -154,88 +178,29 @@ class AutomatedWorkflow:
     def _start_auto_training(self):
         """开始自动训练"""
         log_message("开始自动训练模型...", "INFO")
-        
+
         # 获取当前选择的模型
         model_name = self.gui_manager.ui_panels['control'].current_model
         log_message(f"使用模型: {model_name}")
-        
-        # 调用训练方法
-        self.gui_manager.handle_start_training()
-        
-        # 训练完成后自动进入预测准备
-        # 通过监听训练状态
-        self._monitor_training_completion()
-    
-    def _monitor_training_completion(self):
-        """监听训练是否完成（带超时机制）"""
-        max_wait_time = 30000  # 最多等待30秒
-        start_time = [time.time() * 1000]  # 使用列表以便在嵌套函数中修改
-        last_chart_count = [0]  # 记录上次的图表数量
-        
-        def check_training_status():
-            # 检查是否有最新训练的模型
+
+        try:
+            # 调用训练方法（同步执行，会阻塞直到训练和可视化完成）
+            self.gui_manager.handle_start_training()
+
+            # 训练完成后检查模型是否成功保存
             latest_model, latest_path = data_store.get_latest_trained_model()
 
             if latest_model is not None:
-                # 额外检查:确保图表也已生成
-                import os
-                from output_manager import output_manager
-                
-                # 获取图表目录
-                charts_dir = output_manager.get_path('chart', '')
-                
-                if os.path.exists(charts_dir):
-                    # 获取模型类型和最近的图表文件
-                    model_type = latest_model.__class__.__name__ if latest_model else "Model"
-                    
-                    # 列出目录中所有图表文件
-                    chart_files = [f for f in os.listdir(charts_dir) 
-                                  if f.startswith(model_type) and f.endswith('.png')]
-                    
-                    # 检查关键图表 - 只检查3个核心图表
-                    has_class_performance = any('ViolinPlot_ClassPerformance' in f for f in chart_files)
-                    has_confusion = any('ConfusionMatrix' in f for f in chart_files)
-                    has_roc = any('ROC_Curve' in f for f in chart_files)
-                    
-                    # 计算已等待时间
-                    elapsed_time = time.time() * 1000 - start_time[0]
-                    
-                    # 图表数量稳定（连续两次检查数量相同）
-                    charts_stable = (last_chart_count[0] == len(chart_files) and 
-                                    last_chart_count[0] > 0)
-                    
-                    # 判断是否完成的条件（简化版）：
-                    # 1. 有3个核心图表且图表数量>=3
-                    # 2. 图表数量稳定且>=3（说明生成完毕）
-                    # 3. 等待超时
-                    charts_ready = (
-                        (has_class_performance and has_confusion and has_roc and len(chart_files) >= 3) or
-                        (charts_stable and len(chart_files) >= 3) or
-                        (elapsed_time > max_wait_time and len(chart_files) >= 1)
-                    )
-                    
-                    if charts_ready:
-                        # 训练和图表生成都完成
-                        log_message(f"检测到训练完成,图表已生成 (共{len(chart_files)}个)", "SUCCESS")
-                        self.root.after(1000, self._prediction_preparation_step)
-                    else:
-                        # 更新图表计数
-                        last_chart_count[0] = len(chart_files)
-                        
-                        # 模型已保存但图表还在生成中,继续等待
-                        remaining = int((max_wait_time - elapsed_time) / 1000)
-                        log_message(f"等待图表生成... (已有{len(chart_files)}个, 剩余{remaining}秒)", "INFO")
-                        self.root.after(2000, check_training_status)
-                else:
-                    # 图表目录不存在,继续等待
-                    log_message("模型已训练,等待图表生成...", "INFO")
-                    self.root.after(2000, check_training_status)
+                log_message("训练完成，准备进入预测阶段", "SUCCESS")
+                # 延迟一小段时间确保UI更新完成，然后进入预测准备步骤
+                self.root.after(500, self._prediction_preparation_step)
             else:
-                # 继续监听
-                self.root.after(2000, check_training_status)
-        
-        # 延迟开始检查,给训练一些时间
-        self.root.after(5000, check_training_status)
+                log_message("训练完成但未检测到模型，可能训练失败", "WARNING")
+                messagebox.showwarning("警告", "训练完成但未能保存模型，请检查日志")
+
+        except Exception as e:
+            log_message(f"自动训练失败: {str(e)}", "ERROR")
+            messagebox.showerror("错误", f"自动训练失败:\n{str(e)}")
     
     def _prediction_preparation_step(self):
         """步骤4: 准备预测"""
@@ -270,7 +235,10 @@ class AutomatedWorkflow:
             
             log_message(f"已自动选择模型: {model_name}", "SUCCESS")
             log_message("=== 自动化工作流程完成 ===", "SUCCESS")
-            
+
+            # 重置静默模式
+            self.gui_manager.data_preprocessor.silent_mode = False
+
             # 显示完成提示
             messagebox.showinfo(
                 "工作流程完成",
@@ -289,6 +257,7 @@ class AutomatedWorkflow:
                 self.gui_manager.help_system.advance_step("predict_sample")
         else:
             log_message("未找到训练好的模型", "ERROR")
+            self.gui_manager.data_preprocessor.silent_mode = False
             messagebox.showerror("错误", "未找到训练好的模型,无法继续")
 
 
