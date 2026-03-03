@@ -3,12 +3,13 @@
 # 标准库导入
 import json
 import os
-
+from PIL import Image
 # 第三方库导入
 import customtkinter as ctk
 
 # 本地模块导入
 from utils import log_message, set_window_icon
+from config import ICON_CONFIG 
 
 
 class HelpSystem:
@@ -486,7 +487,7 @@ class HelpSystem:
         """显示关于信息"""
         about_window = ctk.CTkToplevel(self.root)
         about_window.title("关于")
-        about_window.geometry("400x400")
+        about_window.geometry("400x500")
         about_window.resizable(False, False)
         about_window.transient(self.root)
         about_window.grab_set()
@@ -499,6 +500,23 @@ class HelpSystem:
             font=ctk.CTkFont(size=26, weight="bold")
         ).pack(pady=(30, 5))
         
+         # ===== Logo 图片 =====
+        image_path = ICON_CONFIG.get('app_icon_png')
+        if image_path:
+            try:
+                logo_image = ctk.CTkImage(
+                    light_image=Image.open(image_path),
+                    dark_image=Image.open(image_path),
+                    size=(80, 80)  # 调整大小
+                )
+                ctk.CTkLabel(
+                    about_window,
+                    image=logo_image,
+                    text=""  # 不显示文字
+                ).pack(pady=(25, 10))
+            except Exception:
+                pass  # 图片加载失败就跳过
+
         # ===== 一句话介绍 =====
         ctk.CTkLabel(
             about_window,
@@ -552,5 +570,5 @@ class HelpSystem:
         # 居中
         about_window.update_idletasks()
         x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 380) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - 500) // 2
         about_window.geometry(f"+{x}+{y}")
