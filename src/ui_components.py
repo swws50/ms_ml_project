@@ -531,17 +531,50 @@ class VisualizationPanel(BasePanel):
     
     def _create_visualization_area(self):
         """创建可视化显示区域"""
-        # 可视化占位区域
-        self.components['placeholder'] = ctk.CTkFrame(self.frame)
-        self.components['placeholder'].grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
-        
-        # 占位提示文本
-        self.components['placeholder_label'] = ctk.CTkLabel(
-            self.components['placeholder'], 
-            text="训练完成后，模型评估图表将在此显示", 
-            font=ctk.CTkFont(size=12)
+        self.components['placeholder'] = ctk.CTkFrame(
+            self.frame,
+            border_width=2,
+            border_color=("gray75", "gray45"),
+            fg_color="transparent"
         )
-        self.components['placeholder_label'].pack(expand=True)
+        self.components['placeholder'].grid(row=1, column=0, sticky='nsew', padx=10, pady=(22, 10))
+
+        # 居中容器
+        content = ctk.CTkFrame(self.components['placeholder'], fg_color="transparent")
+        content.pack(expand=True)
+
+        # Unicode 柱状图图案
+        chart_art = (
+            "            \n"
+            "   █        \n"
+            "   █  █     \n"
+            "   █  █  █  \n"
+            "  ▔▔▔▔▔"
+        )
+        ctk.CTkLabel(
+            content,
+            text=chart_art,
+            font=ctk.CTkFont(family="Consolas", size=22),
+            text_color=("gray68", "gray52"),
+            justify="left"
+        ).pack(pady=(0, 10))
+
+        # 主标题
+        ctk.CTkLabel(
+            content,
+            text="暂无评估结果",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=("gray50", "gray60")
+        ).pack(pady=(0, 4))
+
+        # 副标题
+        self.components['placeholder_label'] = ctk.CTkLabel(
+            content,
+            text="训练完成后，模型评估图表将在此显示",
+            font=ctk.CTkFont(size=11),
+            text_color=("gray65", "gray55")
+        )
+        self.components['placeholder_label'].pack()
     
     def get_container(self):
         """获取可视化容器（供其他模块使用）"""
