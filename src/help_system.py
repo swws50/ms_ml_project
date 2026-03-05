@@ -47,7 +47,7 @@ class HelpSystem:
             # 训练相关
             "select_excel": "选择已预处理的Excel数据文件\n第一行应为类别标签标签",
             "model_selection": "选择机器学习算法\n• RandomForest: 适合大数据集\n• LogisticRegression: 适合小数据集\n• PLS: 适合高维数据",
-            "start_analysis": "开始训练模型\n• 训练时间：约1-3分钟\n• 将进行500轮交叉验证\n• 训练过程中请勿关闭程序",
+            "start_analysis": "开始训练模型\n• 训练时间：约1-3分钟\n• 5折×20次重复交叉验证（共100轮）\n• 若需中途终止，点击菜单栏 ⟲ 重置按钮",
 
             # 预测相关
             "select_predict_file": "选择要预测的txt格式样本文件\n需要先完成模型训练",
@@ -417,12 +417,22 @@ class HelpSystem:
 
         # 第1步：程序介绍
         step1 = wizard_tabs.add("1. 介绍")
-        ctk.CTkLabel(step1, text="诊断分析工具",
+        ctk.CTkLabel(step1, text="DETEQX 使用向导",
                      font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step1, text="本工具用于分析质谱数据并构建机器学习模型，以区分健康与患病样本。",
-                     wraplength=550).pack(pady=5)
-        ctk.CTkLabel(step1, text="使用流程包括：数据预处理、模型训练与评估、新样本预测。",
-                     wraplength=550).pack(pady=5)
+        ctk.CTkLabel(step1, text="基于 SALDI 质谱脂质指纹技术，结合机器学习，实现疾病样本的智能分类筛查。",
+                     wraplength=540).pack(pady=3)
+        ctk.CTkLabel(step1, text="核心流程：数据预处理  →  模型训练与评估  →  新样本预测",
+                     wraplength=540).pack(pady=3)
+        ctk.CTkLabel(step1, text="设计理念：",
+                     font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=20, pady=(10, 2))
+        ctk.CTkLabel(step1, text="• 样本级归一化（Max/Sum/Median），消除批次技术变异，无数据泄露",
+                     wraplength=500).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1, text="• 交叉验证采用 RepeatedStratifiedKFold（5折×20次），符合医疗 AI 标准",
+                     wraplength=500).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1, text="• 所有评估指标含 95% 置信区间，结果可重现（固定随机种子）",
+                     wraplength=500).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1, text="• 多项目隔离管理，每个任务独立存储数据、模型与报告",
+                     wraplength=500).pack(anchor='w', padx=30, pady=1)
 
         # 第2步：数据预处理
         step2 = wizard_tabs.add("2. 数据预处理")
@@ -442,14 +452,16 @@ class HelpSystem:
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step3, text="1. 点击 '选择整理好的.csv文件' 按钮，选择选择生成的normalized_ms_data.csv文件",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step3, text="2. 从菜单 '模型选择' 中选择合适的机器学习模型",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step3, text="3. 点击 '开始训练' 按钮开始训练过程",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
-        ctk.CTkLabel(step3, text="4. 训练完成后，查看生成的评估图表",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step3, text="1. 点击 '选择整理好的 .csv 文件' 按钮，选择预处理生成的data_xxx.csv 文件",
+                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3, text="2. 从菜单栏选择机器学习算法（默认推荐 PLSRegression）",
+                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3, text="3. 点击 '开始训练'，进行 5折×20次 共100轮交叉验证，训练期间按钮显示「训练中…」",
+                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3, text="4. 训练完成后自动生成 ROC 曲线、混淆矩阵等评估图表",
+                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3, text="⚠ 如需中止训练：点击菜单栏 ⟲ 重置按钮，立即终止并复位界面",
+                     wraplength=540, text_color="gray").pack(anchor='w', padx=20, pady=(10, 2))
 
         # 第4步：样本预测
         step4 = wizard_tabs.add("4. 样本预测")

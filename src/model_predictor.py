@@ -18,7 +18,7 @@ from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
 from data_store import class_manager
 from data_processing import FeatureDetector
-from utils import log_message
+from utils import log_message, set_window_icon
 
 
 class PredictionManager:
@@ -694,6 +694,7 @@ class PredictionManager:
 
     def _setup_info_window_properties(self):
         """设置信息窗口属性"""
+        set_window_icon(self.info_window)
         # 强力置顶方案
         self.info_window.attributes('-topmost', True)
         self.info_window.focus_force()

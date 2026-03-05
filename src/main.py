@@ -498,7 +498,17 @@ class MainGUIManager:
     def _set_operation_running(self, running: bool, operation_name: str = "", allow_termination: bool = False):
         """设置操作运行状态"""
         self._is_operation_running = running
-        
+
+        # 同步禁用/恢复"开始训练"按钮，防止重复触发
+        control_panel = self.ui_panels.get('control')
+        if control_panel:
+            if running:
+                label = "训练中..." if allow_termination else "开始训练"
+                control_panel.enable_training(False, label)
+            else:
+                # 恢复时根据数据是否已加载决定是否可用
+                control_panel.enable_training(data_store.has_training_data(), "开始训练")
+
         if running:
             if allow_termination:
                 # 可终止的操作（如训练）

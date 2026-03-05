@@ -249,10 +249,10 @@ class ControlPanel(BasePanel):
         """更新文件状态"""
         self.components['file_status'].configure(text=status_text)
     
-    def enable_training(self, enabled=True):
+    def enable_training(self, enabled=True, label="开始训练"):
         """启用/禁用训练按钮"""
         state = 'normal' if enabled else 'disabled'
-        self.components['start_button'].configure(state=state)  
+        self.components['start_button'].configure(state=state, text=label)
 
 
 
