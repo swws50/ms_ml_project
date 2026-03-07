@@ -58,6 +58,9 @@ class DataPreprocessor:
         # 预处理完成标志
         self.preprocessing_completed = False
 
+        # 预处理完成回调（外部注册，完成时触发）
+        self.on_complete_callback = None
+
     # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
         """显示文件分类对话框"""
@@ -571,6 +574,8 @@ class DataPreprocessor:
 
         if success:
             self.preprocessing_completed = True
+            if self.on_complete_callback:
+                self.root.after(0, self.on_complete_callback)
             current_paths = get_output_paths()
             norm_status = f"已归一化({self.current_normalization_method})" if self.current_normalization_enabled else "未归一化"
             log_message("智能峰发现处理完成！", "SUCCESS")

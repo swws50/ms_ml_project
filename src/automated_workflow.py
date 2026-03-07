@@ -58,12 +58,26 @@ class AutomatedWorkflow:
         # 启用静默模式，避免预处理完成后的弹窗阻塞自动化流程
         self.gui_manager.data_preprocessor.silent_mode = True
 
-        # 显示预处理对话框
+        # 三个 chip 统一显示自动化提示
+        gp = self.gui_manager.global_progress
+        gp.update_chip('preprocess', '⚙ 自动化中...', '#888888')
+        gp.update_chip('train',      '⚙ 自动化中...', '#888888')
+        gp.update_chip('predict',    '⚙ 自动化中...', '#888888')
+
+        # 注册预处理完成回调
+        self.gui_manager.data_preprocessor.on_complete_callback = self._on_preprocess_done
+
+        # 显示预处理对话框（wait_window 阻塞至窗口关闭）
         self.gui_manager.data_preprocessor.show_classification_dialog(self.root)
 
-        # 注册预处理完成的回调 - 通过监听
-        self._monitor_preprocessing_completion()
-    
+        # 清理回调
+        self.gui_manager.data_preprocessor.on_complete_callback = None
+
+    def _on_preprocess_done(self):
+        """预处理完成回调 - 由 DataPreprocessor 在保存成功后触发"""
+        log_message("预处理完成，准备自动加载数据并训练", "INFO")
+        self.root.after(1000, self._training_step)
+
     def _find_latest_data_csv(self):
         """查找最新的数据CSV文件（支持 data.csv 或 data_*.csv）"""
         import glob
@@ -83,36 +97,12 @@ class AutomatedWorkflow:
         csv_files.sort(key=os.path.getmtime, reverse=True)
         return csv_files[0]
 
-    def _monitor_preprocessing_completion(self):
-        """监听预处理是否完成"""
-        # 记录开始时间，只检测新生成的文件
-        import time
-        start_time = time.time()
-
-        def check_completion():
-            # 查找最新的数据CSV文件
-            csv_path = self._find_latest_data_csv()
-
-            if csv_path and os.path.getmtime(csv_path) > start_time:
-                # 找到新生成的文件，预处理完成
-                log_message(f"检测到预处理完成: {os.path.basename(csv_path)}", "SUCCESS")
-                # 保存找到的路径供后续使用
-                self._detected_csv_path = csv_path
-                self.root.after(1000, self._training_step)
-            else:
-                # 继续监听
-                self.root.after(2000, check_completion)
-
-        # 开始监听
-        self.root.after(3000, check_completion)
-
     def _training_step(self):
         """步骤3: 自动训练"""
         log_message("步骤 3/4: 自动加载数据并训练模型", "INFO")
 
         try:
-            # 优先使用监听器检测到的路径，否则查找最新的CSV
-            csv_path = getattr(self, '_detected_csv_path', None) or self._find_latest_data_csv()
+            csv_path = self._find_latest_data_csv()
 
             if not csv_path or not os.path.exists(csv_path):
                 messagebox.showerror("错误", "未找到预处理生成的CSV文件")
@@ -236,6 +226,12 @@ class AutomatedWorkflow:
             log_message(f"已自动选择模型: {model_name}", "SUCCESS")
             log_message("=== 自动化工作流程完成 ===", "SUCCESS")
 
+            # 恢复三个 chip 为最终状态
+            gp = self.gui_manager.global_progress
+            gp.update_chip('preprocess', '✓ 预处理: 完成', 'green')
+            gp.update_chip('train',      '✓ 训练: 完成', 'green')
+            gp.update_chip('predict',    '✓ 预测: 模型已加载，可进行预测', 'green')
+
             # 重置静默模式
             self.gui_manager.data_preprocessor.silent_mode = False
 
@@ -257,6 +253,10 @@ class AutomatedWorkflow:
                 self.gui_manager.help_system.advance_step("predict_sample")
         else:
             log_message("未找到训练好的模型", "ERROR")
+            gp = self.gui_manager.global_progress
+            gp.update_chip('preprocess', '✓ 预处理: 完成', 'green')
+            gp.update_chip('train',      '✗ 训练: 失败', 'red')
+            gp.update_chip('predict',    '○ 预测: --', 'gray')
             self.gui_manager.data_preprocessor.silent_mode = False
             messagebox.showerror("错误", "未找到训练好的模型,无法继续")
 

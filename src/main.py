@@ -525,15 +525,17 @@ class MainGUIManager:
         self.global_progress.update_chip('preprocess', '◐ 预处理: 进行中...', '#3B8EEA')
         try:
             self.show_global_progress("正在启动数据预处理...")
-            self.data_preprocessor.show_classification_dialog(self.root)
-            if self.data_preprocessor.preprocessing_completed:
+            self.data_preprocessor.on_complete_callback = lambda: \
                 self.global_progress.update_chip('preprocess', '✓ 预处理: 完成', 'green')
-            else:
+            self.data_preprocessor.show_classification_dialog(self.root)
+            # 若用户未完成预处理直接关窗，恢复初始状态
+            if not self.data_preprocessor.preprocessing_completed:
                 self.global_progress.update_chip('preprocess', '○ 预处理: 等待开始', 'gray')
         except Exception:
             self.global_progress.update_chip('preprocess', '✗ 预处理: 失败', 'red')
             raise
         finally:
+            self.data_preprocessor.on_complete_callback = None
             self._set_operation_running(False)
 
     def handle_start_training(self):
@@ -596,7 +598,7 @@ class MainGUIManager:
 
     def _handle_predict_model_select(self, file_path):
         """处理预测模型选择 - 更新状态 chip"""
-        self.global_progress.update_chip('predict', '✓ 预测: 模型已加载', 'green')
+        self.global_progress.update_chip('predict', '✓ 预测: 模型已加载，可进行预测', 'green')
 
 
 if __name__ == "__main__":
