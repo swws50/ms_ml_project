@@ -218,7 +218,7 @@ class ModelTrainer:
                 from config import output_manager
                 
                 # 生成带时间戳的文件名
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M")
                 model_type = type(self.best_model).__name__
 
                 

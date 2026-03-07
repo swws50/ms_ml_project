@@ -96,11 +96,12 @@ class MainGUIManager:
         """创建新的4x4网格布局"""
         # 配置主窗口网格权重 - 4列4行
         self.root.grid_rowconfigure(0, weight=0)    # 菜单栏
-        self.root.grid_rowconfigure(1, weight=0)    # 进度指示器  
-        self.root.grid_rowconfigure(2, weight=0)    # 主要面板行 - 减小权重
-        self.root.grid_rowconfigure(3, weight=0)    # 进度条行
-        self.root.grid_rowconfigure(4, weight=1)    # 可视化和日志行 - 增加权重
-        self.root.grid_rowconfigure(5, weight=0)    # 额外行，
+        self.root.grid_rowconfigure(1, weight=0)    # 状态栏
+        self.root.grid_rowconfigure(2, weight=0)    # 状态栏分割线
+        self.root.grid_rowconfigure(3, weight=0)    # 主要面板行
+        self.root.grid_rowconfigure(4, weight=0)    # 进度条行
+        self.root.grid_rowconfigure(5, weight=1)    # 可视化和日志行
+        self.root.grid_rowconfigure(6, weight=0)    # 信息面板行
 
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
@@ -109,19 +110,29 @@ class MainGUIManager:
 
         # 创建各个组件
         self._create_menu_bar()                    # row=0
-        self.help_system.create_progress_indicator(self.root, row=1, column=0, columnspan=4)  # row=1
         self._create_ui_panels()                   # row=2,4
         self._create_global_progress()             # row=3
 
     def _create_global_progress(self):
         """创建全局进度组件"""
-        # 进度容器放在row=3
+        # chip 状态栏放在 row=1（菜单栏正下方，始终可见）
+        self.chip_container = ctk.CTkFrame(self.root, fg_color="transparent")
+        self.chip_container.grid(row=1, column=0, columnspan=4, sticky='ew', padx=20, pady=(1, 1))
+        self.chip_container.grid_columnconfigure(0, weight=1)
+
+        # 分割线 row=2
+        separator = ctk.CTkFrame(self.root, height=1, fg_color=("gray70", "gray30"))
+        separator.grid(row=2, column=0, columnspan=4, sticky='ew')
+        separator.grid_propagate(False)
+
+        # 进度条放在 row=4（仅运行时显示）
         self.progress_container = ctk.CTkFrame(self.root, fg_color="transparent", height=25)
-        self.progress_container.grid(row=3, column=0, columnspan=3, sticky='ew', padx=20, pady=2)  # 只跨3列
+        self.progress_container.grid(row=4, column=0, columnspan=3, sticky='ew', padx=20, pady=2)
         self.progress_container.grid_columnconfigure(0, weight=1)
-        
-        self.global_progress = ProgressComponent(self.progress_container, width=200, show_label=True)
-        self.global_progress.create(row=0, column=0, sticky='ew', padx=0, pady=0)
+
+        self.global_progress = ProgressComponent(self.chip_container, width=200)
+        self.global_progress.create(row=0, column=0, sticky='ew', padx=0, pady=0,
+                                    progress_parent=self.progress_container)
         self.global_progress.hide()
             
     def _create_menu_bar(self):
@@ -329,7 +340,7 @@ class MainGUIManager:
             'on_start_preprocessing': self._handle_preprocessing_start
         }
         self.ui_panels['preprocessing'] = PreprocessingPanel(self.root, self.help_system, preprocessing_callbacks)
-        self.ui_panels['preprocessing'].create_panel(row=2, column=0)
+        self.ui_panels['preprocessing'].create_panel(row=3, column=0)
 
         control_callbacks = {
             'on_file_select': self.handle_file_select,
@@ -337,27 +348,24 @@ class MainGUIManager:
             'on_start_training': self.handle_start_training
         }
         self.ui_panels['control'] = ControlPanel(self.root, self.help_system, control_callbacks)
-        self.ui_panels['control'].create_panel(row=2, column=1)
-        
+        self.ui_panels['control'].create_panel(row=3, column=1)
+
         self.ui_panels['result'] = ResultPanel(self.root, self.help_system)
-        self.ui_panels['result'].create_panel(row=2, column=2)
-        
+        self.ui_panels['result'].create_panel(row=3, column=2)
+
         prediction_callbacks = {
             'on_predict_file': self.handle_predict_file,
             'on_model_info': self.handle_model_info,
+            'on_model_file_select': self._handle_predict_model_select,
         }
         self.ui_panels['prediction'] = PredictionPanel(self.root, self.help_system, prediction_callbacks)
-        self.ui_panels['prediction'].create_panel(row=2, column=3, rowspan=3)  # 跨2行
-        
-        # 第4行：可视化（3列）+ 日志（1列）
+        self.ui_panels['prediction'].create_panel(row=3, column=3, rowspan=3)  # 跨3行
+
         self.ui_panels['visualization'] = VisualizationPanel(self.root, self.help_system)
-        self.ui_panels['visualization'].create_panel(row=4, column=0, rowspan=2, columnspan=3)
-        
-         # 第5行：信息面板（1列）
-         # 信息面板放在第5行第4列
-        
+        self.ui_panels['visualization'].create_panel(row=5, column=0, rowspan=2, columnspan=3)
+
         self.ui_panels['info'] = InfoPanel(self.root, self.help_system)
-        self.ui_panels['info'].create_panel(row=5, column=3)
+        self.ui_panels['info'].create_panel(row=6, column=3)
     
     def _finalize_setup(self):
         """完成设置"""
@@ -395,20 +403,13 @@ class MainGUIManager:
             control_panel.update_file_status(f"已选择: {filename}")
             control_panel.enable_training(True)
             
-            # 推进步骤
-            if self.help_system:
-                self.help_system.advance_step("select_model")
         else:
             log_message("数据加载失败", "ERROR")
-    
+
     def handle_model_select(self, model_name):
         """处理模型选择"""
         self.exact_selection = model_name
         log_message(f"已选择模型: {model_name}")
-        
-        # 推进帮助系统步骤
-        if self.help_system:
-            self.help_system.advance_step("train_model")
     
     
     def handle_model_info(self):
@@ -447,11 +448,7 @@ class MainGUIManager:
             # 2. 重置数据存储
             data_store.clear_all_data()
             
-            # 3. 重置帮助系统进度
-            for step in self.help_system.steps:
-                step['completed'] = False
-            self.help_system.current_step_index = 0
-            self.help_system.update_progress_display()
+            # 3. 重置帮助系统
             self.help_system.hide_all_tips()
 
             # 4. 重置UI面板
@@ -464,7 +461,7 @@ class MainGUIManager:
             self.ui_panels['control'].enable_training(False)
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
             self.ui_panels['control'].current_model = DEFAULT_MODEL
-            self.ui_panels['preprocessing'].update_status("等待开始预处理")
+            self.global_progress.reset_chips()
             
             # 5. 隐藏进度条并重置模型选择
             self.hide_global_progress()
@@ -525,27 +522,34 @@ class MainGUIManager:
     def _handle_preprocessing_start(self):
         """处理预处理开始 - 不支持终止"""
         self._set_operation_running(True, "数据预处理", allow_termination=False)
-        
+        self.global_progress.update_chip('preprocess', '◐ 预处理: 进行中...', '#3B8EEA')
         try:
             self.show_global_progress("正在启动数据预处理...")
             self.data_preprocessor.show_classification_dialog(self.root)
+            if self.data_preprocessor.preprocessing_completed:
+                self.global_progress.update_chip('preprocess', '✓ 预处理: 完成', 'green')
+            else:
+                self.global_progress.update_chip('preprocess', '○ 预处理: 等待开始', 'gray')
+        except Exception:
+            self.global_progress.update_chip('preprocess', '✗ 预处理: 失败', 'red')
+            raise
         finally:
             self._set_operation_running(False)
 
     def handle_start_training(self):
         """处理开始训练 - 支持终止功能"""
-        self._set_operation_running(True, "模型训练", allow_termination=True) 
-        
+        self._set_operation_running(True, "模型训练", allow_termination=True)
+        self.global_progress.update_chip('train', '◐ 训练: 进行中...', '#3B8EEA')
         try:
             control_panel = self.ui_panels['control']
             result_panel = self.ui_panels['result']
-            
+
             # 重置结果显示
             result_panel.reset_results()
-            
+
             # 显示全局进度条
             self.show_global_progress("开始模型训练...")
-            
+
             # 使用训练UI进行训练
             self.training_ui.train_with_ui_feedback(
                 self.exact_selection,
@@ -556,38 +560,44 @@ class MainGUIManager:
                 result_panel.components['model_status'],
                 self.root
             )
+            self.global_progress.update_chip('train', '✓ 训练: 完成', 'green')
         except InterruptedError:
             log_message("训练被终止", "WARNING")
-            # 确保UI状态正确显示终止结果
+            self.global_progress.update_chip('train', '◼ 训练: 已终止', 'orange')
             if 'result' in self.ui_panels:
                 self.ui_panels['result'].components['model_status'].configure(
-                    text='模型保存状态: 训练被终止', 
+                    text='模型保存状态: 训练被终止',
                     text_color='orange'
                 )
+        except Exception:
+            self.global_progress.update_chip('train', '✗ 训练: 失败', 'red')
+            raise
         finally:
             self._set_operation_running(False)
 
     def handle_predict_file(self):
         """处理文件预测"""
         self._set_operation_running(True, "文件预测", allow_termination=False)
-        
         try:
             prediction_panel = self.ui_panels['prediction']
             selected_model_path = prediction_panel.current_model_selection
-            
+
             # 如果用户选择了特定模型，临时设置给预测管理器
             if selected_model_path and selected_model_path != "自动检测":
                 self.prediction_manager.temp_model_path = selected_model_path
-            
+
             # 直接调用预测管理器的方法（它已经处理了单个和批量的逻辑）
             self.prediction_manager.open_file_dialog(prediction_panel.components['result_textbox'])
-            
         finally:
             # 清理临时模型路径
             if hasattr(self.prediction_manager, 'temp_model_path'):
                 delattr(self.prediction_manager, 'temp_model_path')
             self._set_operation_running(False)
-                            
+
+    def _handle_predict_model_select(self, file_path):
+        """处理预测模型选择 - 更新状态 chip"""
+        self.global_progress.update_chip('predict', '✓ 预测: 模型已加载', 'green')
+
 
 if __name__ == "__main__":
     

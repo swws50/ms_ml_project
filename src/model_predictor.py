@@ -487,9 +487,7 @@ class PredictionManager:
             result_label.insert("1.0", result_text)
             result_label.configure(text_color=result["confidence_color"])
             
-            # 通知帮助系统
-            if self.help_system:
-                self.help_system.complete_step("predict_sample")
+
         else:
             result_label.delete("1.0", "end")
             result_label.insert("1.0", result_text)

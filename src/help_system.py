@@ -31,16 +31,11 @@ class HelpSystem:
         ]
         self.current_step_index = 0
 
-        # UI组件引用
-        self.progress_frame = None
-        self.progress_labels = []
-        self.progress_indicator = None
-
         self.show_wizard_on_startup = True
 
         # 为你的程序定制的帮助文本
         self.help_texts = {
-            "start_preprocessing": "开始数据预处理流程\n包括文件分类和智能峰发现\n处理完成后自动生成归一化CSV文件",
+            "start_preprocessing": "数据预处理流程\n包括文件分类和智能峰发现\n处理完成后自动生成归一化CSV文件",
             # 数据预处理相关
             "select_files": "智能提峰：自动识别并提取最优特征峰",
 
@@ -97,93 +92,6 @@ class HelpSystem:
         except Exception:
             pass
 
-    def create_progress_indicator(self, parent_frame, row=0, column=0, columnspan=4):
-        """
-        创建步骤进度指示器
-
-        参数:
-            parent_frame: 父容器
-            row, column, columnspan: grid布局参数
-        """
-        # 创建进度指示器框架
-        self.progress_frame = ctk.CTkFrame(
-            parent_frame, corner_radius=8, height=50)
-        self.progress_frame.grid(
-            row=row, column=column, columnspan=columnspan, sticky='ew', padx=5, pady=5)
-
-        # 标题
-        title_label = ctk.CTkLabel(self.progress_frame, text="操作进度:",
-                                   font=ctk.CTkFont(size=12, weight="bold"))
-        title_label.pack(side='left', padx=10, pady=10)
-
-        # 步骤指示器容器
-        steps_frame = ctk.CTkFrame(self.progress_frame, fg_color="transparent")
-        steps_frame.pack(side='left', padx=10, pady=5)
-
-        # 创建步骤标签
-        self.progress_labels = []
-        for i, step in enumerate(self.steps):
-            # 步骤圆圈
-            step_circle = ctk.CTkLabel(steps_frame, text=str(i+1),
-                                       width=30, height=30,
-                                       font=ctk.CTkFont(
-                                           size=10, weight="bold"),
-                                       corner_radius=15)
-            step_circle.pack(side='left', padx=2)
-
-            # 步骤名称
-            step_name = ctk.CTkLabel(steps_frame, text=step['name'],
-                                     font=ctk.CTkFont(size=10))
-            step_name.pack(side='left', padx=(0, 10))
-
-            # 箭头（除了最后一个步骤）
-            if i < len(self.steps) - 1:
-                arrow = ctk.CTkLabel(steps_frame, text="→",
-                                     font=ctk.CTkFont(size=12))
-                arrow.pack(side='left', padx=2)
-
-            self.progress_labels.append((step_circle, step_name))
-
-            # 当前步骤提示
-        self.progress_indicator = ctk.CTkLabel(self.progress_frame,
-                                               text=self.step_hints.get(
-                                                   self.steps[0]['id'], ""),
-                                               font=ctk.CTkFont(size=10),
-                                               text_color="blue")
-        self.progress_indicator.pack(side='right', padx=10, pady=10)
-
-        # 初始化显示
-        self.update_progress_display()
-
-    def update_progress_display(self):
-        """更新进度显示"""
-        if not self.progress_labels:
-            return
-
-        for i, (circle, name) in enumerate(self.progress_labels):
-            if i < self.current_step_index:
-                # 已完成的步骤 - 绿色
-                circle.configure(fg_color="#90EE90", text_color="black")
-                name.configure(text_color="green", font=ctk.CTkFont(
-                    size=10, weight="normal"))
-            elif i == self.current_step_index:
-                # 当前步骤 - 蓝色高亮
-                circle.configure(fg_color="#87CEEB", text_color="black")
-                name.configure(text_color="blue",
-                               font=ctk.CTkFont(size=10, weight="bold"))
-            else:
-                # 未完成的步骤 - 灰色
-                circle.configure(fg_color="#D3D3D3", text_color="gray")
-                name.configure(text_color="gray", font=ctk.CTkFont(
-                    size=10, weight="normal"))
-
-            # 更新提示信息
-            if self.current_step_index < len(self.steps):
-                current_step_id = self.steps[self.current_step_index]['id']
-                hint_text = self.step_hints.get(current_step_id, "")
-                if self.progress_indicator:
-                    self.progress_indicator.configure(text=hint_text)
-
     def advance_step(self, step_id):
         """
         推进到指定步骤
@@ -205,30 +113,10 @@ class HelpSystem:
 
             # 更新当前步骤
             self.current_step_index = step_index
-            self.update_progress_display()
 
             # 记录日志
             step_name = self.steps[step_index]['name']
             log_message(f"步骤进度: {step_name}", "INFO")
-
-    def complete_step(self, step_id):
-        """
-        完成指定步骤并自动推进到下一步
-
-        参数:
-            step_id: 要完成的步骤ID
-        """
-        # 找到并完成指定步骤
-        for i, step in enumerate(self.steps):
-            if step['id'] == step_id:
-                step['completed'] = True
-                break
-
-        # 自动推进到下一步
-        next_index = self.current_step_index + 1
-        if next_index < len(self.steps):
-            self.current_step_index = next_index
-            self.update_progress_display()
 
     def add_hover_tip(self, widget, key_or_text, custom_style=None, delay_ms=1000):
         """

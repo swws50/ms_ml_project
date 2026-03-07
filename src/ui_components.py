@@ -11,25 +11,59 @@ import data_store
 
 class ProgressComponent:
     """简化的进度组件，直接集成在UI组件模块中"""
-    
-    def __init__(self, parent, width=200, show_label=True):
+
+    def __init__(self, parent, width=200):
         self.parent = parent
-        self.width = width 
-        self.show_label = show_label 
+        self.width = width
         self.progress_bar = None
         self.status_label = None
         self.current_progress = 0.0
-        
-    def create(self, row, column, sticky='ew', padx=5, pady=2, columnspan=1):
-        """创建进度组件"""
-        if self.show_label:
-            self.status_label = ctk.CTkLabel(self.parent, text="准备中...", font=ctk.CTkFont(size=11))
-            self.status_label.grid(row=row, column=column, columnspan=columnspan, sticky='w', padx=padx, pady=(pady, 2))
-            
-        self.progress_bar = ctk.CTkProgressBar(self.parent, width=self.width)  # 使用 self.width
-        self.progress_bar.grid(row=row+1, column=column, columnspan=columnspan, sticky=sticky, padx=padx, pady=(0, pady))
+        self.chip_frame = None
+        self.chip_preprocess = None
+        self.chip_train = None
+        self.chip_predict = None
+
+    def create(self, row, column, sticky='ew', padx=5, pady=1, columnspan=1, progress_parent=None):
+        """创建进度组件。
+        chip 行放在 self.parent 的 (row, column)；
+        若提供 progress_parent，则进度条放在该容器的 row=0/1，否则跟 chip 同在 self.parent 的 row+1/2。
+        """
+        # chip 状态行（始终可见）
+        self.chip_frame = ctk.CTkFrame(self.parent, fg_color="transparent")
+        self.chip_frame.grid(row=row, column=column, columnspan=columnspan, sticky='ew', padx=padx, pady=(pady, 0))
+        # 三列均匀分布
+        self.chip_frame.grid_columnconfigure((0, 1, 2), weight=1)
+
+        self.chip_preprocess = ctk.CTkLabel(
+            self.chip_frame, text="○ 预处理: 等待开始",
+            font=ctk.CTkFont(size=12), text_color="gray"
+        )
+        self.chip_preprocess.grid(row=0, column=0, padx=4, pady=0, sticky='w')
+
+        self.chip_train = ctk.CTkLabel(
+            self.chip_frame, text="○ 训练: 未训练",
+            font=ctk.CTkFont(size=12), text_color="gray"
+        )
+        self.chip_train.grid(row=0, column=1, padx=4, pady=0, sticky='w')
+
+        self.chip_predict = ctk.CTkLabel(
+            self.chip_frame, text="○ 预测: --",
+            font=ctk.CTkFont(size=12), text_color="gray"
+        )
+        self.chip_predict.grid(row=0, column=2, padx=4, pady=0, sticky='w')
+
+        # 进度条行（仅运行时显示）
+        bar_parent = progress_parent if progress_parent is not None else self.parent
+        bar_row = 0 if progress_parent is not None else row + 1
+        bar_row2 = 1 if progress_parent is not None else row + 2
+
+        self.status_label = ctk.CTkLabel(bar_parent, text="准备中...", font=ctk.CTkFont(size=11))
+        self.status_label.grid(row=bar_row, column=column, columnspan=columnspan, sticky='w', padx=padx, pady=(0, 2))
+
+        self.progress_bar = ctk.CTkProgressBar(bar_parent, width=self.width)
+        self.progress_bar.grid(row=bar_row2, column=column, columnspan=columnspan, sticky=sticky, padx=padx, pady=(0, pady))
         self.progress_bar.set(0)
-        
+
     def update(self, progress, message=None):
         """更新进度"""
         self.current_progress = max(0.0, min(1.0, progress))
@@ -37,21 +71,38 @@ class ProgressComponent:
             self.progress_bar.set(self.current_progress)
         if message and self.status_label:
             self.status_label.configure(text=message)
-            
+
+    def update_chip(self, module, text, color):
+        """更新状态 chip；module: 'preprocess' | 'train' | 'predict'"""
+        chip_map = {
+            'preprocess': self.chip_preprocess,
+            'train': self.chip_train,
+            'predict': self.chip_predict,
+        }
+        chip = chip_map.get(module)
+        if chip:
+            chip.configure(text=text, text_color=color)
+
+    def reset_chips(self):
+        """将所有 chip 重置为初始状态"""
+        self.update_chip('preprocess', '○ 预处理: 等待开始', 'gray')
+        self.update_chip('train', '○ 训练: 未训练', 'gray')
+        self.update_chip('predict', '○ 预测: --', 'gray')
+
     def hide(self):
-        """隐藏组件"""
+        """隐藏进度条行（chip 行不受影响）"""
         if self.progress_bar:
             self.progress_bar.grid_remove()
         if self.status_label:
             self.status_label.grid_remove()
-            
+
     def show(self):
-        """显示组件"""
+        """显示进度条行"""
         if self.progress_bar:
             self.progress_bar.grid()
         if self.status_label:
             self.status_label.grid()
-    
+
 class BasePanel:
     """基础面板类 - 提供公共功能"""
     
@@ -127,10 +178,6 @@ class PreprocessingPanel(BasePanel):
     
     def _create_panel_content(self):
         """创建面板内容"""
-
-        self.frame.grid_rowconfigure(1, weight=0)  # 按钮行不扩展
-        self.frame.grid_rowconfigure(2, weight=1)  # 空行不扩展  
-        self.frame.grid_rowconfigure(3, weight=0)  # 状态行不扩展
         # 主按钮
         self.components['preprocess_button'] = ctk.CTkButton(
             self.frame, text="数据预处理", width=150, height=35,
@@ -138,23 +185,11 @@ class PreprocessingPanel(BasePanel):
         )
         self.components['preprocess_button'].grid(row=1, column=0, padx=5, pady=2, sticky='ew')
         self.add_hover_tip(self.components['preprocess_button'], "start_preprocessing")
-        
-        # 状态显示
-        self.components['status_label'] = ctk.CTkLabel(
-            self.frame, text="状态：等待开始预处理",
-            justify='left', anchor='nw'
-        )
-        self.components['status_label'].grid(row=2, column=0, padx=5, pady=2, sticky='ew')
-
 
     def _on_start_preprocessing(self):
         """预处理按钮回调"""
-        if 'on_start_preprocessing' in self.callbacks: 
+        if 'on_start_preprocessing' in self.callbacks:
             self.callbacks['on_start_preprocessing']()
-    
-    def update_status(self, status_text, color='black'):
-        """更新状态显示"""
-        self.components['status_label'].configure(text=f"状态：{status_text}", text_color=color)
 
 
 
@@ -505,9 +540,11 @@ class PredictionPanel(BasePanel):
         if file_path:
             model_name = os.path.basename(file_path)
             self.current_model_selection = file_path  # 存储完整路径
-            self.components['model_select_button'].configure(text=f"已选择: {model_name}")
+            self.components['model_select_button'].configure(text=f"已选择: {os.path.splitext(model_name)[0]}")
             self.components['compatibility_status'].configure(text="模型: 已选择", text_color="green")
             log_message(f"选择模型文件: {model_name}")
+            if 'on_model_file_select' in self.callbacks:
+                self.callbacks['on_model_file_select'](file_path)
 
 class VisualizationPanel(BasePanel):
     """可视化面板组件"""

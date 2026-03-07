@@ -55,11 +55,17 @@ class DataPreprocessor:
         # 静默模式（自动化工作流使用）
         self.silent_mode = False
 
+        # 预处理完成标志
+        self.preprocessing_completed = False
+
     # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
         """显示文件分类对话框"""
         self.root = parent_root
+        self.preprocessing_completed = False
         self._create_classification_window()
+        if self.classification_window and self.classification_window.winfo_exists():
+            self.classification_window.wait_window()
 
     # 第二部分：核心三阶段处理流程
     def _execute_processing(self, file_paths: List[str]):
@@ -564,6 +570,7 @@ class DataPreprocessor:
         success = self._save_results(feature_matrix)
 
         if success:
+            self.preprocessing_completed = True
             current_paths = get_output_paths()
             norm_status = f"已归一化({self.current_normalization_method})" if self.current_normalization_enabled else "未归一化"
             log_message("智能峰发现处理完成！", "SUCCESS")
