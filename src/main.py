@@ -83,11 +83,55 @@ class MainGUIManager:
         height = self.root.winfo_screenheight()
         self.root.geometry(f"{width}x{height}+0+0")
         self.root.attributes('-alpha', 0)  # 初始化期间保持透明，避免逐步渲染的闪烁
+        self.splash = self._create_splash()
         try:
             self.root.state('zoomed')  # Windows
         except:
             self.root.attributes('-zoomed', True)  # Linux
     
+    def _create_splash(self):
+        """创建启动期间的卡片式闪屏"""
+        try:
+            import tkinter as tk
+            from PIL import Image, ImageTk
+            from config import ICON_CONFIG
+
+            BG = '#FFFFFF'
+
+            splash = tk.Toplevel(self.root)
+            splash.overrideredirect(True)
+            splash.attributes('-topmost', True)
+            splash.configure(bg=BG)
+
+            # 外层卡片 padding
+            card = tk.Frame(splash, bg=BG, padx=32, pady=28)
+            card.pack()
+
+            # 图标
+            img = Image.open(str(ICON_CONFIG.get('app_icon_png', ''))).convert('RGBA')
+            bg_img = Image.new('RGBA', img.size, (255, 255, 255, 255))
+            bg_img = Image.alpha_composite(bg_img, img)
+            img_resized = bg_img.convert('RGB').resize((128, 128), Image.LANCZOS)
+            photo = ImageTk.PhotoImage(img_resized)
+            tk.Label(card, image=photo, bd=0, bg=BG).pack()
+            splash._icon_img = photo  # 防止被垃圾回收
+
+            # 应用名称
+            tk.Label(card, text='DETEQX', bg=BG,
+                     font=('Segoe UI', 18, 'bold'), fg='#222222').pack(pady=(12, 2))
+
+            # 副标题
+            tk.Label(card, text='正在启动...', bg=BG,
+                     font=('Segoe UI', 9), fg='#999999').pack()
+
+            # 先让 tkinter 计算好实际尺寸，再用 PlaceWindow 居中
+            splash.update_idletasks()
+            splash.tk.eval(f'tk::PlaceWindow {str(splash)} center')
+            splash.update()
+            return splash
+        except Exception:
+            return None
+
     def _init_managers(self):
         """初始化业务逻辑管理器"""
         self.training_ui = TrainingUI(self.help_system)
@@ -383,8 +427,13 @@ class MainGUIManager:
         log_message("系统已启动，等待用户操作...")
         log_message("使用模块化UI组件，界面更加清晰", "INFO")
         
-        # 所有组件就绪后恢复窗口可见
-        self.root.after(0, lambda: self.root.attributes('-alpha', 1))
+        # 所有组件就绪后恢复窗口可见，同步销毁闪屏
+        def _on_init_complete():
+            self.root.attributes('-alpha', 1)
+            if self.splash:
+                self.splash.destroy()
+                self.splash = None
+        self.root.after(0, _on_init_complete)
 
         # 显示向导
         if self.help_system.show_wizard_on_startup:
