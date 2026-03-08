@@ -18,7 +18,7 @@ from config import OUTPUT_FILES, MZ_TOLERANCE
 import data_store
 from data_store import class_manager
 from data_processing import FeatureDetector
-from utils import log_message, set_window_icon
+from utils import log_message, set_window_icon, center_window
 
 
 class PredictionManager:
@@ -678,7 +678,7 @@ class PredictionManager:
         self.info_window = ctk.CTkToplevel(parent)
         model_name = os.path.basename(model_path) if model_path else info['model_type']
         self.info_window.title(f"模型信息: {model_name}")
-        self.info_window.geometry("600x400")
+        center_window(self.info_window, 600, 400)
         
         self._setup_info_window_properties()
         

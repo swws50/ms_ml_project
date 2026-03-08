@@ -16,7 +16,7 @@ from config import (
 )
 import data_store
 from data_store import class_manager
-from utils import log_message, create_backup_filename, set_window_icon
+from utils import log_message, create_backup_filename, set_window_icon, center_window
 
 # 诊断模块导入（可选，如果文件不存在则禁用诊断）
 try:
@@ -627,14 +627,9 @@ class DataPreprocessor:
         self.classification_window = ctk.CTkToplevel(self.root)
         self.classification_window.title("数据文件分类设置")
         
-        # 计算居中位置
         window_width, window_height = 700, 750
-        screen_width = self.classification_window.winfo_screenwidth()
-        screen_height = self.classification_window.winfo_screenheight()
-        center_x = int(screen_width/2 - window_width/2)
-        center_y = int(screen_height/2 - window_height/2)
-        
-        self.classification_window.geometry(f"{window_width}x{window_height}+{center_x}+{center_y}")
+        self.classification_window.geometry(f"{window_width}x{window_height}")
+        center_window(self.classification_window, window_width, window_height)
         self.classification_window.resizable(True, True)
         
         # 图标

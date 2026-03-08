@@ -317,15 +317,9 @@ class MainGUIManager:
         
         dialog = ctk.CTkToplevel(self.root)
         dialog.title("类别名称设置")
-        dialog.geometry("360x220")
         dialog.transient(self.root)
         dialog.grab_set()
-        
-        # 居中显示
-        dialog.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 360) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 220) // 2
-        dialog.geometry(f"+{x}+{y}")
+        center_window(dialog, 360, 220)
         
         # 设置图标
         set_window_icon(dialog)

@@ -8,7 +8,7 @@ from PIL import Image
 import customtkinter as ctk
 
 # 本地模块导入
-from utils import log_message, set_window_icon
+from utils import log_message, set_window_icon, center_window
 from config import ICON_CONFIG 
 
 
@@ -267,7 +267,7 @@ class HelpSystem:
 
         self.wizard_window = ctk.CTkToplevel(self.root)
         self.wizard_window.title("使用向导")
-        self.wizard_window.geometry("650x500")
+        center_window(self.wizard_window, 650, 500)
         self.wizard_window.resizable(False, False)
 
         set_window_icon(self.wizard_window)
@@ -387,11 +387,11 @@ class HelpSystem:
         """显示关于信息"""
         about_window = ctk.CTkToplevel(self.root)
         about_window.title("关于")
-        about_window.geometry("400x520")
         about_window.resizable(False, False)
         about_window.transient(self.root)
         about_window.grab_set()
         set_window_icon(about_window)
+        center_window(about_window, 400, 520)
         
         # ===== 软件名称 =====
         ctk.CTkLabel(
@@ -467,8 +467,3 @@ class HelpSystem:
             command=about_window.destroy
         ).pack(pady=20)
         
-        # 居中
-        about_window.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() - 400) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - 520) // 2
-        about_window.geometry(f"+{x}+{y}")

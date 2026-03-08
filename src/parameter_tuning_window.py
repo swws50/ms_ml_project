@@ -5,7 +5,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 import inspect
 from config import MODEL_CONFIGS
-from utils import log_message
+from utils import log_message, center_window
 
 # 导入所有模型类
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
