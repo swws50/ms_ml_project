@@ -82,6 +82,7 @@ class MainGUIManager:
         width = self.root.winfo_screenwidth()
         height = self.root.winfo_screenheight()
         self.root.geometry(f"{width}x{height}+0+0")
+        self.root.attributes('-alpha', 0)  # 初始化期间保持透明，避免逐步渲染的闪烁
         try:
             self.root.state('zoomed')  # Windows
         except:
@@ -109,9 +110,10 @@ class MainGUIManager:
         self.root.grid_columnconfigure(3, weight=1)
 
         # 创建各个组件
-        self._create_menu_bar()                    # row=0
-        self._create_ui_panels()                   # row=2,4
-        self._create_global_progress()             # row=3
+        self._create_menu_bar()                    # row=0 菜单栏
+        self._create_global_progress()             # row=1,2,4 状态栏 chip + 分割线
+        self._create_ui_panels()                   # row=3,5,6 三个主面板（耗时最重）
+        
 
     def _create_global_progress(self):
         """创建全局进度组件"""
@@ -381,6 +383,9 @@ class MainGUIManager:
         log_message("系统已启动，等待用户操作...")
         log_message("使用模块化UI组件，界面更加清晰", "INFO")
         
+        # 所有组件就绪后恢复窗口可见
+        self.root.after(0, lambda: self.root.attributes('-alpha', 1))
+
         # 显示向导
         if self.help_system.show_wizard_on_startup:
             self.root.after(500, self.help_system.show_wizard)
