@@ -33,6 +33,31 @@ def get_resource_path(relative_path):
     
     return os.path.join(base_path, relative_path)
 
+def center_window(window, width, height):
+    """
+    将窗口居中显示，兼容 Windows 高 DPI 缩放。
+
+    Args:
+        window: tk/ctk 窗口对象
+        width:  窗口宽度（逻辑像素）
+        height: 窗口高度（逻辑像素）
+    """
+    window.update_idletasks()
+    try:
+        import ctypes
+        sw = ctypes.windll.user32.GetSystemMetrics(0)
+        sh = ctypes.windll.user32.GetSystemMetrics(1)
+        scale = sw / window.winfo_screenwidth()
+        x = (sw - int(width * scale)) // 2
+        y = (sh - int(height * scale)) // 2
+    except Exception:
+        sw = window.winfo_screenwidth()
+        sh = window.winfo_screenheight()
+        x = (sw - width) // 2
+        y = (sh - height) // 2
+    window.geometry(f"+{x}+{y}")
+
+
 def set_window_icon(window):
     """设置窗口图标 - 带稳定性保证"""
     if not window.winfo_exists():

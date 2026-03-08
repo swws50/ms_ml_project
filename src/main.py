@@ -9,7 +9,7 @@ from tkinter import filedialog, messagebox,PhotoImage
 
 # 本地模块导入 
 from config import MODEL_CONFIGS, DEFAULT_MODEL
-from utils import log_message, clear_log, set_global_widgets, set_window_icon
+from utils import log_message, clear_log, set_global_widgets, set_window_icon, center_window
 from data_processing import open_data_file
 from model_training import TrainingUI
 from model_predictor import PredictionManager
@@ -83,6 +83,7 @@ class MainGUIManager:
         height = self.root.winfo_screenheight()
         self.root.geometry(f"{width}x{height}+0+0")
         self.root.attributes('-alpha', 0)  # 初始化期间保持透明，避免逐步渲染的闪烁
+        self.root.update_idletasks()       # 让 root 真正移到 0,0，否则 PlaceWindow 会基于 WM 默认位置居中
         self.splash = self._create_splash()
         try:
             self.root.state('zoomed')  # Windows
@@ -124,9 +125,9 @@ class MainGUIManager:
             tk.Label(card, text='正在启动...', bg=BG,
                      font=('Segoe UI', 9), fg='#999999').pack()
 
-            # 先让 tkinter 计算好实际尺寸，再用 PlaceWindow 居中
-            splash.update_idletasks()
-            splash.tk.eval(f'tk::PlaceWindow {str(splash)} center')
+            w = splash.winfo_reqwidth()
+            h = splash.winfo_reqheight()
+            center_window(splash, w, h)
             splash.update()
             return splash
         except Exception:
