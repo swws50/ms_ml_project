@@ -76,6 +76,7 @@ class AutomatedWorkflow:
     def _on_preprocess_done(self):
         """预处理完成回调 - 由 DataPreprocessor 在保存成功后触发"""
         log_message("预处理完成，准备自动加载数据并训练", "INFO")
+        self.gui_manager.global_progress.update_chip('preprocess', '✓ 预处理: 完成', 'green')
         self.root.after(1000, self._training_step)
 
     def _find_latest_data_csv(self):
