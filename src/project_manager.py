@@ -4,7 +4,7 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 import os
 from datetime import datetime
-from utils import set_window_icon, log_message
+from utils import set_window_icon, log_message, center_window
 
 class ProjectManager:
     """项目管理器 - 独立模块"""
@@ -347,10 +347,7 @@ class ProjectCreationWizard:
     
     def _center_dialog(self):
         """居中显示对话框"""
-        self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (450 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (650 // 2)
-        self.dialog.geometry(f"450x650+{x}+{y}")
+        center_window(self.dialog, 450, 650)
 
 
 class ProjectManagerDialog:
@@ -629,7 +626,4 @@ class ProjectManagerDialog:
         
     def _center_dialog(self):
         """居中显示对话框"""
-        self.dialog.update_idletasks()
-        x = (self.dialog.winfo_screenwidth() // 2) - (700 // 2)
-        y = (self.dialog.winfo_screenheight() // 2) - (550 // 2)
-        self.dialog.geometry(f"700x550+{x}+{y}")
+        center_window(self.dialog, 700, 550)

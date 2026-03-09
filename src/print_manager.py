@@ -35,6 +35,7 @@ class PrintDialog:
         """显示打印设置对话框"""
         self.dialog = ctk.CTkToplevel(self.parent)
         self.dialog.title("打印设置")
+        self.dialog.geometry("400x650")
         center_window(self.dialog, 400, 650)
 
         # 设置图标
@@ -152,6 +153,7 @@ class PrintDialog:
         """显示预览窗口"""
         preview_window = ctk.CTkToplevel(self.dialog)
         preview_window.title("打印预览")
+        preview_window.geometry("700x500")
         center_window(preview_window, 700, 500)
         
         # 设置图标

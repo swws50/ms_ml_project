@@ -71,7 +71,8 @@ class ParameterTuningWindow(ctk.CTkToplevel):
         # 窗口配置
         self.title(f"参数调优 - {model_name}")
         self.geometry("700x600")
-        
+        center_window(self, 700, 600)
+
         # 设置窗口居中和置顶
         self.transient(parent)
         self.grab_set()
