@@ -8,7 +8,7 @@ from PIL import Image
 import customtkinter as ctk
 
 # 本地模块导入
-from utils import log_message, set_window_icon, center_window
+from utils import log_message, set_window_icon, center_window, get_resource_path
 from config import ICON_CONFIG 
 
 
@@ -391,8 +391,9 @@ class HelpSystem:
         about_window.transient(self.root)
         about_window.grab_set()
         set_window_icon(about_window)
-        center_window(about_window, 400, 520)
-        
+        about_window.geometry("350x600")
+        center_window(about_window, 350, 600)
+
         # ===== 软件名称 =====
         ctk.CTkLabel(
             about_window,
@@ -459,6 +460,22 @@ class HelpSystem:
             text_color="gray"
         ).pack(pady=(10, 0))
         
+        # ===== 底部 Logo =====
+        frame2_path = get_resource_path('assets/Frame 2.png')
+        try:
+            frame2_image = ctk.CTkImage(
+                light_image=Image.open(frame2_path),
+                dark_image=Image.open(frame2_path),
+                size=(60, 60)
+            )
+            ctk.CTkLabel(
+                about_window,
+                image=frame2_image,
+                text=""
+            ).pack(pady=(5, 0))
+        except Exception:
+            pass
+
         # ===== 关闭按钮 =====
         ctk.CTkButton(
             about_window,
@@ -466,4 +483,57 @@ class HelpSystem:
             width=80,
             command=about_window.destroy
         ).pack(pady=20)
-        
+
+        #
+        _egg_buf = []
+        _egg_code = list("swws50")
+
+        def _on_key(event):
+            _egg_buf.append(event.char)
+            if len(_egg_buf) > len(_egg_code):
+                _egg_buf.pop(0)
+            if _egg_buf == _egg_code:
+                _egg_buf.clear()
+                _show_easter_egg(about_window)
+
+        about_window.bind("<Key>", _on_key)
+
+
+def _show_easter_egg(parent):
+    """彩蛋弹窗"""
+    egg = ctk.CTkToplevel(parent)
+    egg.title("ecust的swws50本人")
+    egg.resizable(False, False)
+    egg.transient(parent)
+    egg.grab_set()
+    egg.geometry("280x440+20+20")
+
+    try:
+        ico_path = get_resource_path('assets/Frame 2.ico')
+        egg.iconbitmap(ico_path)
+        egg.after(200, egg.iconbitmap, ico_path)
+    except Exception:
+        pass
+
+    ctk.CTkLabel(
+        egg,
+        text="是的，这回真的是本人了",
+        font=ctk.CTkFont(size=20, weight="bold")
+    ).pack(pady=(30, 10))
+
+    ctk.CTkLabel(
+        egg,
+        text='''《今夜》\n🎶今夜我只想说些碎碎念🎶\n🎶倾听为项目奔波的憔悴🎶\n🎶就让我再一次 嘟嘟囔囔🎶\n🎶找寻点小确幸 慰藉我🎶
+🎶让我为这项目肝到天明吧🎶\n🎶好想抱着键盘 轻轻旋转🎶\n🎶就让我歇一下🎶\n🎶就歇一下🎶\n🎶明天又要说 好的老师🎶\n💃💃💃
+        \n\n什么，你说那里有三只小猪？\n不，孩子，那是我的队友\n不不不，这儿不是监狱，这是我来时路\n能力越大，能力越来越大\n……''',
+        font=ctk.CTkFont(size=12),
+        justify="center",
+        text_color="gray"
+    ).pack(pady=10)
+
+    ctk.CTkButton(
+        egg,
+        text="悄悄关掉",
+        width=100,
+        command=egg.destroy
+    ).pack(pady=20)
