@@ -31,28 +31,24 @@ class PredictionManager:
         self.info_window = None  # 模型信息窗口引用
     
     # 模型加载相关
+    def reset(self):
+        """清空预测器状态（重置时调用）"""
+        self.model = None
+        self.temp_model_path = None
+        self.feature_detector.training_features = None
+        self.feature_detector.normalization_method = None
+
     def _apply_loaded(self, loaded, source_label: str):
-        """
-        解包 joblib 加载结果，自动识别 bundle 格式和旧格式。
-        bundle 格式：{"model": ..., "training_features": [...], "normalization_method": ...}
-        旧格式：直接是 sklearn 模型对象
-        """
-        if isinstance(loaded, dict) and "model" in loaded:
-            self.model = loaded["model"]
-            features = loaded.get("training_features") or []
-            norm    = loaded.get("normalization_method")
-            if features:
-                self.feature_detector.training_features    = features
-                self.feature_detector.normalization_method = norm
-                log_message(
-                    f"{source_label}（bundle：{len(features)} 个特征，归一化={norm}）", "INFO"
-                )
-            else:
-                log_message(f"{source_label}（bundle，无特征元数据）", "INFO")
-        else:
-            # 旧格式，向后兼容
-            self.model = loaded
-            log_message(f"{source_label}（旧格式，特征将从 CSV 读取）", "INFO")
+        """解包 joblib bundle：{"model": ..., "training_features": [...], "normalization_method": ...}"""
+        if not (isinstance(loaded, dict) and "model" in loaded):
+            raise ValueError("模型格式不兼容，请使用当前版本重新训练以生成 bundle 文件")
+
+        self.model = loaded["model"]
+        features = loaded.get("training_features") or []
+        norm = loaded.get("normalization_method")
+        self.feature_detector.training_features = features if features else None
+        self.feature_detector.normalization_method = norm
+        log_message(f"{source_label}（{len(features)} 个特征，归一化={norm}）", "INFO")
 
     def load_model(self):
         """智能加载模型"""
@@ -65,28 +61,8 @@ class PredictionManager:
                 )
                 return True
 
-            # 2. 使用最新训练的模型（内存中，当前会话刚训练完）
-            latest_model, latest_path = data_store.get_latest_trained_model()
-            if latest_model is not None:
-                self.model = latest_model
-                # 内存中的模型是纯 sklearn 对象；若特征尚未缓存，从同会话保存的 bundle 文件补充
-                if self.feature_detector.training_features is None and latest_path and os.path.exists(latest_path):
-                    try:
-                        bundle = load(latest_path)
-                        if isinstance(bundle, dict):
-                            features = bundle.get("training_features") or []
-                            if features:
-                                self.feature_detector.training_features = features
-                                self.feature_detector.normalization_method = bundle.get("normalization_method")
-                                log_message(
-                                    f"从 bundle 补充特征（{len(features)} 个，归一化={self.feature_detector.normalization_method}）", "INFO"
-                                )
-                    except Exception:
-                        pass  # 补充失败时退化到原有 CSV 回退路径
-                log_message("使用最新训练的模型（内存中）", "INFO")
-                return True
-
-            # 3. 从最新的模型文件加载（内存中没有时）
+            # 2. 从最新的模型文件加载（含当前会话刚训练完的模型）
+            _, latest_path = data_store.get_latest_trained_model()
             if latest_path and os.path.exists(latest_path):
                 self._apply_loaded(
                     load(latest_path),
@@ -94,7 +70,7 @@ class PredictionManager:
                 )
                 return True
 
-            # 4. 扫描模型目录，找到最新的模型文件
+            # 3. 扫描模型目录，找到最新的模型文件
             model_dir = "output/models"
             if os.path.exists(model_dir):
                 model_files = [f for f in os.listdir(model_dir) if f.endswith('.joblib')]

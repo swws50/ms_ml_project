@@ -506,6 +506,7 @@ class MainGUIManager:
             self.ui_panels['prediction'].reset_model_selection()
             if hasattr(self, 'prediction_manager') and self.prediction_manager:
                 self.prediction_manager.close_info_window()
+                self.prediction_manager.reset()
             self.ui_panels['control'].update_file_status("文件未选择")
             self.ui_panels['control'].enable_training(False)
             self.ui_panels['control'].components['model_menu'].set(DEFAULT_MODEL)
