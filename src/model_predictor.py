@@ -30,44 +30,86 @@ class PredictionManager:
         self.feature_detector = FeatureDetector()
         self.info_window = None  # 模型信息窗口引用
     
-    # 模型加载相关 
+    # 模型加载相关
+    def _apply_loaded(self, loaded, source_label: str):
+        """
+        解包 joblib 加载结果，自动识别 bundle 格式和旧格式。
+        bundle 格式：{"model": ..., "training_features": [...], "normalization_method": ...}
+        旧格式：直接是 sklearn 模型对象
+        """
+        if isinstance(loaded, dict) and "model" in loaded:
+            self.model = loaded["model"]
+            features = loaded.get("training_features") or []
+            norm    = loaded.get("normalization_method")
+            if features:
+                self.feature_detector.training_features    = features
+                self.feature_detector.normalization_method = norm
+                log_message(
+                    f"{source_label}（bundle：{len(features)} 个特征，归一化={norm}）", "INFO"
+                )
+            else:
+                log_message(f"{source_label}（bundle，无特征元数据）", "INFO")
+        else:
+            # 旧格式，向后兼容
+            self.model = loaded
+            log_message(f"{source_label}（旧格式，特征将从 CSV 读取）", "INFO")
+
     def load_model(self):
         """智能加载模型"""
         try:
             # 1. 优先使用用户手动选择的模型
             if hasattr(self, 'temp_model_path') and self.temp_model_path:
-                self.model = load(self.temp_model_path)
-                log_message(f"使用用户选择的模型: {os.path.basename(self.temp_model_path)}", "INFO")
+                self._apply_loaded(
+                    load(self.temp_model_path),
+                    f"使用用户选择的模型: {os.path.basename(self.temp_model_path)}"
+                )
                 return True
-            
-            # 2. 使用最新训练的模型（内存中）
+
+            # 2. 使用最新训练的模型（内存中，当前会话刚训练完）
             latest_model, latest_path = data_store.get_latest_trained_model()
             if latest_model is not None:
                 self.model = latest_model
+                # 内存中的模型是纯 sklearn 对象；若特征尚未缓存，从同会话保存的 bundle 文件补充
+                if self.feature_detector.training_features is None and latest_path and os.path.exists(latest_path):
+                    try:
+                        bundle = load(latest_path)
+                        if isinstance(bundle, dict):
+                            features = bundle.get("training_features") or []
+                            if features:
+                                self.feature_detector.training_features = features
+                                self.feature_detector.normalization_method = bundle.get("normalization_method")
+                                log_message(
+                                    f"从 bundle 补充特征（{len(features)} 个，归一化={self.feature_detector.normalization_method}）", "INFO"
+                                )
+                    except Exception:
+                        pass  # 补充失败时退化到原有 CSV 回退路径
                 log_message("使用最新训练的模型（内存中）", "INFO")
                 return True
-            
-            # 3. 从最新的模型文件加载（如果内存中没有）
+
+            # 3. 从最新的模型文件加载（内存中没有时）
             if latest_path and os.path.exists(latest_path):
-                self.model = load(latest_path)
-                log_message(f"从最新模型文件加载: {os.path.basename(latest_path)}", "INFO")
+                self._apply_loaded(
+                    load(latest_path),
+                    f"从最新模型文件加载: {os.path.basename(latest_path)}"
+                )
                 return True
-            
+
             # 4. 扫描模型目录，找到最新的模型文件
-            model_dir = "output/models"  # 根据实际路径调整
+            model_dir = "output/models"
             if os.path.exists(model_dir):
                 model_files = [f for f in os.listdir(model_dir) if f.endswith('.joblib')]
                 if model_files:
-                    # 按时间戳排序，选择最新的
                     latest_file = max(model_files)
                     latest_model_path = os.path.join(model_dir, latest_file)
-                    self.model = load(latest_model_path)
-                    log_message(f"自动选择最新模型文件: {latest_file}", "INFO")
+                    self._apply_loaded(
+                        load(latest_model_path),
+                        f"自动选择最新模型文件: {latest_file}"
+                    )
                     return True
-            
+
             log_message("未找到可用的模型文件", "ERROR")
             return False
-            
+
         except Exception as e:
             log_message(f"加载模型失败: {str(e)}", "ERROR")
             self.model = None

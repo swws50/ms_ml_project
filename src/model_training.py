@@ -225,12 +225,40 @@ class ModelTrainer:
                 filename = f"{model_type}_{timestamp}.joblib"
                 model_path = output_manager.get_path('model', filename)
                 
-                # 保存模型
-                dump(self.best_model, model_path)
-                 # 设置为最新训练的模型（用于预测时的默认选择）
+                # 提取训练特征列表（m/z 值）
+                _, _, df = data_store.get_training_data()
+                training_features = []
+                if df is not None:
+                    for name in df.index.tolist()[1:]:  # 跳过 'class' 行
+                        try:
+                            training_features.append(float(name))
+                        except ValueError:
+                            pass
+
+                # 从训练数据文件名推断归一化方法
+                training_data_path = data_store.get_training_data_path() or ''
+                basename = os.path.basename(training_data_path)
+                if '_max' in basename:
+                    norm_method = 'max'
+                elif '_sum' in basename:
+                    norm_method = 'sum'
+                elif '_median' in basename:
+                    norm_method = 'median'
+                else:
+                    norm_method = None
+
+                # 打包保存：模型 + 特征元数据
+                model_bundle = {
+                    "model": self.best_model,
+                    "training_features": training_features,
+                    "normalization_method": norm_method,
+                }
+                dump(model_bundle, model_path)
+
+                # 设置为最新训练的模型（用于预测时的默认选择）
                 data_store.set_latest_trained_model(self.best_model, model_path)
-                
-                log_message(f"模型已保存: {filename}")
+
+                log_message(f"模型已保存: {filename}（含 {len(training_features)} 个特征，归一化={norm_method}）")
                 log_message(f"测试集分数: {self.best_score:.4f}")
             
             # 保存PLS阈值（如果存在）
