@@ -79,6 +79,7 @@ def get_output_paths():
     return {
         # 数据文件
         'processed_data': output_manager.get_path('data', csv_filename),
+        'diagnostics_report': output_manager.get_path('data', 'diagnostics_report.txt'),
         
         # 结果文件
         'confusion_matrix': output_manager.get_path('metrics', 'Con_matrix_SVM.csv'),

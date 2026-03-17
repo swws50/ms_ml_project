@@ -327,129 +327,65 @@ class ConsensusPeakDiagnostics:
         }
     
     def generate_report(self) -> str:
-        """生成完整的诊断报告"""
+        """生成诊断报告"""
         phase1_summary = self.phase1.get_summary()
         phase2_summary = self.phase2.get_summary()
-        
-        report_lines = [
-            "=" * 70,
-            "共识峰识别诊断报告",
-            f"生成时间: {self.timestamp}",
-            "=" * 70,
-            "",
-            "【当前参数设置】",
-            f"  最小出现率阈值: {self.parameters.get('min_occurrence_rate', 'N/A')}",
-            f"  最小折叠变化: {self.parameters.get('min_fold_change', 'N/A')}",
-            f"  m/z容差: {self.parameters.get('mz_tolerance', 'N/A')}",
-            f"  最大特征数: {self.parameters.get('max_features', 'N/A')}",
-            "",
-            "-" * 70,
-            "【阶段1: 峰发现质量诊断】",
-            "-" * 70,
-            "",
-            f"文件处理成功率: {phase1_summary['file_success_rate']:.1%}",
-            f"失败文件: {phase1_summary['failed_files'] if phase1_summary['failed_files'] else '无'}",
-            "",
-            "每文件峰数量统计:",
-            f"  最小: {phase1_summary['peaks_per_file']['min']:.0f}",
-            f"  最大: {phase1_summary['peaks_per_file']['max']:.0f}",
-            f"  平均: {phase1_summary['peaks_per_file']['mean']:.1f}",
-            f"  中位数: {phase1_summary['peaks_per_file']['median']:.1f}",
-            f"  标准差: {phase1_summary['peaks_per_file']['std']:.1f}",
-            "",
-            "类别平衡性:",
-            f"  类别0: {phase1_summary['class_balance']['class_0_files']} 个文件, "
-            f"平均 {phase1_summary['class_balance']['class_0_avg_peaks']:.1f} 峰/文件",
-            f"  类别1: {phase1_summary['class_balance']['class_1_files']} 个文件, "
-            f"平均 {phase1_summary['class_balance']['class_1_avg_peaks']:.1f} 峰/文件",
-            "",
-        ]
-        
-        # 异常文件
-        outliers = phase1_summary['outlier_files']
-        if outliers['low'] or outliers['high']:
-            report_lines.append("⚠️ 异常文件检测:")
-            if outliers['low']:
-                report_lines.append(f"  峰数量过少: {', '.join(outliers['low'][:5])}")
-                if len(outliers['low']) > 5:
-                    report_lines.append(f"    ... 还有 {len(outliers['low']) - 5} 个")
-            if outliers['high']:
-                report_lines.append(f"  峰数量过多: {', '.join(outliers['high'][:5])}")
-            report_lines.append("")
-        
-        # 阶段2诊断
-        report_lines.extend([
-            "-" * 70,
-            "【阶段2: 共识峰筛选诊断】",
-            "-" * 70,
-            "",
-            "筛选漏斗:",
-        ])
-        
+
+        p = self.parameters
+        pks = phase1_summary['peaks_per_file']
+        bal = phase1_summary['class_balance']
         funnel = phase2_summary['filter_funnel']
         rates = phase2_summary['conversion_rates']
-        
-        report_lines.extend([
-            f"  初始m/z组: {funnel['initial_groups']}",
-            f"    ↓ 出现率筛选 → {funnel['passed_occurrence']} "
-            f"(通过率: {rates['occurrence_pass_rate']:.1%})",
-            f"    ↓ 样本数筛选 → {funnel['passed_min_samples']} "
-            f"(通过率: {rates['samples_pass_rate']:.1%})",
-            f"    ↓ 折叠变化筛选 → {funnel['passed_fold_change']} "
-            f"(通过率: {rates['fold_change_pass_rate']:.1%})",
-            f"  最终共识峰: {funnel['final_consensus']} "
-            f"(总通过率: {rates['overall_pass_rate']:.1%})",
+
+        report_lines = [
+            "=" * 50,
+            "共识峰识别诊断报告",
+            "=" * 50,
+            f"参数: 出现率≥{p.get('min_occurrence_rate','N/A')} | "
+            f"折叠变化≥{p.get('min_fold_change','N/A')} | "
+            f"m/z容差={p.get('mz_tolerance','N/A')} | "
+            f"最大特征数={p.get('max_features','N/A')}",
             "",
-        ])
-        
-        # 拒绝原因分析
-        rejection = phase2_summary['rejection_summary']
+            "[ 峰发现 ]",
+            f"文件: {self.phase1.successful_files}/{self.phase1.total_files} 成功"
+            + (f"  失败: {', '.join(phase1_summary['failed_files'])}" if phase1_summary['failed_files'] else ""),
+            f"峰数量: 均值 {pks['mean']:.1f} ± {pks['std']:.1f}  (范围 {pks['min']:.0f}~{pks['max']:.0f})",
+            f"类别平衡: 类别0 {bal['class_0_files']} 个文件 (均值 {bal['class_0_avg_peaks']:.1f} 峰), "
+            f"类别1 {bal['class_1_files']} 个文件 (均值 {bal['class_1_avg_peaks']:.1f} 峰)",
+        ]
+
+        outliers = phase1_summary['outlier_files']
+        if outliers['low']:
+            low_list = ', '.join(outliers['low'][:5])
+            suffix = f" 等{len(outliers['low'])}个" if len(outliers['low']) > 5 else ""
+            report_lines.append(f"[警告] 峰数量过少: {low_list}{suffix}")
+        if outliers['high']:
+            report_lines.append(f"[警告] 峰数量过多: {', '.join(outliers['high'][:5])}")
+
         report_lines.extend([
-            "拒绝原因分布:",
-            f"  出现率不足: {rejection.get('low_occurrence', 0)} 个",
-            f"  样本数不足: {rejection.get('insufficient_samples', 0)} 个",
-            f"  折叠变化不足: {rejection.get('low_fold_change', 0)} 个",
             "",
+            "[ 共识峰筛选 ]",
+            f"m/z组 {funnel['initial_groups']}"
+            f" → 出现率 {funnel['passed_occurrence']} ({rates['occurrence_pass_rate']:.1%})"
+            f" → 样本数 {funnel['passed_min_samples']} ({rates['samples_pass_rate']:.1%})"
+            f" → 折叠变化 {funnel['passed_fold_change']} ({rates['fold_change_pass_rate']:.1%})",
+            f"最终共识峰: {funnel['final_consensus']}  (总通过率 {rates['overall_pass_rate']:.1%})",
+            f"主要瓶颈: {phase2_summary['bottleneck']}",
         ])
-        
-        # 边界案例
+
         near_miss = phase2_summary['near_miss_count']
         if near_miss > 0:
-            report_lines.extend([
-                f"⚠️ 接近通过的边界案例: {near_miss} 个",
-                f"  按原因分布: {phase2_summary['near_miss_by_reason']}",
-                "",
-            ])
-        
-        # 瓶颈识别
-        report_lines.extend([
-            "🔍 主要瓶颈:",
-            f"  {phase2_summary['bottleneck']}",
-            "",
-        ])
-        
-        # 参数建议
+            report_lines.append(f"[提示] {near_miss} 个峰接近通过阈值: {phase2_summary['near_miss_by_reason']}")
+
         if phase2_summary.get('parameter_impact', {}).get('recommendations'):
-            report_lines.extend([
-                "💡 参数调整建议:",
-            ])
-            for rec in phase2_summary['parameter_impact']['recommendations']:
-                report_lines.append(f"  • {rec}")
             report_lines.append("")
-        
-        # 总结诊断
-        report_lines.extend([
-            "-" * 70,
-            "【诊断总结】",
-            "-" * 70,
-            "",
-        ])
-        
-        diagnosis = self._generate_diagnosis(phase1_summary, phase2_summary)
-        report_lines.extend(diagnosis)
-        
-        report_lines.append("=" * 70)
-        
+            for rec in phase2_summary['parameter_impact']['recommendations']:
+                report_lines.append(f"[建议] {rec}")
+
+        report_lines.extend(["", "[ 诊断结论 ]"])
+        report_lines.extend(self._generate_diagnosis(phase1_summary, phase2_summary))
+        report_lines.append("=" * 50)
+
         return "\n".join(report_lines)
     
     def _generate_diagnosis(self, phase1: Dict, phase2: Dict) -> List[str]:
@@ -493,30 +429,25 @@ class ConsensusPeakDiagnostics:
         
         # 输出结论
         if data_quality_issues:
-            conclusions.append("📊 数据质量问题:")
+            conclusions.append("数据质量问题:")
             conclusions.extend(data_quality_issues)
-            conclusions.append("")
-        else:
-            conclusions.append("✅ 数据质量检查通过")
-            conclusions.append("")
-        
+
         if algorithm_issues:
-            conclusions.append("⚙️ 算法参数问题:")
+            if data_quality_issues:
+                conclusions.append("")
+            conclusions.append("算法参数问题:")
             conclusions.extend(algorithm_issues)
-            conclusions.append("")
-        else:
-            conclusions.append("✅ 算法参数设置合理")
-            conclusions.append("")
-        
+
         # 总体建议
+        conclusions.append("")
         if not data_quality_issues and not algorithm_issues:
-            conclusions.append("💡 建议: 当前设置正常，如需更多共识峰可适当放宽参数")
+            conclusions.append("建议: 当前设置正常，如需更多共识峰可适当放宽参数")
         elif data_quality_issues and not algorithm_issues:
-            conclusions.append("💡 建议: 优先解决数据质量问题，检查异常文件和数据预处理流程")
+            conclusions.append("建议: 优先解决数据质量问题，检查异常文件和数据预处理流程")
         elif algorithm_issues and not data_quality_issues:
-            conclusions.append("💡 建议: 数据质量良好，可通过调整算法参数增加共识峰数量")
+            conclusions.append("建议: 数据质量良好，可通过调整算法参数增加共识峰数量")
         else:
-            conclusions.append("💡 建议: 同时存在数据和算法问题，建议先解决数据质量问题再调整参数")
+            conclusions.append("建议: 同时存在数据和算法问题，建议先解决数据质量问题再调整参数")
         
         return conclusions
     

@@ -493,10 +493,7 @@ class DataPreprocessor:
             quick_stats = self.diagnostics.get_quick_stats()
             
             # 保存报告到文件
-            report_path = os.path.join(
-                os.path.dirname(get_output_paths()['processed_data']),
-                'diagnostics_report.txt'
-            )
+            report_path = get_output_paths()['diagnostics_report']
             
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write(report)
