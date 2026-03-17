@@ -532,16 +532,21 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         import csv
         csv_path = str(OUTPUT_FILES['chart_metrics_table']).replace('.html', '.csv')
         
+        label_overrides = {
+            'Sensitivity (TPR)': f'Sensitivity – {class_manager.class_1_name}',
+            'Specificity (TNR)': f'Specificity – {class_manager.class_0_name}',
+        }
+
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
             writer.writerow(['Metric', 'Value', '±CI', '95% CI Range'])
-            
+
             for name in metric_names:
                 metric = metrics_calc.get_metric(name)
                 if metric is None:
                     continue
                 writer.writerow([
-                    metric.name,
+                    label_overrides.get(metric.name, metric.name),
                     f'{metric.mean:.3f}',
                     f'±{metric.ci_margin:.3f}',
                     f'[{metric.ci_lower:.3f}, {metric.ci_upper:.3f}]'

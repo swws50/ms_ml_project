@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox
 from datetime import datetime
 
 # 本地模块导入 
-from config import OUTPUT_FILES, MZ_TOLERANCE
+from config import MZ_TOLERANCE
 import data_store
 from data_store import class_manager
 from data_processing import FeatureDetector
@@ -46,6 +46,7 @@ class PredictionManager:
         self.model = loaded["model"]
         features = loaded.get("training_features") or []
         norm = loaded.get("normalization_method")
+        self.pls_threshold = loaded.get("pls_threshold", None)
         self.feature_detector.training_features = features if features else None
         self.feature_detector.normalization_method = norm
         log_message(f"{source_label}（{len(features)} 个特征，归一化={norm}）", "INFO")
@@ -124,12 +125,12 @@ class PredictionManager:
         """处理PLS回归模型的预测"""
         raw_value = self.model.predict(features).flatten()[0]
         
-        # 获取最优阈值
-        try:
-            threshold = np.mean(np.loadtxt(OUTPUT_FILES['pls_thresholds'], delimiter=","))
-        except:
+        # 获取最优阈值（从模型bundle中读取）
+        if hasattr(self, 'pls_threshold') and self.pls_threshold is not None:
+            threshold = self.pls_threshold
+        else:
             threshold = 0.5
-            log_message("未找到PLS阈值文件，使用默认阈值0.5", "WARNING")
+            log_message("模型bundle中未找到PLS阈值，使用默认阈值0.5", "WARNING")
         
         # 转换为概率，避免数值溢出
         diff = (raw_value - threshold) * 10

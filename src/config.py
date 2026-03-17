@@ -81,15 +81,6 @@ def get_output_paths():
         'processed_data': output_manager.get_path('data', csv_filename),
         'diagnostics_report': output_manager.get_path('data', 'diagnostics_report.txt'),
         
-        # 结果文件
-        'confusion_matrix': output_manager.get_path('metrics', 'Con_matrix_SVM.csv'),
-        'fscore': output_manager.get_path('metrics', 'Fscore_SVM.csv'),
-        'auc': output_manager.get_path('metrics', '2C_auc_SVM.csv'),
-        'fpr_values': output_manager.get_path('metrics', 'fpr_values.npy'),
-        'tpr_values': output_manager.get_path('metrics', 'tpr_values.npy'),
-        'thresholds_values': output_manager.get_path('metrics', 'thresholds_values.npy'),
-        'pls_thresholds': output_manager.get_path('metrics', 'PLS_optimal_thresholds.csv'),
-
         # 图表文件
         'chart_accuracy': output_manager.get_path('chart', 'ClassPerformance.png'),
         'chart_metrics': output_manager.get_path('chart', 'BalanceMetrics.png'),

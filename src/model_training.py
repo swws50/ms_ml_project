@@ -204,27 +204,18 @@ class ModelTrainer:
         log_message("保存训练结果文件...")
         
         try:
-            # 保存各种指标
-            np.savetxt(OUTPUT_FILES['confusion_matrix'], results['confusion_matrices'], delimiter=",")
-            np.savetxt(OUTPUT_FILES['fscore'], results['f_scores'], delimiter=",")
-            np.savetxt(OUTPUT_FILES['auc'], results['auc_list'], delimiter=",")
-            np.save(OUTPUT_FILES['fpr_values'], np.array(results['fpr_values'], dtype=object))
-            np.save(OUTPUT_FILES['tpr_values'], np.array(results['tpr_values'], dtype=object))
-            np.save(OUTPUT_FILES['thresholds_values'], np.array(results['thresholds_list'], dtype=object))
-            
+            from datetime import datetime
+            from config import output_manager
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            model_type = type(self.best_model).__name__ if self.best_model else "Unknown"
+            run_stem = f"{model_type}_{timestamp}"
+
             # 保存最佳模型
             if self.best_model is not None:
-                from datetime import datetime
-                from config import output_manager
-                
-                # 生成带时间戳的文件名
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-                model_type = type(self.best_model).__name__
-
-                
-                filename = f"{model_type}_{timestamp}.joblib"
+                filename = f"{run_stem}.joblib"
                 model_path = output_manager.get_path('model', filename)
-                
+
                 # 提取训练特征列表（m/z 值）
                 _, _, df = data_store.get_training_data()
                 training_features = []
@@ -247,26 +238,36 @@ class ModelTrainer:
                 else:
                     norm_method = None
 
-                # 打包保存：模型 + 特征元数据
+                # 打包保存：模型 + 特征元数据 + PLS阈值（如有）
                 model_bundle = {
                     "model": self.best_model,
                     "training_features": training_features,
                     "normalization_method": norm_method,
                 }
+                if len(results['thresholds_used']) > 0:
+                    mean_threshold = np.mean(results['thresholds_used'])
+                    model_bundle["pls_threshold"] = mean_threshold
+                    log_message(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
+
                 dump(model_bundle, model_path)
-
-                # 设置为最新训练的模型（用于预测时的默认选择）
                 data_store.set_latest_trained_model(self.best_model, model_path)
-
                 log_message(f"模型已保存: {filename}（含 {len(training_features)} 个特征，归一化={norm_method}）")
                 log_message(f"测试集分数: {self.best_score:.4f}")
-            
-            # 保存PLS阈值（如果存在）
-            if len(results['thresholds_used']) > 0:
-                np.savetxt(OUTPUT_FILES['pls_thresholds'], results['thresholds_used'], delimiter=",")
-                mean_threshold = np.mean(results['thresholds_used'])
-                log_message(f"PLS回归平均最优阈值: {mean_threshold:.4f}")
-                
+
+            # 所有指标合并保存为单个 npz，与模型文件同名
+            metrics_path = output_manager.get_path('metrics', f"{run_stem}.npz")
+            np.savez(
+                metrics_path,
+                confusion_matrices=results['confusion_matrices'],
+                f_scores=results['f_scores'],
+                auc_list=results['auc_list'],
+                fpr_values=np.array(results['fpr_values'], dtype=object),
+                tpr_values=np.array(results['tpr_values'], dtype=object),
+                thresholds_list=np.array(results['thresholds_list'], dtype=object),
+                thresholds_used=np.array(results['thresholds_used']),
+            )
+            log_message(f"指标已保存: {run_stem}.npz")
+
         except Exception as e:
             log_message(f"保存训练结果失败: {str(e)}", "ERROR")
     
