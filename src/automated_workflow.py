@@ -209,7 +209,7 @@ class AutomatedWorkflow:
             # 使用标准方法设置模型（模拟用户手动选择）
             prediction_panel.current_model_selection = model_path
             prediction_panel.components['model_select_button'].configure(
-                text=f"已选择: {model_name}"
+                text=f" {model_name}"
             )
             prediction_panel.components['compatibility_status'].configure(
                 text="模型: 已选择", 

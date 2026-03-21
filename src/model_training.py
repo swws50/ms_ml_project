@@ -21,7 +21,7 @@ from sklearn.svm import LinearSVC
 from tkinter import messagebox
 
 # 本地模块导入 
-from config import CROSS_VALIDATOR
+from config import CROSS_VALIDATOR, CV_SPLITS, CV_REPEATS
 from config import MODEL_CONFIGS, OUTPUT_FILES,  TEST_SIZE
 import data_store
 from utils import log_message, clear_log
@@ -254,19 +254,80 @@ class ModelTrainer:
                 log_message(f"模型已保存: {filename}（含 {len(training_features)} 个特征，归一化={norm_method}）")
                 log_message(f"测试集分数: {self.best_score:.4f}")
 
-            # 所有指标合并保存为单个 npz，与模型文件同名
-            metrics_path = output_manager.get_path('metrics', f"{run_stem}.npz")
-            np.savez(
-                metrics_path,
-                confusion_matrices=results['confusion_matrices'],
-                f_scores=results['f_scores'],
-                auc_list=results['auc_list'],
-                fpr_values=np.array(results['fpr_values'], dtype=object),
-                tpr_values=np.array(results['tpr_values'], dtype=object),
-                thresholds_list=np.array(results['thresholds_list'], dtype=object),
-                thresholds_used=np.array(results['thresholds_used']),
-            )
-            log_message(f"指标已保存: {run_stem}.npz")
+            # 所有指标合并保存为单个 json，与模型文件同名
+            import json, math
+
+            def _to_native(obj):
+                """递归将 numpy 类型转为 Python 原生类型，inf/nan 替换为 None"""
+                if isinstance(obj, np.ndarray):
+                    return _to_native(obj.tolist())
+                if isinstance(obj, (np.integer,)):
+                    return int(obj)
+                if isinstance(obj, (np.floating,)):
+                    v = float(obj)
+                    return None if math.isinf(v) or math.isnan(v) else v
+                if isinstance(obj, float):
+                    return None if math.isinf(obj) or math.isnan(obj) else obj
+                if isinstance(obj, list):
+                    return [_to_native(x) for x in obj]
+                if isinstance(obj, dict):
+                    return {k: _to_native(v) for k, v in obj.items()}
+                return obj
+
+            def _write_metrics(data, f, indent=0):
+                """dict 每个 key 独占一行，数组值紧凑内联"""
+                pad = '  ' * indent
+                f.write('{\n')
+                items = list(data.items())
+                for i, (k, v) in enumerate(items):
+                    sep = ',' if i < len(items) - 1 else ''
+                    f.write(f'{pad}  {json.dumps(k, ensure_ascii=False)}: ')
+                    if isinstance(v, dict):
+                        _write_metrics(v, f, indent + 1)
+                    else:
+                        f.write(json.dumps(v, ensure_ascii=False, separators=(',', ':')))
+                    f.write(sep + '\n')
+                f.write(pad + '}')
+
+            # 获取数据集元数据
+            row, column, _ = data_store.get_training_data()
+            from data_store import class_manager
+            class_names = list(class_manager.names) if class_manager.names else []
+
+            # confusion_matrix flatten 顺序：[TN, FP, FN, TP]
+            cm_dicts = [
+                {"tn": int(cm[0]), "fp": int(cm[1]), "fn": int(cm[2]), "tp": int(cm[3])}
+                for cm in results['confusion_matrices']
+            ]
+            # f_scores 原结构 [precision, recall, f1, 0(占位)]，去掉占位符
+            fs_dicts = [
+                {"precision": fs[0], "recall": fs[1], "f1": fs[2]}
+                for fs in results['f_scores']
+            ]
+
+            metrics_path = output_manager.get_path('metrics', f"{run_stem}.json")
+            metrics_data = _to_native({
+                "meta": {
+                    "model": model_type,
+                    "timestamp": timestamp,
+                    "cv": f"{CV_SPLITS}折×{CV_REPEATS}次重复 ({len(results['test_accuracy'])}次迭代)",
+                    "n_samples": int(len(column)),
+                    "class_names": class_names,
+                    "threshold_strategy": "Youden's J" if results['thresholds_used'] else "model default",
+                },
+                "confusion_matrices": cm_dicts,
+                "f_scores": fs_dicts,
+                "auc_list": results['auc_list'],
+                "roc_curve": {
+                    "fpr": results['fpr_values'],
+                    "tpr": results['tpr_values'],
+                    "thresholds": results['thresholds_list'],
+                },
+                "thresholds_used": results['thresholds_used'],
+            })
+            with open(metrics_path, 'w', encoding='utf-8') as f:
+                _write_metrics(metrics_data, f)
+            log_message(f"指标已保存: {run_stem}.json")
 
         except Exception as e:
             log_message(f"保存训练结果失败: {str(e)}", "ERROR")
