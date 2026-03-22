@@ -186,8 +186,7 @@ def open_data_file():
     log_message(f"正在加载文件: {os.path.basename(file_path)}")
     
     df = pd.read_csv(file_path, index_col=0)
-    df = df.iloc[:, 1:]
-    
+
     data_store.clear_file_classification()
     log_message("数据文件已成功加载")
 
