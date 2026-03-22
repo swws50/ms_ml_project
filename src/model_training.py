@@ -409,11 +409,6 @@ class TrainingUI:
             
             log_message(f"平均训练集平衡精度: {summary['mean_train_accuracy']:.4f}")
             log_message(f"平均测试集平衡精度: {summary['mean_test_accuracy']:.4f}")
-            log_message("开始生成可视化图表...")
-            
-            # 推进步骤
-            if self.help_system:
-                self.help_system.advance_step("view_results")
             
             # 生成可视化
             thresholds = results['thresholds_used'] if len(results['thresholds_used']) > 0 else None

@@ -20,17 +20,6 @@ class HelpSystem:
         self.config_file = config_file
         self.active_tooltips = {}  # 跟踪活动的提示窗口
 
-        # 步骤进度跟踪
-        self.steps = [
-            {"id": "preprocess_data", "name": "原始数据预处理", "completed": False},
-            {"id": "select_data", "name": "选择已整合数据文件", "completed": False},
-            {"id": "select_model", "name": "选择模型", "completed": False},
-            {"id": "train_model", "name": "训练模型", "completed": False},
-            {"id": "view_results", "name": "查看结果", "completed": False},
-            {"id": "predict_sample", "name": "预测样本", "completed": False}
-        ]
-        self.current_step_index = 0
-
         self.show_wizard_on_startup = True
 
         # 为你的程序定制的帮助文本
@@ -52,16 +41,6 @@ class HelpSystem:
             "progress": "显示当前任务进度\n训练时会实时更新百分比",
             "results": "显示模型训练结果\n包括准确率、混淆矩阵等指标",
             "log_info": "显示系统运行日志\n记录所有操作和错误信息"
-        }
-
-        # 步骤相关的提示信息
-        self.step_hints = {
-            "preprocess_data": "💡 下一步：点击 '开始数据预处理' 处理原始txt文件",
-            "select_data": "💡 下一步：选择预处理生成的归一化CSV文件",
-            "select_model": "💡 下一步：从 '模型选择' 中选择合适的机器学习算法",
-            "train_model": "💡 下一步：点击 '开始训练' 按钮开始训练模型",
-            "view_results": "💡 训练完成！您可以查看生成的评估图表",
-            "predict_sample": "💡 模型已就绪！可以选择新样本进行预测"
         }
 
         # 加载用户配置
@@ -91,32 +70,6 @@ class HelpSystem:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
-
-    def advance_step(self, step_id):
-        """
-        推进到指定步骤
-
-        参数:
-            step_id: 步骤ID
-        """
-        # 找到步骤索引
-        step_index = None
-        for i, step in enumerate(self.steps):
-            if step['id'] == step_id:
-                step_index = i
-                break
-
-        if step_index is not None and step_index >= self.current_step_index:
-            # 标记之前的步骤为已完成
-            for i in range(step_index):
-                self.steps[i]['completed'] = True
-
-            # 更新当前步骤
-            self.current_step_index = step_index
-
-            # 记录日志
-            step_name = self.steps[step_index]['name']
-            log_message(f"步骤进度: {step_name}", "INFO")
 
     def add_hover_tip(self, widget, key_or_text, custom_style=None, delay_ms=1000):
         """

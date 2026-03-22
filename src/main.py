@@ -420,7 +420,6 @@ class MainGUIManager:
         
         # 初始化日志
         log_message("系统已启动，等待用户操作...")
-        log_message("使用模块化UI组件，界面更加清晰", "INFO")
         
         # 所有组件就绪后恢复窗口可见，同步销毁闪屏
         def _on_init_complete():
@@ -458,7 +457,6 @@ class MainGUIManager:
     def handle_model_select(self, model_name):
         """处理模型选择"""
         self.exact_selection = model_name
-        log_message(f"已选择模型: {model_name}")
     
     
     def handle_model_info(self):
@@ -560,11 +558,11 @@ class MainGUIManager:
             if allow_termination:
                 # 可终止的操作（如训练）
                 self.action_btn.configure(text="终止训练", state="normal")
-                log_message(f"开始{operation_name}，可点击终止按钮取消", "INFO")
+                log_message(f"{operation_name}中，可点击终止按钮取消", "INFO")
             else:
                 # 不可终止的操作（如预处理、预测）
                 self.action_btn.configure(text="重置进度", state="disabled")
-                log_message(f"开始{operation_name}，请等待完成", "INFO")
+                log_message(f"{operation_name}执行中，请等待完成", "INFO")
         else:
             self.action_btn.configure(text="重置进度", state="normal")
             self._operation_cancelled = False

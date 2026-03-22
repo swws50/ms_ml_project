@@ -338,9 +338,9 @@ class ConsensusPeakDiagnostics:
         rates = phase2_summary['conversion_rates']
 
         report_lines = [
-            "=" * 50,
+            "-" * 50,
             "共识峰识别诊断报告",
-            "=" * 50,
+            "-" * 50,
             f"参数: 出现率≥{p.get('min_occurrence_rate','N/A')} | "
             f"折叠变化≥{p.get('min_fold_change','N/A')} | "
             f"m/z容差={p.get('mz_tolerance','N/A')} | "

@@ -88,8 +88,6 @@ class DataPreprocessor:
             log_message("诊断模式已启用")
         
         try:
-            log_message("开始智能峰发现处理...")
-            
             # 阶段1: 峰发现
             log_message(" 阶段1：从所有文件中发现峰 ")
             all_peaks_data = self._phase1_discover_peaks(file_paths)
@@ -150,12 +148,17 @@ class DataPreprocessor:
             
             if not peaks_df.empty:
                 all_peaks_data.append(peaks_df)
-                log_message(f"文件 {os.path.basename(file_path)}: 发现 {len(peaks_df)} 个峰")
-            
+
             # 更新进度 (0-25%)
             progress = (index + 1) / len(file_paths) * 0.25
             self._update_progress(progress, f"峰发现: {index+1}/{len(file_paths)}")
-        
+
+        failed = len(file_paths) - len(all_peaks_data)
+        if failed > 0:
+            log_message(f"峰发现完成: {len(all_peaks_data)}/{len(file_paths)} 个文件有效，{failed} 个文件未发现峰", "WARNING")
+        else:
+            log_message(f"峰发现完成: {len(all_peaks_data)} 个文件")
+
         # 步骤2：归一化（如果启用）
         if self.current_normalization_enabled and all_peaks_data:
             # 使用本地保存的归一化方法
@@ -195,12 +198,10 @@ class DataPreprocessor:
         
         # 合并所有峰数据
         all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
-        log_message(f"总计发现 {len(all_peaks_df)} 个峰候选")
-        self._update_progress(0.40, "阶段2: 数据合并完成")  # 新增
-        
+        self._update_progress(0.40, "阶段2: 数据合并完成")
+
         # 获取动态类别映射
-        class_0_name, class_1_name = class_manager.names      
-        log_message(f"使用类别: {class_0_name}, {class_1_name}")
+        class_0_name, class_1_name = class_manager.names
         
         # 统计信息
         class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
@@ -304,8 +305,6 @@ class DataPreprocessor:
     # 第三部分：核心算法方法
     def _discover_peaks_from_file(self, file_path: str) -> pd.DataFrame:
         """从单个文件中发现峰（复制原有逻辑）"""
-        log_message(f"处理文件: {os.path.basename(file_path)}")
-        
         try:
             # 读取数据
             raw_data = pd.read_csv(file_path, sep=r'\s+', header=None, names=['mz', 'intensity'])
@@ -476,34 +475,25 @@ class DataPreprocessor:
             return
         
         try:
-            # 生成完整报告
+            # 生成完整报告并保存
             report = self.diagnostics.generate_report()
-            
-            # 输出到日志
-            log_message("=" * 50)
-            log_message("共识峰识别诊断报告")
-            log_message("=" * 50)
-            
-            # 分行输出报告
-            for line in report.split('\n'):
-                if line.strip():
-                    log_message(line)
-            
-            # 获取快速统计
             quick_stats = self.diagnostics.get_quick_stats()
-            
-            # 保存报告到文件
+
             report_path = get_output_paths()['diagnostics_report']
-            
             with open(report_path, 'w', encoding='utf-8') as f:
                 f.write(report)
-            
-            log_message(f"诊断报告已保存: {report_path}")
-            
-            # 如果共识峰数量异常少，显示警告
+
+            # 日志只输出摘要
+            log_message(
+                f"诊断: 共识峰 {quick_stats['consensus_peaks']} / "
+                f"{quick_stats['total_mz_groups']} 组 "
+                f"({quick_stats['overall_pass_rate']:.1%}) | "
+                f"瓶颈: {quick_stats['bottleneck']}"
+            )
+            log_message(f"诊断报告已保存: diagnostics_report.txt")
+
             if quick_stats['consensus_peaks'] < 20:
-                log_message(f"⚠️ 警告: 共识峰数量较少 ({quick_stats['consensus_peaks']})", "WARNING")
-                log_message(f"   主要瓶颈: {quick_stats['bottleneck']}", "WARNING")
+                log_message(f" 共识峰数量过少 ({quick_stats['consensus_peaks']})", "WARNING")
             
         except Exception as e:
             log_message(f"生成诊断报告时出错: {str(e)}", "WARNING")
@@ -1000,7 +990,7 @@ class NormalizationManager:
         }
         desc = method_desc.get(self.method, self.method)
         
-        return (f"归一化方法: {self.method}\n"
-                f"样本数量: {len(self.normalization_stats)}\n"
-                f"样本{desc}范围: {min(factors):.2f} - {max(factors):.2f}\n"
+        return (f"归一化方法: {self.method}，"
+                f"样本数量: {len(self.normalization_stats)}，"
+                f"样本{desc}范围: {min(factors):.2f} - {max(factors):.2f}，"
                 f"样本{desc}中位数: {np.median(factors):.2f}")

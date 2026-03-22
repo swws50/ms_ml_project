@@ -249,9 +249,6 @@ class AutomatedWorkflow:
                 "选择未知样本进行预测了!"
             )
             
-            # 推进帮助步骤
-            if self.gui_manager.help_system:
-                self.gui_manager.help_system.advance_step("predict_sample")
         else:
             log_message("未找到训练好的模型", "ERROR")
             gp = self.gui_manager.global_progress

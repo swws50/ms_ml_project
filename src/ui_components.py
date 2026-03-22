@@ -542,7 +542,7 @@ class PredictionPanel(BasePanel):
             self.current_model_selection = file_path  # 存储完整路径
             self.components['model_select_button'].configure(text=f" {os.path.splitext(model_name)[0]}")
             self.components['compatibility_status'].configure(text="模型: 已选择", text_color="green")
-            log_message(f"选择模型文件: {model_name}")
+            log_message(f"已选择模型: {model_name}")
             if 'on_model_file_select' in self.callbacks:
                 self.callbacks['on_model_file_select'](file_path)
 

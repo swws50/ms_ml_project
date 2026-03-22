@@ -128,8 +128,7 @@ def generate_class_performance_chart(confusion_matrices, f_scores, model_type="M
     from utils import log_message
     
     OUTPUT_FILES = get_output_paths()
-    log_message("生成类别性能小提琴图...")
-    
+
     # 使用MetricsCalculator统一计算
     metrics_calc = MetricsCalculator(confusion_matrices, f_scores, 
                                      np.zeros(len(confusion_matrices)), 
@@ -211,13 +210,7 @@ def generate_class_performance_chart(confusion_matrices, f_scores, model_type="M
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
-    log_message(f"类别性能图表已保存: {chart_path}")
-    for metric in metrics_list:
-        if show_ci:
-            log_message(f"  {metric.name}: {metric.mean:.3f}±{metric.ci_margin:.3f} [{metric.ci_lower:.3f}, {metric.ci_upper:.3f}]")
-        else:
-            log_message(f"  {metric.name}: {metric.mean:.3f}±{metric.std:.3f}")
-    
+    log_message(f"ClassPerformance.png 已生成")
     return str(chart_path)
 
 
@@ -237,8 +230,7 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Mod
     from utils import log_message
     
     OUTPUT_FILES = get_output_paths()
-    log_message("生成综合平衡指标小提琴图...")
-    
+
     # 使用MetricsCalculator统一计算
     metrics_calc = MetricsCalculator(confusion_matrices, f_scores,
                                      np.zeros(len(confusion_matrices)),
@@ -315,13 +307,7 @@ def generate_balance_metrics_chart(confusion_matrices, f_scores, model_type="Mod
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
-    log_message(f"综合平衡指标图表已保存: {chart_path}")
-    for metric in metrics_list:
-        if show_ci:
-            log_message(f"  {metric.name}: {metric.mean:.3f}±{metric.ci_margin:.3f} [{metric.ci_lower:.3f}, {metric.ci_upper:.3f}]")
-        else:
-            log_message(f"  {metric.name}: {metric.mean:.3f}±{metric.std:.3f}")
-    
+    log_message(f"BalanceMetrics.png 已生成")
     return str(chart_path)
 
 
@@ -333,7 +319,6 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     from utils import log_message
     
     OUTPUT_FILES = get_output_paths()
-    log_message("生成论文标准版混淆矩阵...")
     
     mean_cm = confusion_matrices.mean(axis=0).reshape((2, 2))
     std_cm = confusion_matrices.std(axis=0).reshape((2, 2))
@@ -426,8 +411,7 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white')
     plt.close()
     
-    log_message(f"混淆矩阵已保存: {chart_path}")
-    
+    log_message(f"ConfusionMatrix.png 已生成")
     return str(chart_path)
 
 
@@ -456,12 +440,10 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     # ========== 归档旧图表 ==========
     output_manager.start_training_session()  # 开始新的训练会话
     archive_path = output_manager.archive_current_charts()  # 归档现有图表
-    if archive_path:
-        log_message(f"旧图表已归档到: {archive_path}")
+
     
     latest_model, _ = data_store.get_latest_trained_model()
     model_type = latest_model.__class__.__name__ if latest_model else "Model"
-    log_message(f"当前模型类型: {model_type}")
     
     # ========== 核心改进：创建MetricsCalculator ==========
     metrics_calc = MetricsCalculator(
@@ -497,7 +479,6 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         generated_charts['chart_confusion'] = chart_path
         
         # 4. 生成ROC曲线
-        log_message("生成ROC曲线图...")
         plt.figure(figsize=(6, 4))
         mean_fpr = np.linspace(0, 1, 200)
         mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) 
@@ -519,9 +500,9 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         plt.close()
         generated_charts['roc'] = str(chart_path)
         generated_charts['chart_roc'] = str(chart_path)
-        
+        log_message("ROC_Curve.png 已生成")
+
         # 5. 生成性能指标表格（CSV格式）
-        log_message("生成详细性能指标表格(CSV)...")
         
         metric_names = [
             'Sensitivity', 'Specificity', 'Precision', 'NPV',
@@ -554,11 +535,10 @@ def generate_performance_charts(train_accuracy, test_accuracy,
         
         generated_charts['metrics_table'] = csv_path
         generated_charts['chart_metrics_table'] = csv_path
-        log_message(f"性能指标表格已保存: {csv_path}")
-        
+        log_message("MetricsTable.csv 已生成")
+
         # 6. 生成PLS阈值分布图
         if thresholds_used is not None and len(thresholds_used) > 0:
-            log_message("生成PLS阈值分布图...")
             mean_threshold = np.mean(thresholds_used)
             std_threshold = np.std(thresholds_used)
             
@@ -590,11 +570,10 @@ def generate_performance_charts(train_accuracy, test_accuracy,
             plt.close()
             generated_charts['thresholds'] = str(chart_path)
             generated_charts['chart_thresholds'] = str(chart_path)
+            log_message("PLS_Thresholds.png 已生成")
         
         # 结束训练会话
         output_manager.end_training_session()
-        
-        log_message("所有图表生成完成")
         return generated_charts
         
     except Exception as e:
@@ -696,7 +675,7 @@ def create_visualization_tabs(root, generated_charts):
     
     for chart_file, tab_name in chart_configs:
         if not chart_file or not os.path.exists(chart_file):
-            log_message(f"警告: 图表文件不存在: {chart_file}")
+            log_message(f"图表文件不存在: {chart_file}")
             continue
             
         try:
@@ -717,7 +696,7 @@ def create_visualization_tabs(root, generated_charts):
                                       text_color="red")
             error_label.pack(fill='both', expand=True)
     
-    log_message("可视化界面创建完成！")
+    log_message("可视化加载完成！","SUCCESS")
     root.update()
     return notebook
 

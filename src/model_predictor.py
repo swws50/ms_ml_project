@@ -410,7 +410,6 @@ class PredictionManager:
                             result.get('error', '未知错误')  # 错误信息
                         ])
             
-            log_message(f"批量预测结果已导出为CSV: {output_path}", "SUCCESS")
             return output_path
             
         except Exception as e:

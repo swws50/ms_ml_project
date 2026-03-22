@@ -166,7 +166,7 @@ class OutputManager:
             except Exception as e:
                 log_message(f"归档文件失败 {chart_file.name}: {e}", "WARNING")
         
-        log_message(f"已归档 {archived_count} 个图表到: {archive_dir}")
+        log_message(f"已归档 {archived_count} 个旧图表到: {archive_dir}")
         return str(archive_dir)
     
     def get_archive_sessions(self, limit=10):
