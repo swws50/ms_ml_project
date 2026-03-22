@@ -49,7 +49,7 @@ class PredictionManager:
         self.pls_threshold = loaded.get("pls_threshold", None)
         self.feature_detector.training_features = features if features else None
         self.feature_detector.normalization_method = norm
-        log_message(f"{source_label}（{len(features)} 个特征，归一化={norm}）", "INFO")
+        log_message(f"{source_label}", "INFO")
 
     def load_model(self):
         """智能加载模型"""
@@ -523,7 +523,7 @@ class PredictionManager:
     def get_model_info(self):
         """
         获取模型详细信息
-        
+
         返回:
             dict: 模型信息字典
         """
@@ -531,13 +531,17 @@ class PredictionManager:
             self.load_model()
             if not self.load_model():
                 return {"error": "模型未加载"}
-        
+
         info = {
             "model_type": type(self.model).__name__,
             "parameters": self.model.get_params(),
-            "special_info": self._get_special_model_info()
+            "special_info": self._get_special_model_info(),
+            # bundle 元数据
+            "n_training_features": len(self.feature_detector.training_features) if self.feature_detector.training_features else 0,
+            "normalization_method": self.feature_detector.normalization_method,
+            "pls_threshold": getattr(self, "pls_threshold", None),
         }
-        
+
         return info
     
     def _get_special_model_info(self):
@@ -623,10 +627,20 @@ class PredictionManager:
             return f"错误: {info['error']}"
         
         text_lines = []
-        
+
         # 基本信息
-        text_lines.append(f"模型类型: {info['model_type']}\n")
-        
+        text_lines.append(f"模型类型: {info['model_type']}")
+
+        # bundle 元数据
+        n_feat = info.get("n_training_features", 0)
+        norm = info.get("normalization_method") or "无"
+        text_lines.append(f"训练特征数: {n_feat}")
+        text_lines.append(f"归一化方法: {norm}")
+        pls_thr = info.get("pls_threshold")
+        if pls_thr is not None:
+            text_lines.append(f"PLS 决策阈值: {pls_thr:.4f}")
+        text_lines.append("")
+
         # 参数信息
         text_lines.append("模型参数:")
         for param_name, param_value in info['parameters'].items():
@@ -672,21 +686,32 @@ class PredictionManager:
             self.info_window.focus_force()
             return
         
-        # 如果指定了模型路径，临时加载该模型
-        original_model = self.model
+        # 如果指定了模型路径，临时加载该模型（需保存并还原完整 bundle 状态）
+        saved_state = None
         if model_path:
+            saved_state = {
+                "model": self.model,
+                "training_features": self.feature_detector.training_features,
+                "normalization_method": self.feature_detector.normalization_method,
+                "pls_threshold": getattr(self, "pls_threshold", None),
+            }
             try:
-                self.model = load(model_path)
-                log_message(f"临时加载模型用于信息查看: {os.path.basename(model_path)}", "INFO")
+                self._apply_loaded(
+                    load(model_path),
+                    f"将临时加载模型用于信息查看"
+                )
             except Exception as e:
                 messagebox.showerror("错误", f"无法加载指定模型: {str(e)}")
                 return
-        
+
         info = self.get_model_info()
-        
-        # 恢复原模型
-        if model_path:
-            self.model = original_model
+
+        # 恢复原完整状态
+        if saved_state is not None:
+            self.model = saved_state["model"]
+            self.feature_detector.training_features = saved_state["training_features"]
+            self.feature_detector.normalization_method = saved_state["normalization_method"]
+            self.pls_threshold = saved_state["pls_threshold"]
         
         if "error" in info:
             messagebox.showerror("错误", info["error"])
