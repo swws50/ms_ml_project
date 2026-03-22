@@ -135,10 +135,14 @@ class BasePanel:
             
         # 创建CTkFrame（不传递grid参数）
         self.frame = ctk.CTkFrame(self.parent, corner_radius=10, **kwargs)
-        
+
+        # 有固定尺寸时阻止frame随内容撑大
+        if 'width' in kwargs or 'height' in kwargs:
+            self.frame.grid_propagate(False)
+
         # 使用grid布局（传递grid参数）
         self.frame.grid(**grid_params)
-        
+
         return self.frame
     
     def create_title(self, text=None, row=0, column=0, **kwargs):
@@ -166,7 +170,7 @@ class PreprocessingPanel(BasePanel):
     def create_panel(self, row, column):
         """创建完整的预处理面板"""
         # 创建基础框架
-        self.create_frame(row, column)
+        self.create_frame(row, column, width=480)
         self.create_title()
         
         # 配置网格权重
@@ -204,7 +208,7 @@ class ControlPanel(BasePanel):
     def create_panel(self, row, column):
         """创建完整的控制面板"""
         # 创建基础框架
-        self.create_frame(row, column)
+        self.create_frame(row, column, width=780)
         self.create_title()
         
         # 配置网格权重
@@ -300,9 +304,9 @@ class ResultPanel(BasePanel):
     def create_panel(self, row, column):
         """创建完整的结果面板"""
         # 创建基础框架
-        self.create_frame(row, column)
+        self.create_frame(row, column, width=500)
         self.create_title()
-        
+
         # 创建结果显示标签
         self._create_result_labels()
         
@@ -366,7 +370,7 @@ class PredictionPanel(BasePanel):
     def create_panel(self, row, column, rowspan=1):
         """创建完整的预测面板"""
         # 创建基础框架
-        self.create_frame(row, column, rowspan=rowspan)
+        self.create_frame(row, column, rowspan=rowspan, width=735, height=940)
         
         # 配置主网格
         self.frame.grid_rowconfigure(1, weight=0)  # 模型设置区域 - 固定高度
@@ -555,7 +559,7 @@ class VisualizationPanel(BasePanel):
     def create_panel(self, row, column, rowspan=2, columnspan=2):
         """创建完整的可视化面板"""
         # 修改：将columnspan传递给create_frame
-        self.create_frame(row, column, sticky='nsew', rowspan=rowspan, columnspan=columnspan)
+        self.create_frame(row, column, sticky='nsew', rowspan=rowspan, columnspan=columnspan, width=1770)
         
         # 配置网格权重
         self.frame.grid_rowconfigure(1, weight=1)
@@ -647,7 +651,7 @@ class InfoPanel(BasePanel):
     def create_panel(self, row, column, columnspan=2):  # 添加columnspan参数
         """创建完整的信息面板"""
         # 创建基础框架 - 传递columnspan参数
-        self.create_frame(row, column, sticky='nsew', columnspan=columnspan)  # 添加columnspan参数
+        self.create_frame(row, column, sticky='nsew', columnspan=columnspan, width=735, height=310)
         
         # 配置网格权重
         self.frame.grid_rowconfigure(1, weight=1)
@@ -661,7 +665,7 @@ class InfoPanel(BasePanel):
     def _create_info_display(self):
         """创建信息显示区域"""
         # 日志文本框
-        self.components['text_box'] = ctk.CTkTextbox(self.frame, width=300, height=250)
+        self.components['text_box'] = ctk.CTkTextbox(self.frame, width=300, height=280)
         self.components['text_box'].grid(row=1, column=0, sticky='nsew', padx=10, pady=10)
         self.add_hover_tip(self.components['text_box'], "log_info")
     

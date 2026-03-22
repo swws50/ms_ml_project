@@ -296,7 +296,7 @@ class PredictionManager:
             
             # 在界面上逐个显示每个预测结果（保持原版样式）
             if i > 1:
-                result_label.insert("end", "\n" + "="*50 + "\n")
+                result_label.insert("end", "\n" + "-"*180 + "\n")
             result_label.insert("end", f"【样本 {i}】\n")
             
             result_text = self.format_prediction_result(result)
@@ -314,7 +314,7 @@ class PredictionManager:
             log_message(f"批量预测结果已导出: {csv_path}", "SUCCESS")
             
             # 在界面底部添加导出提示
-            result_label.insert("end", "\n" + "="*50 + "\n")
+            result_label.insert("end", "\n" + "="*80 + "\n")
             result_label.insert("end", f"✓ 结果已自动导出至:\n{csv_path}\n")
             
             # 询问是否打开（使用after延迟，避免阻塞界面更新）
@@ -340,7 +340,7 @@ class PredictionManager:
         """
         if not output_path:
             from output_manager import output_manager
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M')
             predictions_dir = output_manager.get_path('prediction', '')
             output_path = os.path.join(predictions_dir, f"batch_prediction_{timestamp}.csv")
         
