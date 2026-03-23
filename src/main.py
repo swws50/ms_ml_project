@@ -445,7 +445,11 @@ class MainGUIManager:
             # 存储数据
             data_store.set_training_data(row, column, df)
             log_message("训练数据已加载到数据存储模块", "SUCCESS")
-            
+
+            # 数据已替换，下游结果失效
+            self.global_progress.invalidate_chip('train', '⚠ 训练: 数据已更新，需重训')
+            self.global_progress.invalidate_chip('predict', '⚠ 预测: 模型待更新')
+
             # 统一更新UI状态
             filename = os.path.basename(file_path)
             control_panel.update_file_status(f"已选择: {filename}")
@@ -570,9 +574,13 @@ class MainGUIManager:
     def _handle_preprocessing_start(self):
         """处理预处理开始 - 不支持终止"""
         self._set_operation_running(True, "数据预处理", allow_termination=False)
-        self.global_progress.update_chip('preprocess', '◐ 预处理: 进行中...', '#3B8EEA')
         try:
             self.show_global_progress("正在启动数据预处理...")
+            self.data_preprocessor.on_start_callback = lambda: (
+                self.global_progress.update_chip('preprocess', '◐ 预处理: 进行中...', '#3B8EEA'),
+                self.global_progress.invalidate_chip('train', '⚠ 训练: 数据已更新，需重训'),
+                self.global_progress.invalidate_chip('predict', '⚠ 预测: 模型待更新')
+            )
             self.data_preprocessor.on_complete_callback = lambda: \
                 self.global_progress.update_chip('preprocess', '✓ 预处理: 完成', 'green')
             self.data_preprocessor.show_classification_dialog(self.root)
@@ -583,6 +591,7 @@ class MainGUIManager:
             self.global_progress.update_chip('preprocess', '✗ 预处理: 失败', 'red')
             raise
         finally:
+            self.data_preprocessor.on_start_callback = None
             self.data_preprocessor.on_complete_callback = None
             self._set_operation_running(False)
 
@@ -590,6 +599,7 @@ class MainGUIManager:
         """处理开始训练 - 支持终止功能"""
         self._set_operation_running(True, "模型训练", allow_termination=True)
         self.global_progress.update_chip('train', '◐ 训练: 进行中...', '#3B8EEA')
+        self.global_progress.invalidate_chip('predict', '⚠ 预测: 模型待更新')
         try:
             control_panel = self.ui_panels['control']
             result_panel = self.ui_panels['result']
@@ -611,6 +621,8 @@ class MainGUIManager:
                 self.root
             )
             self.global_progress.update_chip('train', '✓ 训练: 完成', 'green')
+            self.global_progress.update_chip('predict', '✓ 预测: 模型待装载', 'green')
+            self.global_progress.update(1.0, "训练完成")
         except InterruptedError:
             log_message("训练被终止", "WARNING")
             self.global_progress.update_chip('train', '◼ 训练: 已终止', 'orange')
@@ -623,6 +635,7 @@ class MainGUIManager:
             self.global_progress.update_chip('train', '✗ 训练: 失败', 'red')
             raise
         finally:
+            self.hide_global_progress()
             self._set_operation_running(False)
 
     def handle_predict_file(self):

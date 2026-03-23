@@ -83,6 +83,17 @@ class ProgressComponent:
         if chip:
             chip.configure(text=text, text_color=color)
 
+    def invalidate_chip(self, module, text, color='orange'):
+        """仅当 chip 当前为成功状态（✓）时才标记失效，初始和已失效状态不重复触发"""
+        chip_map = {
+            'preprocess': self.chip_preprocess,
+            'train': self.chip_train,
+            'predict': self.chip_predict,
+        }
+        chip = chip_map.get(module)
+        if chip and chip.cget("text").startswith("✓"):
+            self.update_chip(module, text, color)
+
     def reset_chips(self):
         """将所有 chip 重置为初始状态"""
         self.update_chip('preprocess', '○ 预处理: 等待开始', 'gray')

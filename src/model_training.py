@@ -115,7 +115,10 @@ class ModelTrainer:
             # 训练模型
             current_model = model_class(**params)
             current_model.fit(train_X, train_y)
-            
+            if progress_callback:
+                progress = fold_idx / total_folds
+                progress_callback(progress, f'交叉验证进度: {fold_idx}/{total_folds} ({progress:.1%})')
+
             # 预测处理
             if isinstance(current_model, PLSRegression):
                 # PLS回归需要特殊处理
@@ -178,10 +181,6 @@ class ModelTrainer:
                 self.best_model = current_model
                 log_message(f"发现更高分数：{self.best_score:.4f} (第{fold_idx}折)")
             
-            # 更新进度
-            if progress_callback:
-                progress = fold_idx / total_folds
-                progress_callback(progress, f'交叉验证进度: {fold_idx}/{total_folds} ({progress:.1%})')
         
         log_message(f"交叉验证完成！最优模型分数：{self.best_score:.4f}")
         

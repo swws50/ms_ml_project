@@ -58,8 +58,9 @@ class DataPreprocessor:
         # 预处理完成标志
         self.preprocessing_completed = False
 
-        # 预处理完成回调（外部注册，完成时触发）
-        self.on_complete_callback = None
+        # 预处理回调（外部注册）
+        self.on_start_callback = None    # 处理真正开始时触发
+        self.on_complete_callback = None # 处理完成时触发
 
     # 第一部分：类初始化和主流程方法
     def show_classification_dialog(self, parent_root):
@@ -75,6 +76,8 @@ class DataPreprocessor:
         """执行数据处理"""
         # 创建进度显示
         self._create_progress_ui()
+        if self.on_start_callback:
+            self.root.after(0, self.on_start_callback)
         
         # 初始化诊断
         if self.enable_diagnostics and DIAGNOSTICS_AVAILABLE:
@@ -116,6 +119,7 @@ class DataPreprocessor:
             log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
             messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
         finally:
+            self.on_start_callback = None
             self._cleanup_progress_ui()
   
     def _phase1_discover_peaks(self, file_paths: List[str]) -> List[pd.DataFrame]:
@@ -198,6 +202,8 @@ class DataPreprocessor:
         
         # 合并所有峰数据
         all_peaks_df = pd.concat(all_peaks_data, ignore_index=True)
+        if self.root:
+            self.root.update()
         self._update_progress(0.40, "阶段2: 数据合并完成")
 
         # 获取动态类别映射
@@ -263,8 +269,8 @@ class DataPreprocessor:
                 peak_info = self._calculate_peak_metrics(group_data, class_0_data, class_1_data, len(consensus_peaks))
                 consensus_peaks.append(peak_info)
             
-            # 每处理100个分组更新一次进度 (45% - 60%)
-            if i % 100 == 0 or i == total_groups - 1:
+            # 每处理10个分组更新一次进度 (45% - 60%)
+            if i % 10 == 0 or i == total_groups - 1:
                 progress = 0.45 + (i + 1) / total_groups * 0.15
                 self._update_progress(progress, f"阶段2: 分析峰群 {i+1}/{total_groups}")
         
@@ -330,7 +336,9 @@ class DataPreprocessor:
             
             picked_spectrum = oms.MSSpectrum()
             picker.pick(spectrum, picked_spectrum)
-            
+            if self.root:
+                self.root.update()
+
             if picked_spectrum.size() == 0:
                 log_message("未发现峰", "WARNING")
                 return pd.DataFrame()
