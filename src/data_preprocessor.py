@@ -115,6 +115,8 @@ class DataPreprocessor:
             # 生成诊断报告
             self._generate_diagnostics_report()
                 
+        except InterruptedError:
+            log_message("预处理被用户终止", "WARNING")
         except Exception as e:
             log_message(f"智能峰发现处理失败: {str(e)}", "ERROR")
             messagebox.showerror("处理错误", f"智能峰发现过程中出现错误：{str(e)}")
@@ -869,7 +871,7 @@ class DataPreprocessor:
         
         # 在开始实际处理前，重新设置按钮状态
         if self.root and hasattr(self.root, 'gui_manager'):
-            self.root.gui_manager._set_operation_running(True, "数据预处理", allow_termination=False)
+            self.root.gui_manager._set_operation_running(True, "数据预处理", allow_termination=True)
         
         # 解析归一化设置
         selected_method = self.normalization_method_var.get()
@@ -927,9 +929,10 @@ class DataPreprocessor:
     def _update_progress(self, progress: float, message: str):
         """更新进度显示"""
         if self.root and hasattr(self.root, 'gui_manager'):
-            # 使用全局进度条
+            if self.root.gui_manager._operation_cancelled:
+                raise InterruptedError("预处理被用户终止")
             self.root.gui_manager.update_global_progress(progress, message)
-        
+
         if self.root:
             self.root.update()
   

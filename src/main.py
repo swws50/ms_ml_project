@@ -300,7 +300,7 @@ class MainGUIManager:
         if self._is_operation_running:
             # 只有显示"终止训练"时才能终止
             if self.action_btn.cget("text") == "终止训练":
-                response = messagebox.askyesno("确认终止", "确定要终止训练吗？\n终止后将自动重置系统。")
+                response = messagebox.askyesno("确认终止", "确定要终止吗？\n终止后将自动重置系统。")
                 if response:
                     self._operation_cancelled = True
                     self.action_btn.configure(state="disabled")  # 禁用防止重复点击
@@ -572,8 +572,8 @@ class MainGUIManager:
             self._operation_cancelled = False
 
     def _handle_preprocessing_start(self):
-        """处理预处理开始 - 不支持终止"""
-        self._set_operation_running(True, "数据预处理", allow_termination=False)
+        """处理预处理开始"""
+        self._set_operation_running(True, "数据预处理", allow_termination=True)
         try:
             self.show_global_progress("正在启动数据预处理...")
             self.data_preprocessor.on_start_callback = lambda: (
@@ -587,6 +587,9 @@ class MainGUIManager:
             # 若用户未完成预处理直接关窗，恢复初始状态
             if not self.data_preprocessor.preprocessing_completed:
                 self.global_progress.update_chip('preprocess', '○ 预处理: 等待开始', 'gray')
+        except InterruptedError:
+            log_message("预处理被终止", "WARNING")
+            self.global_progress.update_chip('preprocess', '◼ 预处理: 已终止', 'orange')
         except Exception:
             self.global_progress.update_chip('preprocess', '✗ 预处理: 失败', 'red')
             raise
