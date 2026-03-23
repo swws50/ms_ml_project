@@ -869,10 +869,6 @@ class DataPreprocessor:
             if not response:
                 return
         
-        # 在开始实际处理前，重新设置按钮状态
-        if self.root and hasattr(self.root, 'gui_manager'):
-            self.root.gui_manager._set_operation_running(True, "数据预处理", allow_termination=True)
-        
         # 解析归一化设置
         selected_method = self.normalization_method_var.get()
         if selected_method == "不归一化":

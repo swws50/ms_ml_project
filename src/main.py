@@ -289,26 +289,21 @@ class MainGUIManager:
             command=self.help_system.show_about
         )
         self._is_operation_running = False
-        self.action_btn = None
-        
-        # 创建隐藏的虚拟按钮以保持兼容性
-        self.action_btn = ctk.CTkButton(self.root, text="")
-        # 不要grid或pack，让它隐藏
 
     def _handle_action_button(self):
         """处理动态按钮点击"""
         if self._is_operation_running:
-            # 只有显示"终止训练"时才能终止
-            if self.action_btn.cget("text") == "终止训练":
-                response = messagebox.askyesno("确认终止", "确定要终止吗？\n终止后将自动重置系统。")
-                if response:
-                    self._operation_cancelled = True
-                    self.action_btn.configure(state="disabled")  # 禁用防止重复点击
-                    log_message("用户请求终止训练", "WARNING")
-                    self.root.after(1500, self.handle_reset_progress)
-            # 如果是禁用状态就不响应
+            response = messagebox.askyesno("确认终止", "确定要终止当前操作吗？\n终止后将自动重置系统。")
+            if response:
+                self._operation_cancelled = True
+                log_message("用户请求终止操作", "WARNING")
+                def _wait_and_reset():
+                    if self._is_operation_running:
+                        self.root.after(100, _wait_and_reset)
+                    else:
+                        self.handle_reset_progress()
+                self.root.after(100, _wait_and_reset)
         else:
-            # 非运行时作为重置按钮
             self.handle_reset_progress()
 
     def _show_class_settings_dialog(self):
@@ -484,8 +479,6 @@ class MainGUIManager:
             
             # 0. 先重置按钮状态
             self._is_operation_running = False
-            if self.action_btn:
-                self.action_btn.configure(text="重置进度", state="normal")
             
             # 1. 清空可视化面板内容（不销毁）
             try:
@@ -559,16 +552,8 @@ class MainGUIManager:
                 control_panel.enable_training(data_store.has_training_data(), "开始训练")
 
         if running:
-            if allow_termination:
-                # 可终止的操作（如训练）
-                self.action_btn.configure(text="终止训练", state="normal")
-                log_message(f"{operation_name}中，可点击终止按钮取消", "INFO")
-            else:
-                # 不可终止的操作（如预处理、预测）
-                self.action_btn.configure(text="重置进度", state="disabled")
-                log_message(f"{operation_name}执行中，请等待完成", "INFO")
+            log_message(f"{operation_name}执行中", "INFO")
         else:
-            self.action_btn.configure(text="重置进度", state="normal")
             self._operation_cancelled = False
 
     def _handle_preprocessing_start(self):
