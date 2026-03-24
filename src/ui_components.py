@@ -94,6 +94,17 @@ class ProgressComponent:
         if chip and chip.cget("text").startswith("✓"):
             self.update_chip(module, text, color)
 
+    def mark_skipped_chip(self, module, text, color='gray'):
+        """仅当 chip 处于初始等待状态（以 ○ 开头）时，将其标记为跳过（-）"""
+        chip_map = {
+            'preprocess': self.chip_preprocess,
+            'train': self.chip_train,
+            'predict': self.chip_predict,
+        }
+        chip = chip_map.get(module)
+        if chip and chip.cget("text").startswith("○"):
+            self.update_chip(module, text, color)
+
     def reset_chips(self):
         """将所有 chip 重置为初始状态"""
         self.update_chip('preprocess', '○ 预处理: 等待开始', 'gray')

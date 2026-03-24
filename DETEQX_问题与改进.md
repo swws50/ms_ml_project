@@ -9,10 +9,10 @@
 ### 🔴 高优先级
 
 #### UI 线程阻塞
-- 预处理、训练等耗时操作均运行在 Tkinter 主线程上，操作期间界面完全卡死
-- 在低性能设备上可能触发系统"无响应"提示，演示时观感极差
-- 根本原因：缺少 `threading.Thread` + 消息队列的前后台分离机制
-- **影响**：任何人试用都会第一时间发现，直接影响演示效果
+- 预处理、训练等耗时操作均运行在 Tkinter 主线程上，操作期间界面卡顿
+- v1.11.13 已通过增密 `root.update()` 调用缓解（预处理每文件/每10组刷新，训练每折 `fit()` 后立即刷新），实际样本规模（20~40 个样本）下观感明显改善
+- 根本原因仍未解除：缺少 `threading.Thread` + 消息队列的前后台分离机制；低性能设备或更大数据集仍可能卡死
+- **影响**：演示场景已可接受；若有性能需求可进一步实现真后台线程
 
 #### PDF 诊断报告导出
 - 当前只能导出 CSV，无法生成可读性强的诊断报告
@@ -84,5 +84,10 @@
 | Sensitivity/Specificity 类别标注缺失 | v1.11.8 | 指标标签绑定实际类别名称，消除评估歧义 |
 | 指标文件格式混乱 | v1.11.8 ~ v1.11.9 | 重构为带 meta 块的具名 JSON，schema 清晰 |
 | 面板宽度被长文字撑开 | v1.11.12 | `grid_propagate(False)` 固定各面板宽度 |
+| `get_model_info` 未适配 bundle；`show_model_info_window` 临时加载状态残留 | v1.11.11 | `get_model_info` 新增 bundle 元数据字段；临时加载改用 `_apply_loaded` 保存/还原完整状态 |
+| 训练完成后进度条残留 | v1.11.13 | 训练成功推满进度条后 `finally` 统一隐藏，与预处理行为对齐 |
+| chip 状态不随上游操作级联失效 | v1.11.13 | 新增 `invalidate_chip()`；预处理开始/CSV加载/训练开始/训练完成各触发对应级联 |
+| 预处理阶段无法通过菜单「重置」终止 | v1.11.14 | `allow_termination=True`；`_update_progress` 中检查取消标志并抛 `InterruptedError` |
+| `action_btn` 隐藏状态机制冗余；重置时序固定 1500ms 不可靠 | v1.11.14.1 | 删除 `action_btn`；改为轮询 `_is_operation_running`，确认操作退出后再重置 |
 | 变量命名不一致（`normalization_factor` 等） | v1.9.10.2 | 统一为 `normalization_method` |
 | 类别映射分散在各模块 | v1.9.9 | `ClassMappingManager` 单例集中管理 |

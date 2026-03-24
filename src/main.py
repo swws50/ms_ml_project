@@ -647,6 +647,9 @@ class MainGUIManager:
 
     def _handle_predict_model_select(self, file_path):
         """处理预测模型选择 - 更新状态 chip"""
+        # 若用户跳过预处理/训练直接进行预测，将初始状态的 chip 标记为 "-"
+        self.global_progress.mark_skipped_chip('preprocess', '预处理: -')
+        self.global_progress.mark_skipped_chip('train', '训练: -')
         self.global_progress.update_chip('predict', '✓ 预测: 模型已加载，可进行预测', 'green')
 
 

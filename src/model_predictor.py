@@ -317,15 +317,6 @@ class PredictionManager:
             result_label.insert("end", "\n" + "="*80 + "\n")
             result_label.insert("end", f"✓ 结果已自动导出至:\n{csv_path}\n")
             
-            # 询问是否打开（使用after延迟，避免阻塞界面更新）
-            def ask_open():
-                if messagebox.askyesno("导出完成", f"批量预测完成！\n\n结果已导出至:\n{csv_path}\n\n是否打开CSV文件？"):
-                    try:
-                        os.startfile(csv_path)
-                    except:
-                        log_message("请手动打开CSV文件", "INFO")
-            
-            result_label.after(100, ask_open)
         
     def export_batch_results_to_csv(self, results, output_path=None):
         """
