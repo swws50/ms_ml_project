@@ -609,7 +609,7 @@ class MainGUIManager:
                 self.root
             )
             self.global_progress.update_chip('train', '✓ 训练: 完成', 'green')
-            self.global_progress.update_chip('predict', '✓ 预测: 模型待装载', 'green')
+            self.global_progress.update_chip('predict', '✓ 预测: 模型待装载', 'orange')
             self.global_progress.update(1.0, "训练完成")
         except InterruptedError:
             log_message("训练被终止", "WARNING")

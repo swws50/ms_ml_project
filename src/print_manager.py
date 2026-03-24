@@ -16,11 +16,10 @@ class PrintDialog:
         self.dialog = None
         self._icon_ref = None # 保持图标引用，防止被垃圾回收
         self.print_options = {
-            'include_dataset_info': ctk.BooleanVar(value=True),
-            'include_training_info': ctk.BooleanVar(value=True),
+            'include_dataset_info': ctk.BooleanVar(value=False),
+            'include_training_info': ctk.BooleanVar(value=False),
             'include_prediction_info': ctk.BooleanVar(value=True),
             'include_model_info': ctk.BooleanVar(value=True),
-            'export_to_file': ctk.BooleanVar(value=True)
         }
         
         self.patient_info = {
@@ -113,17 +112,6 @@ class PrintDialog:
         ctk.CTkLabel(date_frame, text="日期:", width=60).pack(side="left")
         ctk.CTkEntry(date_frame, textvariable=self.patient_info['diagnosis_date'], width=120).pack(side="left", padx=5)
 
-        # 导出选项
-        export_frame = ctk.CTkFrame(self.dialog)
-        export_frame.pack(fill="x", padx=20, pady=10)
-        
-        export_checkbox = ctk.CTkCheckBox(
-            export_frame, 
-            text="导出到文本文件", 
-            variable=self.print_options['export_to_file']
-        )
-        export_checkbox.pack(anchor="w", padx=20, pady=10)
-        
         # 按钮
         button_frame = ctk.CTkFrame(self.dialog, fg_color="transparent")
         button_frame.pack(fill="x", padx=20, pady=20)
@@ -206,11 +194,12 @@ class PrintManager:
         content = self._generate_content(options, patient_info)
         if not content:
             return False
-        
-        # 导出到文件
-        if options['export_to_file'].get():
-            self._export_to_file(content)
-        
+
+        # 暂存结构化数据供 _export_to_pdf 使用
+        self._current_patient_info = patient_info
+        self._current_options = options
+
+        self._export_to_file(content)
         return True
     
     def _load_metrics_summary(self, model_path):
@@ -402,77 +391,269 @@ class PrintManager:
         return "\n".join(content_parts)
     
     def _export_to_file(self, content):
-        """导出内容到txt或PDF文件"""
+        """弹出保存框并导出 PDF"""
         filename = filedialog.asksaveasfilename(
             title="保存诊断报告",
             defaultextension=".pdf",
             initialfile=f"肝癌早筛预警检测报告_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
-            filetypes=[
-                ("PDF文件", "*.pdf"),
-                ("文本文件", "*.txt")  
-            ]
+            filetypes=[("PDF文件", "*.pdf")]
         )
-        
         if filename:
             try:
-                if filename.lower().endswith('.pdf'):
-                    self._export_to_pdf(filename, content)
-                else:
-                    with open(filename, 'w', encoding='utf-8') as f:
-                        f.write("肝癌早筛预警检测报告\n")
-                        f.write("=" * 50 + "\n")
-                        f.write(content)
+                self._export_to_pdf(filename, content)
                 log_message(f"报告已保存到: {filename}", "SUCCESS")
             except Exception as e:
                 log_message(f"保存报告失败: {str(e)}", "ERROR")
                 raise
     
     def _export_to_pdf(self, filename, content):
-        """导出内容到PDF文件"""
+        """导出内容到PDF文件（Platypus 布局引擎）"""
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import ParagraphStyle
+        from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                        Table, TableStyle, Image, PageBreak,
+                                        HRFlowable)
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+
+        # ── 中文字体 ──────────────────────────────────────────────
         try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.pdfgen import canvas
-            from reportlab.pdfbase import pdfmetrics
-            from reportlab.pdfbase.ttfonts import TTFont
-            
-            # 注册中文字体 (使用系统自带的字体)
+            pdfmetrics.registerFont(TTFont('SimSun', 'simsun.ttc'))
+            font_name = 'SimSun'
+        except Exception:
             try:
-                pdfmetrics.registerFont(TTFont('SimSun', 'simsun.ttc'))
-                font_name = 'SimSun'
-            except:
-                # 如果找不到宋体,尝试其他字体
-                try:
-                    pdfmetrics.registerFont(TTFont('SimHei', 'simhei.ttf'))
-                    font_name = 'SimHei'
-                except:
-                    font_name = 'Helvetica'  # 回退到默认字体
-            
-            c = canvas.Canvas(filename, pagesize=A4)
-            width, height = A4
-            
-            # 标题
-            c.setFont(font_name, 16)
-            c.drawCentredString(width/2, height-50, "肝癌早筛预警检测报告")
-            
-            # 分隔线
-            c.line(50, height-70, width-50, height-70)
-            
-            # 内容
-            c.setFont(font_name, 10)
-            y_position = height - 100
-            line_height = 15
-            
-            for line in content.split('\n'):
-                if y_position < 50:  # 换页
-                    c.showPage()
-                    c.setFont(font_name, 10)
-                    y_position = height - 50
-                
-                c.drawString(50, y_position, line)
-                y_position -= line_height
-            
-            c.save()
-            
-        except ImportError:
-            messagebox.showerror("错误", "需要安装 reportlab 库来生成PDF\n请运行: pip install reportlab")
-            raise
+                pdfmetrics.registerFont(TTFont('SimHei', 'simhei.ttf'))
+                font_name = 'SimHei'
+            except Exception:
+                font_name = 'Helvetica'
+
+        # ── 样式 ─────────────────────────────────────────────────
+        style_header = ParagraphStyle(
+            'SectionHeader', fontName=font_name, fontSize=14,
+            leading=18, spaceBefore=12, spaceAfter=4, textColor=colors.HexColor('#1a3a5c')
+        )
+        style_body = ParagraphStyle(
+            'BodyText', fontName=font_name, fontSize=10, leading=14
+        )
+
+        HEADER_BG   = colors.HexColor('#1a3a5c')
+        HEADER_FG   = colors.white
+        BORDER      = colors.HexColor('#cccccc')
+
+        def title_rule():
+            """标题下方粗横线"""
+            return HRFlowable(width='100%', thickness=2,
+                              color=colors.HexColor('#1a3a5c'), spaceAfter=10)
+
+        def metrics_table(rows):
+            """指标表：撑满页宽，有外边框，表头深色，数字列右对齐"""
+            num_cols = len(rows[0]) if rows else 5
+            label_w = 130
+            num_w = (page_width - label_w) / max(num_cols - 1, 1)
+            col_widths = [label_w] + [num_w] * (num_cols - 1)
+            t = Table(rows, colWidths=col_widths)
+            style = [
+                ('FONTNAME',      (0, 0), (-1, -1), font_name),
+                ('FONTSIZE',      (0, 0), (-1, -1), 10),
+                ('TOPPADDING',    (0, 0), (-1, -1), 5),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ('LEFTPADDING',   (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING',  (0, 0), (-1, -1), 6),
+                # 表头
+                ('BACKGROUND',    (0, 0), (-1, 0), HEADER_BG),
+                ('TEXTCOLOR',     (0, 0), (-1, 0), HEADER_FG),
+                ('ALIGN',         (0, 0), (-1, 0), 'CENTER'),
+                # 外框与内格
+                ('BOX',           (0, 0), (-1, -1), 0.5,  BORDER),
+                ('INNERGRID',     (0, 0), (-1, -1), 0.25, BORDER),
+                # 数字列右对齐
+                ('ALIGN',         (1, 1), (-1, -1), 'RIGHT'),
+            ]
+            t.setStyle(TableStyle(style))
+            return t
+
+        # ── 读取数据 ──────────────────────────────────────────────
+        from config import get_output_paths
+        OUTPUT_FILES = get_output_paths()
+
+        model_info       = data_store.get_latest_model_info()
+        system_status    = data_store.get_system_status()
+        training_data    = data_store.get_training_data_info()
+        latest_pred      = data_store.get_latest_prediction() if hasattr(data_store, 'get_latest_prediction') else None
+        metrics          = self._load_metrics_summary(model_info.get('model_path', ''))
+
+        # ── 病人信息判断 ──────────────────────────────────────────
+        # content 参数在此路径不使用，仅保留以兼容调用签名
+        # patient_info 通过 execute_print → _export_to_file 的调用链不直接传入，
+        # 因此从 _generate_content 生成的 content 字符串中无法简单还原结构化信息。
+        # 解决方案：将 patient_info 暂存到实例变量，由 execute_print 负责设置。
+        patient_info = getattr(self, '_current_patient_info', None)
+        has_patient = False
+        p_name = p_age = p_id = p_gender = p_date = ''
+        if patient_info:
+            p_name   = patient_info['name'].get().strip()
+            p_age    = patient_info['age'].get().strip()
+            p_id     = patient_info['patient_id'].get().strip()
+            p_gender = patient_info['gender'].get().strip()
+            p_date   = patient_info['diagnosis_date'].get().strip()
+            has_patient = any([p_name, p_age, p_id])
+
+        options = getattr(self, '_current_options', {})
+        def opt(key):
+            v = options.get(key)
+            return v.get() if v is not None else True
+
+        # ── 图表路径 ──────────────────────────────────────────────
+        chart_roc = str(OUTPUT_FILES.get('chart_roc', ''))
+        chart_cm  = str(OUTPUT_FILES.get('chart_confusion', ''))
+
+        # ── 构建 Flowables ────────────────────────────────────────
+        doc = SimpleDocTemplate(
+            filename, pagesize=A4,
+            leftMargin=50, rightMargin=50,
+            topMargin=50, bottomMargin=50,
+            title="肝癌早筛预警检测报告"
+        )
+        page_width = A4[0] - 100  # 可用宽度
+
+        story = []
+
+        # ════════════════════════════════════════════════════════
+        # 情况 A 第一页：预测报告（有病人信息时）
+        # ════════════════════════════════════════════════════════
+        if has_patient:
+            story.append(Paragraph("肝癌早筛预警检测报告", ParagraphStyle(
+                'Title', fontName=font_name, fontSize=18,
+                leading=22, spaceAfter=6, alignment=1,
+                textColor=colors.HexColor('#1a3a5c')
+            )))
+            story.append(Paragraph("", style_body))
+            story.append(title_rule())
+            story.append(Paragraph("", style_body))
+
+            # 病人基础信息
+            story.append(Paragraph("病人基础信息", style_header))
+            if p_name:   story.append(Paragraph(f"姓名：{p_name}", style_body))
+            if p_age:    story.append(Paragraph(f"年龄：{p_age} 岁", style_body))
+            if p_gender: story.append(Paragraph(f"性别：{p_gender}", style_body))
+            if p_id:     story.append(Paragraph(f"病人编号：{p_id}", style_body))
+            if p_date:   story.append(Paragraph(f"诊断日期：{p_date}", style_body))
+            story.append(Spacer(1, 8))
+
+            # 预测结果
+            if opt('include_prediction_info') and latest_pred:
+                story.append(Paragraph("预测结果", style_header))
+                story.append(Paragraph(f"文件名：{latest_pred.get('filename', 'N/A')}", style_body))
+                story.append(Paragraph(f"预测类别：{latest_pred.get('predicted_class', 'N/A')}", style_body))
+                story.append(Paragraph(f"置信度：{latest_pred.get('confidence', 0):.4f}", style_body))
+                story.append(Paragraph(f"预测时间：{latest_pred.get('timestamp', 'N/A')}", style_body))
+                story.append(Spacer(1, 8))
+
+            # 模型基本信息（含交叉验证与训练数据）
+            if opt('include_model_info') and model_info.get('has_model', False):
+                story.append(Paragraph("模型基本信息", style_header))
+                story.append(Paragraph(f"模型类型：{model_info.get('model_type', 'N/A')}", style_body))
+                if metrics:
+                    auc_m, auc_s, _, _ = metrics['auc']
+                    story.append(Paragraph(f"AUC 均值：{auc_m:.3f} ± {auc_s:.3f}", style_body))
+                    cv_str = metrics['cv'] if metrics['cv'] else f"{metrics['n_iter']} 次迭代"
+                    thresh_str = f"（{metrics['threshold_strategy']}）" if metrics['threshold_strategy'] else ""
+                    story.append(Paragraph(f"交叉验证：{cv_str}{thresh_str}", style_body))
+                if opt('include_training_info') and training_data.get('has_data', False):
+                    story.append(Paragraph(f"样本数量：{training_data.get('n_samples', 'N/A')} 个", style_body))
+                    story.append(Paragraph(f"特征数量：{training_data.get('n_features', 'N/A')} 个", style_body))
+                    if 'class_distribution' in training_data and training_data['class_distribution']:
+                        total_s = sum(training_data['class_distribution'].values())
+                        cls_names_td = system_status.get('file_classification', {}).get('class_names', ['类别0', '类别1'])
+                        for cls, count in training_data['class_distribution'].items():
+                            pct = count / total_s * 100 if total_s > 0 else 0
+                            idx = int(cls)
+                            cname = cls_names_td[idx] if idx < len(cls_names_td) else f"类别{cls}"
+                            story.append(Paragraph(f"　{cname}：{count} 个样本（{pct:.1f}%）", style_body))
+                    if len(training_data.get('class_distribution', {})) == 2:
+                        counts = list(training_data['class_distribution'].values())
+                        ratio = min(counts) / max(counts) if max(counts) > 0 else 0
+                        bal = "平衡" if ratio > 0.8 else ("不平衡" if ratio > 0.5 else "严重不平衡")
+                        story.append(Paragraph(f"数据平衡性：{bal}（比例 {ratio:.2f}）", style_body))
+
+            story.append(PageBreak())
+
+        # ════════════════════════════════════════════════════════
+        # 详细信息页（情况 A 第二页 / 情况 B 单页）
+        # ════════════════════════════════════════════════════════
+        if not has_patient:
+            story.append(Paragraph("肝癌早筛预警检测报告", ParagraphStyle(
+                'Title', fontName=font_name, fontSize=18,
+                leading=22, spaceAfter=6, alignment=1,
+                textColor=colors.HexColor('#1a3a5c')
+            )))
+            story.append(title_rule())
+
+        # 模型性能指标表
+        if opt('include_model_info') and model_info.get('has_model', False):
+            story.append(Paragraph("模型性能指标", style_header))
+            if metrics:
+                cls_names = metrics['class_names']
+                sens_label = f"灵敏度 [{cls_names[1]}]" if len(cls_names) > 1 else "灵敏度"
+                spec_label = f"特异度 [{cls_names[0]}]" if len(cls_names) > 0 else "特异度"
+                auc_m,  auc_s,  auc_lo,  auc_hi  = metrics['auc']
+                sens_m, sens_s, sens_lo, sens_hi = metrics['sens']
+                spec_m, spec_s, spec_lo, spec_hi = metrics['spec']
+                f1_m,   f1_s                     = metrics['f1']
+                m_rows = [
+                    ["指标", "均值", "标准差", "95% CI 下", "95% CI 上"],
+                    ["AUC-ROC",   f"{auc_m:.3f}",  f"{auc_s:.3f}",  f"{auc_lo:.3f}", f"{auc_hi:.3f}"],
+                    [sens_label,  f"{sens_m:.3f}", f"{sens_s:.3f}", f"{sens_lo:.3f}", f"{sens_hi:.3f}"],
+                    [spec_label,  f"{spec_m:.3f}", f"{spec_s:.3f}", f"{spec_lo:.3f}", f"{spec_hi:.3f}"],
+                    ["F1 Score",  f"{f1_m:.3f}",   f"{f1_s:.3f}",   "—",             "—"],
+                ]
+                story.append(metrics_table(m_rows))
+            else:
+                story.append(Paragraph("训练状态: 已完成", style_body))
+            story.append(Spacer(1, 8))
+
+        # 数据集信息
+        if opt('include_dataset_info') and system_status.get('file_classification', {}).get('has_data', False):
+            story.append(Paragraph("数据集信息", style_header))
+            fc = system_status['file_classification']
+            cn = fc['class_names']
+            fct = fc['file_counts']
+            story.append(Paragraph(f'类别0 "{cn[0]}"：{fct["class_0"]} 个文件', style_body))
+            story.append(Paragraph(f'类别1 "{cn[1]}"：{fct["class_1"]} 个文件', style_body))
+            story.append(Paragraph(f"总文件数：{fct['total']} 个文件", style_body))
+            story.append(Spacer(1, 8))
+
+        # ROC 曲线 + 混淆矩阵 并排
+        has_roc = os.path.exists(chart_roc)
+        has_cm  = os.path.exists(chart_cm)
+        if has_roc or has_cm:
+            story.append(Paragraph("模型评估图表", style_header))
+            img_w = (page_width - 12) / 2   # 两列各占半宽，留 12 间距
+            img_h = 200
+
+            def _make_img_cell(path, caption):
+                if not os.path.exists(path):
+                    return Paragraph(f"（{caption} 文件不存在）", style_body)
+                img = Image(path)
+                img._restrictSize(img_w, img_h)
+                return img
+
+            cell_roc = _make_img_cell(chart_roc, "ROC 曲线")
+            cell_cm  = _make_img_cell(chart_cm,  "混淆矩阵")
+
+            chart_table = Table(
+                [[cell_roc, cell_cm],
+                 [Paragraph("ROC 曲线", ParagraphStyle('cap', fontName=font_name, fontSize=9, alignment=1)),
+                  Paragraph("混淆矩阵", ParagraphStyle('cap2', fontName=font_name, fontSize=9, alignment=1))]],
+                colWidths=[img_w + 6, img_w + 6]
+            )
+            chart_table.setStyle(TableStyle([
+                ('ALIGN',        (0, 0), (-1, -1), 'CENTER'),
+                ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING',   (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING',(0, 0), (-1, -1), 4),
+            ]))
+            story.append(chart_table)
+
+        doc.build(story)
