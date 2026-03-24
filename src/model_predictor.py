@@ -38,7 +38,7 @@ class PredictionManager:
         self.feature_detector.training_features = None
         self.feature_detector.normalization_method = None
 
-    def _apply_loaded(self, loaded, source_label: str):
+    def _apply_loaded(self, loaded, source_label: str, model_path: str = None):
         """解包 joblib bundle：{"model": ..., "training_features": [...], "normalization_method": ...}"""
         if not (isinstance(loaded, dict) and "model" in loaded):
             raise ValueError("模型格式不兼容，请使用当前版本重新训练以生成 bundle 文件")
@@ -49,6 +49,8 @@ class PredictionManager:
         self.pls_threshold = loaded.get("pls_threshold", None)
         self.feature_detector.training_features = features if features else None
         self.feature_detector.normalization_method = norm
+        if model_path:
+            data_store.set_latest_trained_model(self.model, model_path)
         log_message(f"{source_label}", "INFO")
 
     def load_model(self):
@@ -58,7 +60,8 @@ class PredictionManager:
             if hasattr(self, 'temp_model_path') and self.temp_model_path:
                 self._apply_loaded(
                     load(self.temp_model_path),
-                    f"使用用户选择的模型: {os.path.basename(self.temp_model_path)}"
+                    f"使用用户选择的模型: {os.path.basename(self.temp_model_path)}",
+                    model_path=self.temp_model_path
                 )
                 return True
 
@@ -80,7 +83,8 @@ class PredictionManager:
                     latest_model_path = os.path.join(model_dir, latest_file)
                     self._apply_loaded(
                         load(latest_model_path),
-                        f"自动选择最新模型文件: {latest_file}"
+                        f"自动选择最新模型文件: {latest_file}",
+                        model_path=latest_model_path
                     )
                     return True
 
