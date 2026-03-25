@@ -415,18 +415,10 @@ def generate_confusion_matrix_with_stability(confusion_matrices, model_type="Mod
     return str(chart_path)
 
 
-def generate_performance_charts(train_accuracy, test_accuracy, 
-                               f_scores, confusion_matrices, fpr_values, tpr_values, 
+def generate_performance_charts(train_accuracy, test_accuracy,
+                               f_scores, confusion_matrices, fpr_values, tpr_values,
                                auc_list, thresholds_used=None):
-    """
-    生成机器学习模型的性能评估图表（重构版，保持原函数名）
-    
-    核心改进：
-    1. 使用MetricsCalculator统一计算所有指标
-    2. 为表格添加误差范围
-    3. 为小提琴图添加95%置信区间
-    4. 采用 latest + archive 模式管理图表
-    """
+    """生成所有性能评估图表，保存至 charts/{model_stem}/ 专属目录，返回路径 dict。"""
     from utils import log_message
     from config import get_output_paths
     from output_manager import output_manager
@@ -455,69 +447,50 @@ def generate_performance_charts(train_accuracy, test_accuracy,
             confusion_matrices, f_scores, model_type,
             show_ci=True, confidence=0.95
         )
-        generated_charts['accuracy'] = chart_path
         generated_charts['chart_accuracy'] = chart_path
-        
+
         # 2. 生成综合平衡指标图表
         chart_path = generate_balance_metrics_chart(
             confusion_matrices, f_scores, model_type,
             show_ci=True, confidence=0.95
         )
-        generated_charts['metrics'] = chart_path
         generated_charts['chart_metrics'] = chart_path
-        
+
         # 3. 生成混淆矩阵
-        chart_path = generate_confusion_matrix_with_stability(
-            confusion_matrices, model_type
-        )
-        generated_charts['confusion'] = chart_path
+        chart_path = generate_confusion_matrix_with_stability(confusion_matrices, model_type)
         generated_charts['chart_confusion'] = chart_path
-        
+
         # 4. 生成ROC曲线
         plt.figure(figsize=(6, 4))
         mean_fpr = np.linspace(0, 1, 200)
-        mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr) 
-                           for fpr, tpr in zip(fpr_values, tpr_values)], axis=0)
-        
+        mean_tpr = np.mean([np.interp(mean_fpr, fpr, tpr)
+                            for fpr, tpr in zip(fpr_values, tpr_values)], axis=0)
         auc_metric = metrics_calc.get_metric('AUC')
-        plt.plot(mean_fpr, mean_tpr, color='red', lw=3, 
-                label=f'Mean ROC (AUC={auc_metric.mean:.3f}±{auc_metric.ci_margin:.3f})')
+        plt.plot(mean_fpr, mean_tpr, color='red', lw=3,
+                 label=f'Mean ROC (AUC={auc_metric.mean:.3f}±{auc_metric.ci_margin:.3f})')
         plt.plot([0, 1], [0, 1], color='gray', linestyle='--')
         plt.xlabel('False Positive Rate', fontsize=11)
         plt.ylabel('True Positive Rate', fontsize=11)
         plt.title(f'ROC Curve ({model_type})', fontsize=12, fontweight='bold')
         plt.legend(fontsize=10)
         plt.grid(alpha=0.3)
-        
-        # 使用固定文件名
-        chart_path = OUTPUT_FILES['chart_roc']
-        plt.savefig(chart_path, dpi=150, bbox_inches='tight')
+        plt.savefig(OUTPUT_FILES['chart_roc'], dpi=150, bbox_inches='tight')
         plt.close()
-        generated_charts['roc'] = str(chart_path)
-        generated_charts['chart_roc'] = str(chart_path)
+        generated_charts['chart_roc'] = str(OUTPUT_FILES['chart_roc'])
         log_message("ROC_Curve.png 已生成")
 
-        # 5. 生成性能指标表格（CSV格式）
-        
-        metric_names = [
-            'Sensitivity', 'Specificity', 'Precision', 'NPV',
-            'Accuracy', 'BalancedAcc', 'F1', 'AUC'
-        ]
-        
-        # 构建CSV数据
+        # 5. 生成性能指标表格（CSV）
         import csv
-        csv_path = str(OUTPUT_FILES['chart_metrics_table']).replace('.html', '.csv')
-        
         label_overrides = {
             'Sensitivity (TPR)': f'Sensitivity – {class_manager.class_1_name}',
             'Specificity (TNR)': f'Specificity – {class_manager.class_0_name}',
         }
-
+        csv_path = str(OUTPUT_FILES['chart_metrics_table'])
         with open(csv_path, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f)
             writer.writerow(['Metric', 'Value', '±CI', '95% CI Range'])
-
-            for name in metric_names:
+            for name in ['Sensitivity', 'Specificity', 'Precision', 'NPV',
+                         'Accuracy', 'BalancedAcc', 'F1', 'AUC']:
                 metric = metrics_calc.get_metric(name)
                 if metric is None:
                     continue
@@ -527,46 +500,33 @@ def generate_performance_charts(train_accuracy, test_accuracy,
                     f'±{metric.ci_margin:.3f}',
                     f'[{metric.ci_lower:.3f}, {metric.ci_upper:.3f}]'
                 ])
-        
-        generated_charts['metrics_table'] = csv_path
         generated_charts['chart_metrics_table'] = csv_path
         log_message("MetricsTable.csv 已生成")
 
-        # 6. 生成PLS阈值分布图
+        # 6. 生成PLS阈值分布图（仅 PLS 模型）
         if thresholds_used is not None and len(thresholds_used) > 0:
             mean_threshold = np.mean(thresholds_used)
-            std_threshold = np.std(thresholds_used)
-            
+            std_threshold  = np.std(thresholds_used)
             plt.figure(figsize=(6, 4))
-            hist_data = plt.hist(thresholds_used, bins=20, color='skyblue', 
-                               edgecolor='black', alpha=0.7)
-            
-            if isinstance(hist_data, tuple) and len(hist_data) > 0:
-                y_max = max(hist_data[0]) * 1.1
-            else:
-                y_max = plt.ylim()[1] * 1.1
-                
+            hist_data = plt.hist(thresholds_used, bins=20, color='skyblue',
+                                 edgecolor='black', alpha=0.7)
+            y_max = max(hist_data[0]) * 1.1 if isinstance(hist_data, tuple) else plt.ylim()[1] * 1.1
             plt.axvline(x=mean_threshold, color='r', linestyle='--', linewidth=2,
-                       label=f'Mean Threshold: {mean_threshold:.4f}')
+                        label=f'Mean Threshold: {mean_threshold:.4f}')
             plt.axvline(x=0.5, color='g', linestyle='--', linewidth=2,
-                       label='Default Threshold: 0.5')
-            
+                        label='Default Threshold: 0.5')
             plt.xlabel('Threshold Value', fontsize=12)
             plt.ylabel('Frequency', fontsize=12)
             plt.legend(loc='upper right', fontsize=10)
-            plt.title(f'PLS-DA Optimal Threshold Distribution\n(Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', 
-                      fontsize=12)
+            plt.title(f'PLS-DA Optimal Threshold Distribution\n'
+                      f'(Mean={mean_threshold:.4f}, Std={std_threshold:.4f})', fontsize=12)
             plt.ylim(0, y_max)
             plt.tight_layout()
-            
-            # 使用固定文件名
-            chart_path = OUTPUT_FILES['chart_thresholds']
-            plt.savefig(chart_path, dpi=100, bbox_inches='tight')
+            plt.savefig(OUTPUT_FILES['chart_thresholds'], dpi=100, bbox_inches='tight')
             plt.close()
-            generated_charts['thresholds'] = str(chart_path)
-            generated_charts['chart_thresholds'] = str(chart_path)
+            generated_charts['chart_thresholds'] = str(OUTPUT_FILES['chart_thresholds'])
             log_message("PLS_Thresholds.png 已生成")
-        
+
         # 将所有图表移入以模型命名的专属子目录
         try:
             import shutil
@@ -576,21 +536,15 @@ def generate_performance_charts(train_accuracy, test_accuracy,
                     else datetime.now().strftime("%Y%m%d_%H%M%S")
             _run_dir = Path(str(output_manager.get_path('chart', _stem)))
             _run_dir.mkdir(parents=True, exist_ok=True)
-            # 先建旧路径→新路径映射（每个文件只移动一次）
-            _path_map = {}
-            for _src in set(str(v) for v in generated_charts.values()):
-                if os.path.exists(_src) and os.path.isfile(_src):
-                    _dest = str(_run_dir / os.path.basename(_src))
-                    shutil.move(_src, _dest)
-                    _path_map[_src] = _dest
-            # 统一更新所有 key
-            for _key in generated_charts:
-                _src = str(generated_charts[_key])
-                if _src in _path_map:
-                    generated_charts[_key] = _path_map[_src]
+            for key in generated_charts:
+                src = str(generated_charts[key])
+                if os.path.exists(src) and os.path.isfile(src):
+                    dest = str(_run_dir / os.path.basename(src))
+                    shutil.move(src, dest)
+                    generated_charts[key] = dest
             log_message(f"图表已保存至: {_run_dir}")
-        except Exception as _e:
-            log_message(f"图表整理失败（不影响训练）: {_e}", "WARNING")
+        except Exception as e:
+            log_message(f"图表整理失败（不影响训练）: {e}", "WARNING")
 
         return generated_charts
 
@@ -656,39 +610,32 @@ def show_large_image(parent, image_path, title="查看大图"):
 
 def create_visualization_tabs(root, generated_charts):
     """在GUI中创建可视化标签页显示图表"""
-    from config import get_output_paths
     from utils import log_message
     import customtkinter as ctk
     from tkinter import ttk
     from PIL import Image
     import csv
-    
-    OUTPUT_FILES = get_output_paths()
-    
+
     if hasattr(root, 'visualization_container') and hasattr(root, 'visualization_placeholder'):
         try:
             root.visualization_placeholder.destroy()
         except:
             pass
-        
         notebook = ctk.CTkTabview(root.visualization_container, width=800, height=500)
         notebook.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
     else:
         notebook = ctk.CTkTabview(root, width=800, height=500)
         notebook.grid(row=6, column=0, columnspan=4, sticky='nsew')
-    
+
     chart_configs = [
-        (generated_charts.get('chart_metrics_table', generated_charts.get('metrics_table', '')), '性能指标总览'),
-        (generated_charts.get('chart_accuracy', generated_charts.get('accuracy', '')), '类别性能'),
-        (generated_charts.get('chart_metrics', generated_charts.get('metrics', '')), '综合指标'),
-        (generated_charts.get('chart_confusion', generated_charts.get('confusion', '')), '混淆矩阵'),
-        (generated_charts.get('chart_roc', generated_charts.get('roc', '')), 'ROC曲线'),
+        (generated_charts.get('chart_metrics_table', ''), '性能指标总览'),
+        (generated_charts.get('chart_accuracy',      ''), '类别性能'),
+        (generated_charts.get('chart_metrics',       ''), '综合指标'),
+        (generated_charts.get('chart_confusion',     ''), '混淆矩阵'),
+        (generated_charts.get('chart_roc',           ''), 'ROC曲线'),
     ]
-    
-    if generated_charts.get('chart_thresholds') or generated_charts.get('thresholds'):
-        threshold_path = generated_charts.get('chart_thresholds', generated_charts.get('thresholds', ''))
-        if threshold_path:
-            chart_configs.append((threshold_path, '阈值分布'))
+    if generated_charts.get('chart_thresholds'):
+        chart_configs.append((generated_charts['chart_thresholds'], '阈值分布'))
     
     for chart_file, tab_name in chart_configs:
         if not chart_file or not os.path.exists(chart_file):
