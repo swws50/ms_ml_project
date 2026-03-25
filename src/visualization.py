@@ -437,11 +437,6 @@ def generate_performance_charts(train_accuracy, test_accuracy,
     generated_charts = {}
     OUTPUT_FILES = get_output_paths()
     
-    # ========== 归档旧图表 ==========
-    output_manager.start_training_session()  # 开始新的训练会话
-    archive_path = output_manager.archive_current_charts()  # 归档现有图表
-
-    
     latest_model, _ = data_store.get_latest_trained_model()
     model_type = latest_model.__class__.__name__ if latest_model else "Model"
     
@@ -572,13 +567,35 @@ def generate_performance_charts(train_accuracy, test_accuracy,
             generated_charts['chart_thresholds'] = str(chart_path)
             log_message("PLS_Thresholds.png 已生成")
         
-        # 结束训练会话
-        output_manager.end_training_session()
+        # 将所有图表移入以模型命名的专属子目录
+        try:
+            import shutil
+            from pathlib import Path
+            _model_path = str(data_store.get_latest_model_info().get('model_path', ''))
+            _stem = os.path.splitext(os.path.basename(_model_path))[0] if _model_path \
+                    else datetime.now().strftime("%Y%m%d_%H%M%S")
+            _run_dir = Path(str(output_manager.get_path('chart', _stem)))
+            _run_dir.mkdir(parents=True, exist_ok=True)
+            # 先建旧路径→新路径映射（每个文件只移动一次）
+            _path_map = {}
+            for _src in set(str(v) for v in generated_charts.values()):
+                if os.path.exists(_src) and os.path.isfile(_src):
+                    _dest = str(_run_dir / os.path.basename(_src))
+                    shutil.move(_src, _dest)
+                    _path_map[_src] = _dest
+            # 统一更新所有 key
+            for _key in generated_charts:
+                _src = str(generated_charts[_key])
+                if _src in _path_map:
+                    generated_charts[_key] = _path_map[_src]
+            log_message(f"图表已保存至: {_run_dir}")
+        except Exception as _e:
+            log_message(f"图表整理失败（不影响训练）: {_e}", "WARNING")
+
         return generated_charts
-        
+
     except Exception as e:
         log_message(f"生成图表时出错: {str(e)}", "ERROR")
-        output_manager.end_training_session()
         return {}
 
 

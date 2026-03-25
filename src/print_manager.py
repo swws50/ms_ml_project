@@ -254,6 +254,13 @@ class PrintManager:
             spec_mean, spec_std, spec_lo, spec_hi = _ci(spec_arr)
             f1_mean, f1_std, _, _ = _ci(f1_arr)
 
+            stem = os.path.splitext(os.path.basename(metrics_path))[0]
+            charts_dir = metrics_path.replace('\\metrics\\', '\\charts\\') \
+                                     .replace('/metrics/', '/charts/') \
+                                     .replace('.json', '')
+            chart_roc_path = os.path.join(charts_dir, 'ROC_Curve.png')
+            chart_cm_path  = os.path.join(charts_dir, 'ConfusionMatrix.png')
+
             return {
                 'auc':  (auc_mean,  auc_std,  auc_lo,  auc_hi),
                 'sens': (sens_mean, sens_std, sens_lo, sens_hi),
@@ -263,6 +270,8 @@ class PrintManager:
                 'cv': meta.get('cv', ''),
                 'threshold_strategy': meta.get('threshold_strategy', ''),
                 'class_names': meta.get('class_names', []),
+                'chart_roc': chart_roc_path if os.path.exists(chart_roc_path) else None,
+                'chart_cm':  chart_cm_path  if os.path.exists(chart_cm_path)  else None,
             }
         except Exception:
             return None
@@ -483,9 +492,11 @@ class PrintManager:
             v = options.get(key)
             return v.get() if v is not None else True
 
-        # ── 图表路径 ──────────────────────────────────────────────
-        chart_roc = str(OUTPUT_FILES.get('chart_roc', ''))
-        chart_cm  = str(OUTPUT_FILES.get('chart_confusion', ''))
+        # ── 图表路径（优先用与模型绑定的 metrics 副本，回退到 charts/）──
+        chart_roc = (metrics.get('chart_roc') if metrics else None) \
+                    or str(OUTPUT_FILES.get('chart_roc', ''))
+        chart_cm  = (metrics.get('chart_cm')  if metrics else None) \
+                    or str(OUTPUT_FILES.get('chart_confusion', ''))
 
         # ── 构建 Flowables ────────────────────────────────────────
         doc = SimpleDocTemplate(

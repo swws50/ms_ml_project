@@ -24,10 +24,6 @@ class OutputManager:
         self.base_dir = script_dir / base_dir
         self.config_file = self.base_dir / "project_config.json"
         self.current_project = None
-        
-        # 当前训练会话的时间戳（用于归档）
-        self._current_session_timestamp = None
-        
         self._ensure_base_structure()
         self._load_project_config()
 
@@ -80,128 +76,15 @@ class OutputManager:
             json.dump(config, f, ensure_ascii=False, indent=2)
 
     def _create_project_directories(self, project_name):
-        """为项目创建基本的输出目录（包括archive子目录）"""
+        """为项目创建基本的输出目录"""
         directories = ['data', 'models', 'metrics', 'charts', 'predictions']
         project_path = self.base_dir / project_name
-        
+
         for dir_name in directories:
             dir_path = project_path / dir_name
             dir_path.mkdir(parents=True, exist_ok=True)
-            
-            # 为charts创建archive子目录
-            if dir_name == 'charts':
-                archive_path = dir_path / 'archive'
-                archive_path.mkdir(parents=True, exist_ok=True)
 
         log_message(f"项目目录已创建: {project_path.absolute()}")
-
-    # ===== 训练会话管理 =====
-    
-    def start_training_session(self):
-        """
-        开始新的训练会话，生成时间戳用于归档
-        
-        返回:
-            str: 本次训练的时间戳
-        """
-        self._current_session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_message(f"开始新训练会话: {self._current_session_timestamp}")
-        return self._current_session_timestamp
-    
-    def get_session_timestamp(self):
-        """
-        获取当前训练会话的时间戳
-        
-        返回:
-            str: 时间戳，如果没有活动会话则创建新的
-        """
-        if self._current_session_timestamp is None:
-            self.start_training_session()
-        return self._current_session_timestamp
-    
-    def end_training_session(self):
-        """结束训练会话"""
-        self._current_session_timestamp = None
-
-    # ===== 图表归档功能 =====
-    
-    def archive_current_charts(self):
-        """
-        将当前charts目录中的图表归档到archive子目录
-        在生成新图表之前调用此方法
-        
-        返回:
-            str: 归档目录路径，如果没有图表则返回None
-        """
-        if not self.current_project:
-            log_message("警告：没有设置当前项目", "WARNING")
-            return None
-        
-        charts_dir = self.base_dir / self.current_project / 'charts'
-        archive_base = charts_dir / 'archive'
-        
-        # 确保archive目录存在
-        archive_base.mkdir(parents=True, exist_ok=True)
-        
-        # 获取charts目录中的所有图表文件（排除archive目录）
-        chart_files = [f for f in charts_dir.iterdir() 
-                       if f.is_file() and f.suffix.lower() in ['.png', '.jpg', '.jpeg', '.svg', '.pdf', '.csv']]
-        
-        if not chart_files:
-            log_message("没有需要归档的图表")
-            return None
-        
-        # 使用当前会话时间戳或生成新的
-        timestamp = self.get_session_timestamp()
-        archive_dir = archive_base / timestamp
-        archive_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 移动图表到归档目录
-        archived_count = 0
-        for chart_file in chart_files:
-            try:
-                dest_path = archive_dir / chart_file.name
-                shutil.move(str(chart_file), str(dest_path))
-                archived_count += 1
-            except Exception as e:
-                log_message(f"归档文件失败 {chart_file.name}: {e}", "WARNING")
-        
-        log_message(f"已归档 {archived_count} 个旧图表到: {archive_dir}")
-        return str(archive_dir)
-    
-    def get_archive_sessions(self, limit=10):
-        """
-        获取归档的训练会话列表
-        
-        参数:
-            limit: 返回的最大数量
-            
-        返回:
-            list: 归档会话信息列表，按时间倒序
-        """
-        if not self.current_project:
-            return []
-        
-        archive_base = self.base_dir / self.current_project / 'charts' / 'archive'
-        
-        if not archive_base.exists():
-            return []
-        
-        sessions = []
-        for session_dir in sorted(archive_base.iterdir(), reverse=True):
-            if session_dir.is_dir() and session_dir.name != '.DS_Store':
-                chart_files = list(session_dir.glob('*.png')) + list(session_dir.glob('*.jpg'))
-                sessions.append({
-                    'timestamp': session_dir.name,
-                    'path': str(session_dir),
-                    'chart_count': len(chart_files),
-                    'charts': [f.name for f in chart_files]
-                })
-                
-                if len(sessions) >= limit:
-                    break
-        
-        return sessions
 
     # ===== 路径和文件操作 =====
 
