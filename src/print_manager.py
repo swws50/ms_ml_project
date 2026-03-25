@@ -453,7 +453,7 @@ class PrintManager:
                               color=colors.HexColor('#1a3a5c'), spaceAfter=6)
 
 # ── 读取数据 ──────────────────────────────────────────────
-        from config import get_output_paths
+        from config import get_output_paths, ICON_CONFIG
         OUTPUT_FILES = get_output_paths()
 
         model_info       = data_store.get_latest_model_info()
@@ -501,28 +501,59 @@ class PrintManager:
         # ════════════════════════════════════════════════════════
         # 报告标题（始终显示）
         # ════════════════════════════════════════════════════════
-        story.append(Paragraph("肝癌早筛预警检测报告", ParagraphStyle(
+        title_style = ParagraphStyle(
             'Title', fontName=font_name, fontSize=18,
-            leading=22, spaceAfter=3, alignment=1,
+            leading=22, alignment=1,
             textColor=colors.HexColor('#1a3a5c')
-        )))
+        )
+        icon_path = str(ICON_CONFIG.get('app_icon_png', ''))
+        if os.path.exists(icon_path):
+            icon_img = Image(icon_path)
+            icon_img._restrictSize(40, 40)
+            title_row = Table(
+                [[icon_img, Paragraph("肝癌早筛预警检测报告", title_style)]],
+                colWidths=[46, 210]  # 紧凑宽度，整体居中
+            )
+            title_row.setStyle(TableStyle([
+                ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+                ('TOPPADDING',    (0, 0), (-1, -1), 0),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+                ('LEFTPADDING',   (1, 0), (1, 0),   4),
+                ('RIGHTPADDING',  (1, 0), (1, 0),   0),
+            ]))
+            title_row.hAlign = 'CENTER'
+            story.append(title_row)
+        else:
+            story.append(Paragraph("肝癌早筛预警检测报告", title_style))
         story.append(Spacer(1, 12))
         story.append(title_rule())
-        story.append(Spacer(1, 4))
-        story.append(Paragraph(f"生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                               ParagraphStyle('TimeRight', fontName=font_name, fontSize=10, leading=14, alignment=2)))
 
         # ════════════════════════════════════════════════════════
         # 病人基础信息 + 预测结果 + 模型基本信息（有病人信息时）
         # ════════════════════════════════════════════════════════
         if has_patient:
-            # 病人基础信息
-            story.append(Paragraph("病人基础信息", style_header))
-            if p_name:   story.append(Paragraph(f"姓名：{p_name}", style_indent))
-            if p_age:    story.append(Paragraph(f"年龄：{p_age} 岁", style_indent))
-            if p_gender: story.append(Paragraph(f"性别：{p_gender}", style_indent))
-            if p_id:     story.append(Paragraph(f"病人编号：{p_id}", style_indent))
-            if p_date:   story.append(Paragraph(f"诊断日期：{p_date}", style_indent))
+            # 病人基础信息（两行三列表格）
+            col_w = page_width / 3
+            row1 = [
+                Paragraph(f"姓名：{p_name}", style_body),
+                Paragraph(f"性别：{p_gender}", style_body),
+                Paragraph(f"年龄：{p_age} 岁", style_body),
+            ]
+            row2 = [
+                Paragraph(f"编号：{p_id}", style_body),
+                Paragraph("", style_body),
+                Paragraph(f"生成时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", style_body),
+            ]
+            patient_table = Table([row1, row2], colWidths=[col_w, col_w, col_w])
+            patient_table.setStyle(TableStyle([
+                ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+                ('ALIGN',         (2, 1), (2, 1),   'RIGHT'),
+                ('TOPPADDING',    (0, 0), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ]))
+            story.append(patient_table)
+            story.append(HRFlowable(width='100%', thickness=0.5,
+                                    color=colors.HexColor('#aaaaaa'), spaceBefore=4, spaceAfter=6))
             story.append(Spacer(1, 4))
 
             # 预测结果
@@ -622,5 +653,15 @@ class PrintManager:
                 ('BOTTOMPADDING',(0, 0), (-1, -1), 4),
             ]))
             story.append(chart_table)
+
+        story.append(Spacer(1, 4))
+        story.append(title_rule())
+        
+        # 免责声明
+        story.append(Paragraph(
+            "本报告由人工智能辅助分析生成，仅供科研使用，不得作为诊断依据。任何医疗决策请咨询执业医师。",
+            ParagraphStyle('Disclaimer', fontName=font_name, fontSize=9,
+                           leading=13, textColor=colors.HexColor('#888888'), alignment=1)
+        ))
 
         doc.build(story)
