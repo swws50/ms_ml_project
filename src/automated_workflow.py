@@ -131,7 +131,6 @@ class AutomatedWorkflow:
         
         # 读取CSV
         df = pd.read_csv(csv_path, index_col=0)
-        df = df.iloc[:, 1:]
         
         # 清除旧的分类信息
         data_store.clear_file_classification()
