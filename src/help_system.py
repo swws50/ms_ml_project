@@ -1,9 +1,17 @@
 # help_system.py - 帮助系统和进度跟踪模块
 
 # 标准库导入
+import datetime
+import hashlib
+import hmac
 import json
 import os
+import platform
+import socket
 from PIL import Image
+
+# 用于免责声明日志防篡改签名的密钥（打包进 exe 后不可见）
+_HMAC_KEY = b"deteqx-saldi-research-2026-\xd7\x9a\x4f\x83"
 # 第三方库导入
 import customtkinter as ctk
 
@@ -61,12 +69,101 @@ class HelpSystem:
             pass  # 使用默认配置
 
     def save_config(self):
-        """保存用户配置"""
+        """保存用户配置（保留文件中已有的其他字段）"""
         try:
-            config = {
-                'show_wizard_on_startup': self.show_wizard_on_startup
-            }
+            config = {}
+            if os.path.exists(self.config_file):
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+            config['show_wizard_on_startup'] = self.show_wizard_on_startup
             with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------ #
+    #  免责声明 — 首次启动弹窗 + 同意日志                                  #
+    # ------------------------------------------------------------------ #
+
+    def _get_device_info(self):
+        """收集本机设备信息，用于同意日志"""
+        info = {
+            "hostname": "unknown",
+            "local_ip": "unknown",
+            "os": "unknown",
+            "username": "unknown",
+        }
+        try:
+            info["hostname"] = socket.gethostname()
+        except Exception:
+            pass
+        try:
+            # 连接外网地址只是为了探测出口网卡 IP，不实际发送数据
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            info["local_ip"] = s.getsockname()[0]
+            s.close()
+        except Exception:
+            try:
+                info["local_ip"] = socket.gethostbyname(info["hostname"])
+            except Exception:
+                pass
+        try:
+            info["os"] = f"{platform.system()} {platform.release()} ({platform.version()})"
+        except Exception:
+            pass
+        try:
+            info["username"] = os.getlogin()
+        except Exception:
+            info["username"] = os.environ.get("USERNAME") or os.environ.get("USER") or "unknown"
+        return info
+
+    def _sign_record(self, record: dict) -> str:
+        """对记录内容（排除 sig 字段本身）计算 HMAC-SHA256 签名"""
+        payload = {k: v for k, v in record.items() if k != "sig"}
+        msg = json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        return hmac.new(_HMAC_KEY, msg, hashlib.sha256).hexdigest()
+
+    def _verify_record(self, record: dict) -> bool:
+        """验证记录的签名是否完整、未被篡改"""
+        sig = record.get("sig", "")
+        if not sig:
+            return False
+        expected = self._sign_record(record)
+        return hmac.compare_digest(sig, expected)  # 防时序攻击的常数时间比较
+
+    def _has_valid_agreement(self) -> bool:
+        """以配置文件为门控：当前机器是否存在至少一条未被篡改的同意记录"""
+        if not os.path.exists(self.config_file):
+            return False
+        try:
+            with open(self.config_file, "r", encoding="utf-8") as f:
+                config = json.load(f)
+            records = config.get("_ev", [])
+            current_hostname = socket.gethostname()
+            for record in records:
+                if (self._verify_record(record) and
+                        record.get("hostname") == current_hostname):
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _log_disclaimer_agreement(self):
+        """将同意记录追加写入配置文件的 _ev 字段，并附 HMAC 签名"""
+        record = {
+            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "action": "agreed_disclaimer",
+            **self._get_device_info(),
+        }
+        record["sig"] = self._sign_record(record)
+        try:
+            config = {}
+            if os.path.exists(self.config_file):
+                with open(self.config_file, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+            config.setdefault("_ev", []).append(record)
+            with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
         except Exception:
             pass
@@ -212,6 +309,9 @@ class HelpSystem:
 
     def show_wizard(self):
         """显示欢迎向导，指导用户使用程序的基本步骤"""
+        # 以日志为门控：每次打开向导时验签，防止 config 被手动篡改绕过
+        already_agreed = self._has_valid_agreement()
+
         if self.wizard_window and self.wizard_window.winfo_exists():
             self.wizard_window.lift()
             self.wizard_window.focus_force()
@@ -220,102 +320,118 @@ class HelpSystem:
 
         self.wizard_window = ctk.CTkToplevel(self.root)
         self.wizard_window.title("使用向导")
-        center_window(self.wizard_window, 650, 500)
+        center_window(self.wizard_window, 750, 600)
         self.wizard_window.resizable(False, False)
-
         set_window_icon(self.wizard_window)
-
-        # 更强力的窗口置顶方案
-        # 1. 设置为置顶窗口
         self.wizard_window.attributes('-topmost', True)
-
-        # 2. 获取焦点
         self.wizard_window.focus_force()
-
-        # 3. 抬升窗口
         self.wizard_window.lift()
         self.wizard_window.tkraise()
+        self.wizard_window.grab_set()
+        self.wizard_window.after(1000, lambda: self.wizard_window.attributes('-topmost', False))
 
-        # 4. 设置为模态窗口（可选）
-        self.wizard_window.grab_set()  # 模态窗口，必须先处理这个窗口
-
-        # 5. 延迟取消置顶（保持用户友好）
-        self.wizard_window.after(
-            1000, lambda: self.wizard_window.attributes('-topmost', False))
-
-        # 6. 窗口关闭时恢复主窗口焦点
+        # 6. 窗口关闭时：未同意声明则阻止关闭
         def on_closing():
-            self.wizard_window.grab_release()  # 释放模态
+            if not already_agreed:
+                wizard_tabs.set("0. 须知")
+                return
+            self.wizard_window.grab_release()
             self.wizard_window.destroy()
             self.wizard_window = None
-            self.root.lift()  # 恢复主窗口
+            self.root.lift()
 
         self.wizard_window.protocol("WM_DELETE_WINDOW", on_closing)
 
-       # 创建选项卡视图
-        wizard_tabs = ctk.CTkTabview(self.wizard_window, width=580, height=400)
+        # 创建选项卡视图
+        wizard_tabs = ctk.CTkTabview(self.wizard_window, width=680, height=490)
         wizard_tabs.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # 须知 tab（仅首次运行时显示）
+        disclaimer_agreed_var = ctk.BooleanVar(value=False)
+        if not already_agreed:
+            step0 = wizard_tabs.add("0. 须知")
+            ctk.CTkLabel(step0, text="使用前须知",
+                         font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(10, 4))
+            disclaimer_text = (
+                "本软件（DETEQX）是基于 SALDI 质谱脂质指纹技术的科研分析工具，"
+                "仅供学术研究与科学实验使用。请在使用前仔细阅读以下声明：\n\n"
+                "1. 本软件不构成医疗器械，不具备任何临床诊断功能。\n\n"
+                "2. 本软件的全部输出结果（包括分类概率、评分等数值）均为科学研究参考数据，\n不得作为疾病诊断、临床筛查或任何医疗决策的依据。\n\n"
+                "3. 任何与医疗健康相关的决策，请咨询持有执业资质的医疗专业人员。\n\n"
+                "4. 开发团队不对因误用本软件输出结果而导致的任何直接或间接后果承担法律责任。\n\n"
+                "5. 继续使用本软件，即表示您已充分理解并接受上述全部声明。\n\n"
+                "本声明依据《医疗器械监督管理条例》及相关法规制定，适用于所有"
+                "使用本软件的个人或机构。"
+            )
+            text_box = ctk.CTkTextbox(step0, width=620, height=320, wrap="word",
+                                      font=ctk.CTkFont(size=16))
+            text_box.pack(padx=10, pady=(0, 8))
+            text_box.insert("end", disclaimer_text)
+            text_box.configure(state="disabled")
+            ctk.CTkCheckBox(step0,
+                            text="我已阅读以上内容，并理解本软件仅供科研使用",
+                            variable=disclaimer_agreed_var).pack(anchor='w', padx=16, pady=(0, 4))
 
         # 第1步：程序介绍
         step1 = wizard_tabs.add("1. 介绍")
         ctk.CTkLabel(step1, text="DETEQX 使用向导",
                      font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step1, text="基于 SALDI 质谱脂质指纹技术，结合机器学习，实现疾病样本的智能分类筛查。",
-                     wraplength=540).pack(pady=3)
+        ctk.CTkLabel(step1, text="基于 SALDI 质谱脂质指纹技术，结合机器学习，实现疾病样本的智能分类分析。（科研用途，非医疗器械）",
+                     wraplength=640).pack(pady=3)
         ctk.CTkLabel(step1, text="核心流程：数据预处理  →  模型训练与评估  →  新样本预测",
-                     wraplength=540).pack(pady=3)
+                     wraplength=640).pack(pady=3)
         ctk.CTkLabel(step1, text="设计理念：",
                      font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=20, pady=(10, 2))
         ctk.CTkLabel(step1, text="• 样本级归一化（Max/Sum/Median），消除批次技术变异，无数据泄露",
-                     wraplength=500).pack(anchor='w', padx=30, pady=1)
-        ctk.CTkLabel(step1, text="• 交叉验证采用 RepeatedStratifiedKFold（5折×20次），符合医疗 AI 标准",
-                     wraplength=500).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1, text="• 交叉验证采用 RepeatedStratifiedKFold（5折×20次），设计参考医疗 AI 规范",
+                     wraplength=600).pack(anchor='w', padx=30, pady=1)
         ctk.CTkLabel(step1, text="• 所有评估指标含 95% 置信区间，结果可重现（固定随机种子）",
-                     wraplength=500).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600).pack(anchor='w', padx=30, pady=1)
         ctk.CTkLabel(step1, text="• 多项目隔离管理，每个任务独立存储数据、模型与报告",
-                     wraplength=500).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600).pack(anchor='w', padx=30, pady=1)
 
         # 第2步：数据预处理
         step2 = wizard_tabs.add("2. 数据预处理")
         ctk.CTkLabel(step2, text="数据预处理步骤",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
         ctk.CTkLabel(step2, text="1. 点击'数据预处理'按钮，打开文件分类窗口",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="2. 在弹出窗口中自定义两个类别的名称",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="3. 分别选择包含两类样本的文件夹",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="4. 确认预览信息，开始处理生成CSV文件",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="5. 等待智能峰发现处理完成，生成CSV文件",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         # 第3步：模型训练
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
         ctk.CTkLabel(step3, text="1. 点击 '选择整理好的 .csv 文件' 按钮，选择预处理生成的data_xxx.csv 文件",
-                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="2. 从菜单栏选择机器学习算法（默认推荐 PLSRegression）",
-                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="3. 点击 '开始训练'，进行 5折×20次 共100轮交叉验证，训练期间按钮显示「训练中…」",
-                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="4. 训练完成后自动生成 ROC 曲线、混淆矩阵等评估图表",
-                     wraplength=540).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="⚠ 如需中止训练：点击菜单栏 ⟲ 重置按钮，立即终止并复位界面",
-                     wraplength=540, text_color="gray").pack(anchor='w', padx=20, pady=(10, 2))
+                     wraplength=640, text_color="gray").pack(anchor='w', padx=20, pady=(10, 2))
 
         # 第4步：样本预测
         step4 = wizard_tabs.add("4. 样本预测")
         ctk.CTkLabel(step4, text="新样本预测",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
         ctk.CTkLabel(step4, text="1. 模型训练完成后，点击 '选择要检测的txt文件' 按钮",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="2. 选择要分析的未知样本txt文件",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="3. 查看预测结果及自定义类别的概率分布",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="4. 可点击 '查看模型详情' 了解模型参数",
-                     wraplength=550).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640).pack(anchor='w', padx=20, pady=2)
 
         # 底部按钮
         button_frame = ctk.CTkFrame(self.wizard_window, fg_color="transparent")
@@ -328,13 +444,22 @@ class HelpSystem:
 
         # 创建关闭按钮
         def close_wizard():
+            # 首次运行：必须在须知 tab 勾选才能继续
+            if not already_agreed:
+                if not disclaimer_agreed_var.get():
+                    wizard_tabs.set("0. 须知")
+                    return
+                # 写入带 HMAC 签名的同意日志
+                self._log_disclaimer_agreement()
             self.show_wizard_on_startup = show_again_var.get()
             self.save_config()
+            self.wizard_window.grab_release()
             self.wizard_window.destroy()
             self.wizard_window = None
 
         ctk.CTkButton(button_frame, text="开始使用",
                       command=close_wizard).pack(side='right')
+
 
     def show_about(self):
         """显示关于信息"""
