@@ -330,15 +330,22 @@ class HelpSystem:
         self.wizard_window.grab_set()
         self.wizard_window.after(1000, lambda: self.wizard_window.attributes('-topmost', False))
 
-        # 6. 窗口关闭时：未同意声明则阻止关闭
-        def on_closing():
-            if not already_agreed:
-                wizard_tabs.set("0. 须知")
-                return
+        show_again_var = ctk.BooleanVar(value=self.show_wizard_on_startup)
+
+        def _do_close():
+            self.show_wizard_on_startup = show_again_var.get()
+            self.save_config()
             self.wizard_window.grab_release()
             self.wizard_window.destroy()
             self.wizard_window = None
             self.root.lift()
+
+        def on_closing():
+            _do_close()
+
+        def close_wizard():
+            _do_close()
+
 
         self.wizard_window.protocol("WM_DELETE_WINDOW", on_closing)
 
@@ -346,118 +353,96 @@ class HelpSystem:
         wizard_tabs = ctk.CTkTabview(self.wizard_window, width=680, height=490)
         wizard_tabs.pack(fill='both', expand=True, padx=10, pady=10)
 
-        # 须知 tab（仅首次运行时显示）
-        disclaimer_agreed_var = ctk.BooleanVar(value=False)
-        if not already_agreed:
-            step0 = wizard_tabs.add("0. 须知")
-            ctk.CTkLabel(step0, text="使用前须知",
-                         font=ctk.CTkFont(size=15, weight="bold")).pack(pady=(10, 4))
-            disclaimer_text = (
-                "本软件（DETEQX）是基于 SALDI 质谱脂质指纹技术的科研分析工具，"
-                "仅供学术研究与科学实验使用。请在使用前仔细阅读以下声明：\n\n"
-                "1. 本软件不构成医疗器械，不具备任何临床诊断功能。\n\n"
-                "2. 本软件的全部输出结果（包括分类概率、评分等数值）均为科学研究参考数据，\n不得作为疾病诊断、临床筛查或任何医疗决策的依据。\n\n"
-                "3. 任何与医疗健康相关的决策，请咨询持有执业资质的医疗专业人员。\n\n"
-                "4. 开发团队不对因误用本软件输出结果而导致的任何直接或间接后果承担法律责任。\n\n"
-                "5. 继续使用本软件，即表示您已充分理解并接受上述全部声明。\n\n"
-                "本声明依据《医疗器械监督管理条例》及相关法规制定，适用于所有"
-                "使用本软件的个人或机构。"
-            )
-            text_box = ctk.CTkTextbox(step0, width=620, height=320, wrap="word",
-                                      font=ctk.CTkFont(size=16))
-            text_box.pack(padx=10, pady=(0, 8))
-            text_box.insert("end", disclaimer_text)
-            text_box.configure(state="disabled")
-            ctk.CTkCheckBox(step0,
-                            text="我已阅读以上内容，并理解本软件仅供科研使用",
-                            variable=disclaimer_agreed_var).pack(anchor='w', padx=16, pady=(0, 4))
+        # 须知 tab
+        step0 = wizard_tabs.add("0. 须知")
+        ctk.CTkLabel(step0, text="使用前须知",
+                        font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(10, 4))
+        disclaimer_text = (
+            "本软件（DETEQX）仅供学术研究与科学实验使用。请在使用前仔细阅读以下声明：\n\n"
+            "1. 本软件不构成医疗器械，不具备任何临床诊断功能。\n\n"
+            "2. 本软件的全部输出结果（包括分类概率、评分等数值）均为科学研究参考数据，\n不得作为疾病诊断、临床筛查或任何医疗决策的依据。\n\n"
+            "3. 任何与医疗健康相关的决策，请咨询持有执业资质的医疗专业人员。\n\n"
+            "4. 开发团队不对因误用本软件输出结果而导致的任何直接或间接后果承担法律责任。\n\n"
+            "5. 继续使用本软件，即表示您已充分理解并接受上述全部声明。\n\n"
+            "本声明依据《医疗器械监督管理条例》及相关法规制定，适用于所有"
+            "使用本软件的个人或机构。"
+        )
+        text_box = ctk.CTkTextbox(step0, width=620, height=330, wrap="word",
+                                    font=ctk.CTkFont(size=16))
+        text_box.pack(padx=10, pady=(0, 8))
+        text_box.insert("end", disclaimer_text)
+        text_box.configure(state="disabled")
 
         # 第1步：程序介绍
         step1 = wizard_tabs.add("1. 介绍")
         ctk.CTkLabel(step1, text="DETEQX 使用向导",
                      font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
-        ctk.CTkLabel(step1, text="基于 SALDI 质谱脂质指纹技术，结合机器学习，实现疾病样本的智能分类分析。（科研用途，非医疗器械）",
-                     wraplength=640).pack(pady=3)
+        ctk.CTkLabel(step1, text="基于 SALDI 质谱脂质指纹技术，结合机器学习，实现疾病样本的智能分类分析。",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(pady=3)
+        ctk.CTkLabel(step1, text="（科研用途，非医疗器械）",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(pady=3)
         ctk.CTkLabel(step1, text="核心流程：数据预处理  →  模型训练与评估  →  新样本预测",
-                     wraplength=640).pack(pady=3)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(pady=3)
         ctk.CTkLabel(step1, text="设计理念：",
-                     font=ctk.CTkFont(size=12, weight="bold")).pack(anchor='w', padx=20, pady=(10, 2))
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor='w', padx=20, pady=(10, 2))
         ctk.CTkLabel(step1, text="• 样本级归一化（Max/Sum/Median），消除批次技术变异，无数据泄露",
-                     wraplength=600).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
         ctk.CTkLabel(step1, text="• 交叉验证采用 RepeatedStratifiedKFold（5折×20次），设计参考医疗 AI 规范",
-                     wraplength=600).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
         ctk.CTkLabel(step1, text="• 所有评估指标含 95% 置信区间，结果可重现（固定随机种子）",
-                     wraplength=600).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
         ctk.CTkLabel(step1, text="• 多项目隔离管理，每个任务独立存储数据、模型与报告",
-                     wraplength=600).pack(anchor='w', padx=30, pady=1)
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
 
         # 第2步：数据预处理
         step2 = wizard_tabs.add("2. 数据预处理")
         ctk.CTkLabel(step2, text="数据预处理步骤",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
         ctk.CTkLabel(step2, text="1. 点击'数据预处理'按钮，打开文件分类窗口",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="2. 在弹出窗口中自定义两个类别的名称",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="3. 分别选择包含两类样本的文件夹",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="4. 确认预览信息，开始处理生成CSV文件",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step2, text="5. 等待智能峰发现处理完成，生成CSV文件",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         # 第3步：模型训练
         step3 = wizard_tabs.add("3. 模型训练")
         ctk.CTkLabel(step3, text="模型训练与评估",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
         ctk.CTkLabel(step3, text="1. 点击 '选择整理好的 .csv 文件' 按钮，选择预处理生成的data_xxx.csv 文件",
-                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="2. 从菜单栏选择机器学习算法（默认推荐 PLSRegression）",
-                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="3. 点击 '开始训练'，进行 5折×20次 共100轮交叉验证，训练期间按钮显示「训练中…」",
-                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="4. 训练完成后自动生成 ROC 曲线、混淆矩阵等评估图表",
-                     wraplength=640).pack(anchor='w', padx=20, pady=(4, 0))
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
         ctk.CTkLabel(step3, text="⚠ 如需中止训练：点击菜单栏 ⟲ 重置按钮，立即终止并复位界面",
-                     wraplength=640, text_color="gray").pack(anchor='w', padx=20, pady=(10, 2))
+                     wraplength=640, text_color="gray", font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(10, 2))
 
         # 第4步：样本预测
         step4 = wizard_tabs.add("4. 样本预测")
         ctk.CTkLabel(step4, text="新样本预测",
                      font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
         ctk.CTkLabel(step4, text="1. 模型训练完成后，点击 '选择要检测的txt文件' 按钮",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="2. 选择要分析的未知样本txt文件",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="3. 查看预测结果及自定义类别的概率分布",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
         ctk.CTkLabel(step4, text="4. 可点击 '查看模型详情' 了解模型参数",
-                     wraplength=640).pack(anchor='w', padx=20, pady=2)
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
 
         # 底部按钮
         button_frame = ctk.CTkFrame(self.wizard_window, fg_color="transparent")
         button_frame.pack(fill='x', padx=10, pady=10)
 
-        # 创建"不再显示"复选框
-        show_again_var = ctk.BooleanVar(value=self.show_wizard_on_startup)
         ctk.CTkCheckBox(button_frame, text="启动时显示此向导",
                         variable=show_again_var).pack(side='left')
-
-        # 创建关闭按钮
-        def close_wizard():
-            # 首次运行：必须在须知 tab 勾选才能继续
-            if not already_agreed:
-                if not disclaimer_agreed_var.get():
-                    wizard_tabs.set("0. 须知")
-                    return
-                # 写入带 HMAC 签名的同意日志
-                self._log_disclaimer_agreement()
-            self.show_wizard_on_startup = show_again_var.get()
-            self.save_config()
-            self.wizard_window.grab_release()
-            self.wizard_window.destroy()
-            self.wizard_window = None
-
-        ctk.CTkButton(button_frame, text="开始使用",
+        ctk.CTkButton(button_frame, text="我已知晓免责声明，开始使用",
                       command=close_wizard).pack(side='right')
 
 
