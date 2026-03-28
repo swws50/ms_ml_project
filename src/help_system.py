@@ -341,9 +341,13 @@ class HelpSystem:
             self.root.lift()
 
         def on_closing():
-            _do_close()
+            if already_agreed:
+                _do_close()
+            # 未同意时禁止通过 X 关闭
 
         def close_wizard():
+            if not already_agreed:
+                self._log_disclaimer_agreement()
             _do_close()
 
 
