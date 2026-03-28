@@ -22,7 +22,7 @@ a = Analysis(
         ('src/data_store.py', 'src'),
         ('src/data_preprocessor.py', 'src'),
         ('src/data_processing.py', 'src'),
-        ('src/feature_detector.py', 'src'),
+        ('src/consensus_peak_diagnostics.py', 'src'),
         ('src/model_training.py', 'src'),
         ('src/model_predictor.py', 'src'),
         ('src/output_manager.py', 'src'),
@@ -66,6 +66,9 @@ a = Analysis(
         'sklearn.neighbors',
         'sklearn.svm',
         'sklearn.linear_model',  # 修正：sklinear_model → sklearn.linear_model
+        'sklearn.cross_decomposition',
+        'sklearn.discriminant_analysis',
+        'sklearn.neural_network',
         'sklearn.utils',
         'sklearn.utils._weight_vector',
         'sklearn.exceptions',

@@ -654,13 +654,6 @@ class MainGUIManager:
 
 
 if __name__ == "__main__":
-    
-    # 直接运行登录系统
-    #from login_system import SimpleLogin
-    #login = SimpleLogin()
-    #login.run()
-    
-    # 若要跳过登录，取消注释以下代码：
     root = ctk.CTk()
     gui_manager = MainGUIManager(root)
     root.mainloop()
