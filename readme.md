@@ -135,7 +135,9 @@ DETEQX/
 │
 ├── assets/                        # 图标资源
 ├── requirements.txt
-└── README.md
+├── readme.md
+├── README_EN.md
+└── THIRD_PARTY_LICENSES.txt
 ```
 
 ### 核心模块职责

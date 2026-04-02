@@ -135,7 +135,9 @@ DETEQX/
 │
 ├── assets/                        # Icon assets
 ├── requirements.txt
-└── README.md
+├── readme.md
+├── README_EN.md
+└── THIRD_PARTY_LICENSES.txt
 ```
 
 ### Core Module Responsibilities
@@ -457,5 +459,3 @@ outputs/{project}/charts/
 
 **Last updated**: March 2026  
 **Current version**: v1.13.1.2
-
-
