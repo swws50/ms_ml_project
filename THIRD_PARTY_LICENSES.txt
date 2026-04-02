@@ -1,0 +1,146 @@
+THIRD-PARTY SOFTWARE LICENSES
+==============================
+
+DETEQX 使用了以下第三方开源软件。
+本文件依据各库的许可证要求随软件一同分发。
+
+
+--------------------------------------------------------------------------------
+1. CustomTkinter
+   版本: 5.2.2
+   主页: https://customtkinter.tomschimansky.com
+   许可证: Creative Commons Zero v1.0 Universal (CC0-1.0)
+   版权: Tom Schimansky
+
+   CC0 是公共领域贡献声明，作者放弃一切版权及相关权利。
+   本软件可被自由使用、复制、修改及分发，无需保留版权声明。
+   详见: https://creativecommons.org/publicdomain/zero/1.0/
+
+--------------------------------------------------------------------------------
+2. NumPy
+   版本: 1.26.4
+   主页: https://numpy.org
+   许可证: BSD 3-Clause License
+   版权: Copyright (c) 2005-2023, NumPy Developers. All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are met:
+   * Redistributions of source code must retain the above copyright notice,
+     this list of conditions and the following disclaimer.
+   * Redistributions in binary form must reproduce the above copyright notice,
+     this list of conditions and the following disclaimer in the documentation
+     and/or other materials provided with the distribution.
+   * Neither the name of the NumPy Developers nor the names of any contributors
+     may be used to endorse or promote products derived from this software
+     without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+   AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.
+
+--------------------------------------------------------------------------------
+3. pandas
+   版本: 2.2.2
+   主页: https://pandas.pydata.org
+   许可证: BSD 3-Clause License
+   版权: Copyright (c) 2008-2011, AQR Capital Management, LLC, Lambda Foundry,
+         Inc. and PyData Development Team. All rights reserved.
+
+   (Same BSD 3-Clause terms as above apply.)
+
+--------------------------------------------------------------------------------
+4. scikit-learn
+   版本: 1.5.1
+   主页: https://scikit-learn.org
+   许可证: BSD 3-Clause License
+   版权: Copyright (c) 2007-2024 The scikit-learn developers. All rights reserved.
+
+   (Same BSD 3-Clause terms as above apply.)
+
+--------------------------------------------------------------------------------
+5. SciPy
+   版本: 1.13.1
+   主页: https://scipy.org
+   许可证: BSD 3-Clause License
+   版权: Copyright (c) 2001-2002 Enthought, Inc. 2003-2024, SciPy Developers.
+         All rights reserved.
+
+   (Same BSD 3-Clause terms as above apply.)
+
+--------------------------------------------------------------------------------
+6. Matplotlib
+   版本: 3.9.2
+   主页: https://matplotlib.org
+   许可证: Matplotlib License (BSD-compatible)
+   版权: Copyright (c) 2002-2024 John D. Hunter; All Rights Reserved.
+
+   Matplotlib only uses BSD compatible code. The Matplotlib license is based on
+   the PSF (Python Software Foundation) license. See:
+   https://matplotlib.org/stable/users/project/license.html
+
+--------------------------------------------------------------------------------
+7. joblib
+   版本: 1.4.2
+   主页: https://joblib.readthedocs.io
+   许可证: BSD 3-Clause License
+   版权: Copyright (c) 2008-2021, The joblib developers. All rights reserved.
+
+   (Same BSD 3-Clause terms as above apply.)
+
+--------------------------------------------------------------------------------
+8. tqdm
+   版本: 4.66.5
+   主页: https://tqdm.github.io
+   许可证: MIT License / Mozilla Public License 2.0 (MPLv2.0)
+   版权: Copyright (c) 2013 noamraph; Copyright (c) 2015-2024 tqdm developers.
+
+   (MIT terms apply to the portions used in this distribution.)
+
+--------------------------------------------------------------------------------
+9. Pillow (PIL Fork)
+   版本: 10.4.0
+   主页: https://python-pillow.org
+   许可证: HPND License (Historical Permission Notice and Disclaimer)
+   版权: Copyright (c) 1997-2011 by Secret Labs AB
+         Copyright (c) 1995-2011 by Fredrik Lundh
+         Copyright (c) 2010-2024 by Jeffrey A. Clark and contributors
+
+   Like the original PIL, Pillow is open source and free software. See:
+   https://raw.githubusercontent.com/python-pillow/Pillow/main/LICENSE
+
+--------------------------------------------------------------------------------
+10. pyOpenMS
+    版本: 3.4.0
+    主页: https://openms.de
+    许可证: BSD 3-Clause License
+    版权: Copyright (c) 2006-2024, The OpenMS Team. All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
+    * Neither the name "OpenMS" nor the names of its contributors may be used
+      to endorse or promote products derived from this software without specific
+      prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+    AND ANY EXPRESS OR IMPLIED WARRANTIES ARE DISCLAIMED.
+
+--------------------------------------------------------------------------------
+11. ReportLab
+    版本: (latest open-source)
+    主页: https://www.reportlab.com
+    许可证: BSD License (open-source edition)
+    版权: Copyright (c) 2000-2024 ReportLab Inc. All rights reserved.
+
+    The ReportLab open-source toolkit is distributed under the BSD license.
+    See: https://www.reportlab.com/dev/docs/license/
+
+--------------------------------------------------------------------------------
+
+注：以上许可证文本为摘要版本。各库完整许可证文本可通过其对应主页获取。
+本软件（DETEQX）本身的版权归原作者所有，已进行软件著作权登记，
+未经授权不得复制、修改或二次分发。
+

@@ -478,4 +478,4 @@ log_message("操作成功", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
 ---
 
 **最后更新**: 2026年3月
-**当前版本**: v1.13.1
+**当前版本**: v1.13.1.2
