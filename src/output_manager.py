@@ -3,6 +3,7 @@
 
 # 标准库导入
 import os
+import sys
 import json
 import shutil
 from pathlib import Path
@@ -19,9 +20,14 @@ from utils import log_message
 class OutputManager:
     """支持项目管理的输出文件管理器"""
 
-    def __init__(self, base_dir="../outputs"):
-        script_dir = Path(__file__).parent.absolute()
-        self.base_dir = script_dir / base_dir
+    def __init__(self, base_dir="outputs"):
+        # 打包为 exe 时 sys.frozen=True，用 exe 所在目录；
+        # 开发环境下用源码的上级目录，保持原有布局。
+        if getattr(sys, 'frozen', False):
+            app_dir = Path(sys.executable).parent
+        else:
+            app_dir = Path(__file__).parent.parent
+        self.base_dir = app_dir / base_dir
         self.config_file = self.base_dir / "project_config.json"
         self.current_project = None
         self._ensure_base_structure()

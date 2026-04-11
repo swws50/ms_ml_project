@@ -458,8 +458,8 @@ class HelpSystem:
         about_window.transient(self.root)
         about_window.grab_set()
         set_window_icon(about_window)
-        about_window.geometry("350x600")
-        center_window(about_window, 350, 600)
+        about_window.geometry("390x670")
+        center_window(about_window, 390, 670)
 
         # ===== 软件名称 =====
         ctk.CTkLabel(
@@ -510,6 +510,10 @@ class HelpSystem:
     可以是彩蛋 🥚
 
     总之想写啥写啥
+    \n
+    恐惧在敲门，勇气来开门
+
+    或许我终将怀念立项时的憧憬,一生中不多数的肆意畅想，无所顾虑，一往无前
         """
         
         ctk.CTkLabel(
