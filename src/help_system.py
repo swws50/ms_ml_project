@@ -29,6 +29,7 @@ class HelpSystem:
         self.active_tooltips = {}  # 跟踪活动的提示窗口
 
         self.show_wizard_on_startup = True
+        self.lang = "zh"  # 当前界面语言，"zh" 或 "en"
 
         # 为你的程序定制的帮助文本
         self.help_texts = {
@@ -307,8 +308,20 @@ class HelpSystem:
         # 强制清空字典（防止残留）
         self.active_tooltips.clear()
 
+    def toggle_lang(self):
+        """切换界面语言，返回新语言"""
+        self.lang = "en" if self.lang == "zh" else "zh"
+        return self.lang
+
     def show_wizard(self):
-        """显示欢迎向导，指导用户使用程序的基本步骤"""
+        """根据当前语言显示欢迎向导"""
+        if self.lang == "en":
+            self._show_wizard_en()
+        else:
+            self._show_wizard_zh()
+
+    def _show_wizard_zh(self):
+        """显示中文欢迎向导"""
         # 以日志为门控：每次打开向导时验签，防止 config 被手动篡改绕过
         already_agreed = self._has_valid_agreement()
 
@@ -449,6 +462,166 @@ class HelpSystem:
         ctk.CTkButton(button_frame, text="我已知晓免责声明，开始使用",
                       command=close_wizard).pack(side='right')
 
+
+    def _show_wizard_en(self):
+        """Show English welcome wizard"""
+        already_agreed = self._has_valid_agreement()
+
+        if self.wizard_window and self.wizard_window.winfo_exists():
+            self.wizard_window.lift()
+            self.wizard_window.focus_force()
+            self.wizard_window.tkraise()
+            return
+
+        self.wizard_window = ctk.CTkToplevel(self.root)
+        self.wizard_window.title("User Guide")
+        center_window(self.wizard_window, 750, 600)
+        self.wizard_window.resizable(False, False)
+        set_window_icon(self.wizard_window)
+        self.wizard_window.attributes('-topmost', True)
+        self.wizard_window.focus_force()
+        self.wizard_window.lift()
+        self.wizard_window.tkraise()
+        self.wizard_window.grab_set()
+        self.wizard_window.after(1000, lambda: self.wizard_window.attributes('-topmost', False))
+
+        show_again_var = ctk.BooleanVar(value=self.show_wizard_on_startup)
+
+        def _do_close():
+            self.show_wizard_on_startup = show_again_var.get()
+            self.save_config()
+            self.wizard_window.grab_release()
+            self.wizard_window.destroy()
+            self.wizard_window = None
+            self.root.lift()
+
+        def on_closing():
+            if already_agreed:
+                _do_close()
+
+        def close_wizard():
+            if not already_agreed:
+                self._log_disclaimer_agreement()
+            _do_close()
+
+        self.wizard_window.protocol("WM_DELETE_WINDOW", on_closing)
+
+        wizard_tabs = ctk.CTkTabview(self.wizard_window, width=680, height=490)
+        wizard_tabs.pack(fill='both', expand=True, padx=10, pady=10)
+
+        # Tab 0 — Disclaimer
+        step0 = wizard_tabs.add("0. Disclaimer")
+        ctk.CTkLabel(step0, text="Before You Begin",
+                     font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(10, 4))
+        disclaimer_text = (
+            "DETEQX is intended for academic research and scientific experimentation only. "
+            "Please read the following notice carefully before use:\n\n"
+            "1. This software is NOT a medical device and has NO clinical diagnostic function.\n\n"
+            "2. All outputs (including classification probabilities and scores) are for "
+            "scientific reference only and must NOT be used as the basis for disease diagnosis, "
+            "clinical screening, or any medical decision.\n\n"
+            "3. For any health-related decisions, please consult a licensed medical professional.\n\n"
+            "4. The development team assumes no legal responsibility for any direct or indirect "
+            "consequences arising from the misuse of this software's outputs.\n\n"
+            "5. Continued use of this software indicates that you have fully understood and "
+            "accepted all of the above statements.\n\n"
+            "This notice is formulated in accordance with relevant medical device regulations "
+            "and applies to all individuals or institutions using this software."
+        )
+        text_box = ctk.CTkTextbox(step0, width=620, height=330, wrap="word",
+                                  font=ctk.CTkFont(size=14))
+        text_box.pack(padx=10, pady=(0, 8))
+        text_box.insert("end", disclaimer_text)
+        text_box.configure(state="disabled")
+
+        # Tab 1 — Introduction
+        step1 = wizard_tabs.add("1. Overview")
+        ctk.CTkLabel(step1, text="DETEQX User Guide",
+                     font=ctk.CTkFont(size=16, weight="bold")).pack(pady=10)
+        ctk.CTkLabel(step1,
+                     text="SALDI mass spectrometry lipid fingerprinting combined with machine learning "
+                          "for intelligent disease sample classification.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(pady=3)
+        ctk.CTkLabel(step1, text="(Research use only — not a medical device)",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(pady=3)
+        ctk.CTkLabel(step1,
+                     text="Core workflow:  Data Preprocessing  →  Model Training & Evaluation  →  Sample Prediction",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(pady=3)
+        ctk.CTkLabel(step1, text="Design principles:",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(anchor='w', padx=20, pady=(10, 2))
+        ctk.CTkLabel(step1,
+                     text="• Sample-level normalization (Max/Sum/Median) to remove batch variation — no data leakage",
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1,
+                     text="• Cross-validation via RepeatedStratifiedKFold (5-fold × 20 repeats), following medical AI standards",
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1,
+                     text="• All metrics include 95% confidence intervals; results are reproducible (fixed random seed)",
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
+        ctk.CTkLabel(step1,
+                     text="• Multi-project isolation: each task stores data, models, and reports independently",
+                     wraplength=600, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=30, pady=1)
+
+        # Tab 2 — Data Preprocessing
+        step2 = wizard_tabs.add("2. Preprocessing")
+        ctk.CTkLabel(step2, text="Data Preprocessing",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
+        ctk.CTkLabel(step2, text="1. Click 'Data Preprocessing' to open the file classification window.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step2, text="2. In the popup, assign custom names to each of the two classes.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step2, text="3. Select the folder containing each class of samples.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step2, text="4. Confirm the preview and start processing to generate the CSV file.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step2, text="5. Wait for intelligent peak detection to finish — a CSV file will be saved.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+
+        # Tab 3 — Model Training
+        step3 = wizard_tabs.add("3. Training")
+        ctk.CTkLabel(step3, text="Model Training & Evaluation",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
+        ctk.CTkLabel(step3,
+                     text="1. Click 'Select prepared .csv file' and choose the data_xxx.csv generated by preprocessing.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3,
+                     text="2. Select a machine learning algorithm from the menu (PLSRegression recommended by default).",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3,
+                     text="3. Click 'Start Training' to run 5-fold × 20-repeat cross-validation (100 rounds total). "
+                          "The button will show 'Training…' while running.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3,
+                     text="4. After training, ROC curves, confusion matrices, and other evaluation charts are generated automatically.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(4, 0))
+        ctk.CTkLabel(step3,
+                     text="⚠ To abort training: click the ⟲ Reset button in the menu bar to stop immediately and reset the interface.",
+                     wraplength=640, text_color="gray", font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=(10, 2))
+
+        # Tab 4 — Sample Prediction
+        step4 = wizard_tabs.add("4. Prediction")
+        ctk.CTkLabel(step4, text="New Sample Prediction",
+                     font=ctk.CTkFont(size=14, weight="bold")).pack(pady=10)
+        ctk.CTkLabel(step4,
+                     text="1. After training, click 'Select .txt file to analyse'.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step4, text="2. Select the unknown sample .txt file to analyse.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step4,
+                     text="3. View the prediction result and the probability distribution across custom classes.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+        ctk.CTkLabel(step4,
+                     text="4. Click 'Model Details' to inspect model parameters.",
+                     wraplength=640, font=ctk.CTkFont(size=15)).pack(anchor='w', padx=20, pady=2)
+
+        # Bottom bar
+        button_frame = ctk.CTkFrame(self.wizard_window, fg_color="transparent")
+        button_frame.pack(fill='x', padx=10, pady=10)
+
+        ctk.CTkCheckBox(button_frame, text="Show this guide on startup",
+                        variable=show_again_var).pack(side='left')
+        ctk.CTkButton(button_frame, text="I have read the disclaimer — let's start",
+                      command=close_wizard).pack(side='right')
 
     def show_about(self):
         """显示关于信息"""

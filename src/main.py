@@ -288,7 +288,22 @@ class MainGUIManager:
             label="关于 DETEQX",
             command=self.help_system.show_about
         )
+
+        # 语言切换按钮
+        self._lang_label = "🌐中/EN"
+        menubar.add_command(
+            label=self._lang_label,
+            command=self._toggle_language
+        )
         self._is_operation_running = False
+
+    def _toggle_language(self):
+        """切换向导语言，并更新菜单按钮标签"""
+        new_lang = self.help_system.toggle_lang()
+        # 用新标签重绘菜单末项（tkinter Menu 不支持直接改 label，用 entryconfigure 按索引改）
+        menubar = self.root.nametowidget(self.root.cget("menu"))
+        last_idx = menubar.index("end")
+        menubar.entryconfigure(last_idx, label="🌐EN/中" if new_lang == "en" else "🌐中/EN")
 
     def _handle_action_button(self):
         """处理动态按钮点击"""
