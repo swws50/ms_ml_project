@@ -125,8 +125,8 @@ class DataPreprocessor:
             self._cleanup_progress_ui()
   
     def _phase1_discover_peaks(self, file_paths: List[str]) -> List[pd.DataFrame]:
-        """阶段1: 峰发现 + 归一化"""
-        self._update_progress(0, "阶段1: 峰发现和归一化中...")
+        """阶段1: 峰发现（收集 normalization_stats，不应用归一化）"""
+        self._update_progress(0, "阶段1: 峰发现中...")
         
         all_peaks_data = []
         
@@ -163,39 +163,8 @@ class DataPreprocessor:
         if failed > 0:
             log_message(f"峰发现完成: {len(all_peaks_data)}/{len(file_paths)} 个文件有效，{failed} 个文件未发现峰", "WARNING")
         else:
-            log_message(f"峰发现完成: {len(all_peaks_data)} 个文件")
+            log_message(f"峰发现完成: {len(all_peaks_data)} 个文件（归一化将在阶段3矩阵构建后应用）")
 
-        # 步骤2：归一化（如果启用）
-        if self.current_normalization_enabled and all_peaks_data:
-            # 使用本地保存的归一化方法
-            norm_method = self.current_normalization_method
-            
-            # 创建归一化管理器（传入已计算的统计特征）
-            norm_manager = NormalizationManager(
-                method=norm_method, 
-                normalization_stats=self.normalization_stats
-            )
-            
-            # 显示归一化摘要
-            log_message(norm_manager.get_normalization_summary())
-            
-            # 应用归一化 (25-33%)
-            self._update_progress(0.25, "应用归一化...")
-            for i, peaks_df in enumerate(all_peaks_data):
-                all_peaks_data[i] = norm_manager.normalize_sample(peaks_df)
-                
-                # 【关键修复】更新缓存，确保后续矩阵构建使用归一化数据
-                file_id = all_peaks_data[i]['file_id'].iloc[0]
-                self.all_file_peaks_cache[file_id] = all_peaks_data[i]
-                
-                # 更新进度
-                progress = 0.25 + (i + 1) / len(all_peaks_data) * 0.08
-                self._update_progress(progress, f"归一化: {i+1}/{len(all_peaks_data)}")
-            
-            log_message(f"归一化完成（方法: {norm_method}）")
-        else:
-            log_message("未启用归一化，使用原始数据")
-        
         return all_peaks_data
     
     def _phase2_consensus_peaks(self, all_peaks_data: List[pd.DataFrame]) -> pd.DataFrame:
@@ -377,41 +346,57 @@ class DataPreprocessor:
 
     def _build_unified_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame,
                         start_progress: float, progress_range: float) -> pd.DataFrame:
-        """统一的特征矩阵构建方法（归一化已在阶段1完成）"""
-        
+        """统一的特征矩阵构建方法（提取原始强度后应用样本内归一化）"""
+
+        # 记录归一化状态
+        if self.current_normalization_enabled:
+            log_message(f"阶段3: 矩阵构建 + 样本内归一化（方法: {self.current_normalization_method}）")
+        else:
+            log_message("阶段3: 矩阵构建（未启用归一化）")
+
         # 构建基础矩阵结构
-        feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}" 
+        feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}"
                                 for _, peak in consensus_peaks.iterrows()]
         all_results = pd.DataFrame(
-            pd.Series(feature_names, index=feature_names), 
+            pd.Series(feature_names, index=feature_names),
             columns=['m/z']
         )
-        
+
         # 处理每个文件
         for i, file_path in enumerate(file_paths):
             file_id = os.path.splitext(os.path.basename(file_path))[0]
             file_class = self._get_file_classification(file_path)
             peaks_df = self.all_file_peaks_cache.get(file_id, pd.DataFrame())
-            
-            # 提取所有特征值（直接使用，不再归一化）
-            file_results = [file_class] + [
+
+            # 提取原始强度值
+            intensities = [
                 self._extract_intensity(peaks_df, peak['consensus_mz'])
                 for _, peak in consensus_peaks.iterrows()
             ]
-            
+
+            # 样本内归一化（基于阶段1缓存的统计量）
+            if self.current_normalization_enabled and file_id in self.normalization_stats:
+                norm_factor = self.normalization_stats[file_id].get(self.current_normalization_method, 0)
+                if norm_factor > 0 and not np.isnan(norm_factor):
+                    intensities = [v / norm_factor for v in intensities]
+                else:
+                    log_message(f"警告：{file_id} 归一化因子无效（{norm_factor}），跳过归一化", "WARNING")
+
+            file_results = [file_class] + intensities
+
             # 添加到矩阵
             file_series = pd.Series(file_results, index=feature_names)
             file_df = pd.DataFrame(file_series, columns=[file_id])
             all_results = pd.concat([all_results, file_df], axis=1)
-            
+
             # 动态进度更新
             progress = start_progress + (i + 1) / len(file_paths) * progress_range
             self._update_progress(progress, f"构建矩阵: {i+1}/{len(file_paths)}")
-        
+
         return all_results
         
     def _extract_intensity(self, peaks_df: pd.DataFrame, target_mz: float) -> float:
-        """提取强度值（数据已在阶段1归一化）"""
+        """提取原始强度值（归一化在调用方完成）"""
         if peaks_df.empty:
             return 0.0
         
