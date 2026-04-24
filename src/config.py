@@ -20,9 +20,12 @@ ICON_CONFIG = {
 }
 
 # 特征选择参数
-MAX_FEATURES = 50                # 最大特征数量
-MIN_OCCURRENCE_RATE = 0.5        # 最小出现频率（50%的文件中出现）
-MIN_FOLD_CHANGE = 1.3            # 最小倍数变化（30%强度差异）
+MAX_FEATURES = 50                # 最大特征数量（v1.15.1后废弃，保留供旧代码兼容）
+MIN_OCCURRENCE_RATE = 0.5        # 旧参数，保留供诊断模块引用
+MIN_FOLD_CHANGE = 1.3            # 最小倍数变化（阶段3暂留筛选用）
+
+# v1.15.0 新增
+MAX_MISSING_RATE = 0.5           # 允许的最大缺失率（全样本）；缺失率 > 此值的峰群在阶段2丢弃
 
 # 模型配置
 MODEL_CONFIGS = {

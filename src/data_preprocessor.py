@@ -11,8 +11,8 @@ import customtkinter as ctk
 from tkinter import messagebox, filedialog
 
 from config import (
-    OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE, 
-    MIN_FOLD_CHANGE, get_output_paths
+    OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE,
+    MIN_FOLD_CHANGE, MAX_MISSING_RATE, get_output_paths
 )
 import data_store
 from data_store import class_manager
@@ -183,6 +183,8 @@ class DataPreprocessor:
         # 统计信息
         class_0_files = all_peaks_df[all_peaks_df['class'] == class_0_name]['file_id'].nunique()
         class_1_files = all_peaks_df[all_peaks_df['class'] == class_1_name]['file_id'].nunique()
+        total_files = all_peaks_df['file_id'].nunique()
+        log_message(f"阶段2: 共 {total_files} 个样本（{class_0_name}: {class_0_files}, {class_1_name}: {class_1_files}），缺失率阈值 {MAX_MISSING_RATE:.0%}")
         
         # 按m/z分组分析
         all_peaks_df = all_peaks_df.copy()
@@ -211,8 +213,8 @@ class DataPreprocessor:
             class_1_mean = class_1_data['intensity'].mean() if len(class_1_data) > 0 else 0
             fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
             
-            # 检查是否通过选择标准
-            passed = self._passes_selection_criteria(class_0_data, class_1_data, class_0_files, class_1_files)
+            # 全样本缺失率过滤
+            passed = self._passes_selection_criteria(group_data, total_files)
             
             # 收集诊断数据
             if self.diagnostics:
@@ -252,19 +254,11 @@ class DataPreprocessor:
             )
         
         consensus_df = pd.DataFrame(consensus_peaks)
-        
+
         if not consensus_df.empty:
-            # 按ML友好性得分排序
-            consensus_df = consensus_df.sort_values('ml_score', ascending=False)
-            self._update_progress(0.62, "阶段2: 特征排序完成")  # 新增
-            
-            # 限制特征数量
-            if len(consensus_df) > MAX_FEATURES:
-                original_count = len(consensus_df)
-                consensus_df = consensus_df.head(MAX_FEATURES)
-                log_message(f"从 {original_count} 个候选中选择了top {MAX_FEATURES} 个特征")
-        
-        log_message(f"识别出 {len(consensus_df)} 个共识特征峰")
+            consensus_df = consensus_df.sort_values('consensus_mz').reset_index(drop=True)
+
+        log_message(f"阶段2完成: {len(consensus_df)} 个峰群通过缺失率过滤，进入特征备选池")
         
         # 更新进度到66%
         self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
@@ -411,31 +405,11 @@ class DataPreprocessor:
         else:
             return 0.0
             
-    def _passes_selection_criteria(self, class_0_data, class_1_data, 
-                             class_0_files, class_1_files) -> bool:
-        """检查峰是否通过选择标准"""
-        # 计算出现频率
-        class_0_file_count = class_0_data['file_id'].nunique() if len(class_0_data) > 0 else 0
-        class_1_file_count = class_1_data['file_id'].nunique() if len(class_1_data) > 0 else 0
-        
-        class_0_occurrence_rate = class_0_file_count / class_0_files if class_0_files > 0 else 0
-        class_1_occurrence_rate = class_1_file_count / class_1_files if class_1_files > 0 else 0
-        
-        # 修改：至少在一个类别中满足最小出现频率（改为OR逻辑）
-        if not (class_0_occurrence_rate >= MIN_OCCURRENCE_RATE or 
-                class_1_occurrence_rate >= MIN_OCCURRENCE_RATE):
-            return False
-        
-        # 检查最小样本数 - 也需要改为OR逻辑
-        if len(class_0_data) < 2 and len(class_1_data) < 2:
-            return False
-        
-        # 检查折叠变化（保持不变）
-        class_0_mean = class_0_data['intensity'].mean() if len(class_0_data) > 0 else 0
-        class_1_mean = class_1_data['intensity'].mean() if len(class_1_data) > 0 else 0
-        fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
-        
-        return fold_change >= MIN_FOLD_CHANGE
+    def _passes_selection_criteria(self, group_data: pd.DataFrame, total_files: int) -> bool:
+        """全样本缺失率过滤：峰群在超过 MAX_MISSING_RATE 比例的样本中缺失则丢弃"""
+        unique_file_count = group_data['file_id'].nunique()
+        occurrence_rate = unique_file_count / total_files if total_files > 0 else 0
+        return occurrence_rate >= (1 - MAX_MISSING_RATE)
     
     def _calculate_peak_metrics(self, group_data, class_0_data, class_1_data, peak_index) -> dict:
         """计算峰的统计指标"""
