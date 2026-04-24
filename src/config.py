@@ -27,6 +27,10 @@ MIN_FOLD_CHANGE = 1.3            # 最小倍数变化（阶段3暂留筛选用�
 # v1.15.0 新增
 MAX_MISSING_RATE = 0.5           # 允许的最大缺失率（全样本）；缺失率 > 此值的峰群在阶段2丢弃
 
+# v1.15.3 新增
+LOG_TRANSFORM = True             # 是否对强度矩阵做 log₂(x+1) 变换
+SCALING_METHOD = 'pareto'        # 标度方法：'pareto'（Pareto scaling）或 None
+
 # 模型配置
 MODEL_CONFIGS = {
     "RandomForestClassifier": {"n_estimators": 250},

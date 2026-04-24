@@ -71,7 +71,7 @@ class DataPreprocessor:
         if self.classification_window and self.classification_window.winfo_exists():
             self.classification_window.wait_window()
 
-    # 第二部分：核心三阶段处理流程
+    # 第二部分：核心四阶段处理流程
     def _execute_processing(self, file_paths: List[str]):
         """执行数据处理"""
         # 创建进度显示
@@ -98,15 +98,22 @@ class DataPreprocessor:
             if not all_peaks_data:
                 raise ValueError("未从任何文件中发现有效峰")
             
-            # 阶段2: 共识峰识别
-            log_message(" 阶段2：识别共识特征峰 ")
-            consensus_peaks = self._phase2_consensus_peaks(all_peaks_data)
-            
+            # 阶段2: 共识峰分组（产出完整备选池，不过滤）
+            log_message(" 阶段2：共识峰分组 ")
+            consensus_peaks_pool = self._phase2_consensus_peaks(all_peaks_data)
+
+            if consensus_peaks_pool.empty:
+                raise ValueError("未识别出任何共识峰")
+
+            # 阶段3: 特征筛选（缺失率过滤）
+            log_message(" 阶段3：特征筛选 ")
+            consensus_peaks = self._phase3_filter_features(consensus_peaks_pool)
+
             if consensus_peaks.empty:
-                raise ValueError("未识别出共识特征峰")
-            
-            # 阶段3: 特征矩阵构建
-            log_message(" 阶段3：构建最终特征矩阵 ")
+                raise ValueError("所有特征峰均被缺失率过滤，请调整 MAX_MISSING_RATE 参数")
+
+            # 阶段4: 特征矩阵构建
+            log_message(" 阶段4：构建最终特征矩阵 ")
             feature_matrix = self._phase3_build_matrix(file_paths, consensus_peaks)
             
             # 保存结果
@@ -238,9 +245,8 @@ class DataPreprocessor:
                     'fold_change': fold_change,
                 })
             
-            if passed:
-                peak_info = self._calculate_peak_metrics(group_data, class_0_data, class_1_data, len(consensus_peaks))
-                consensus_peaks.append(peak_info)
+            peak_info = self._calculate_peak_metrics(group_data, class_0_data, class_1_data, len(consensus_peaks), total_files)
+            consensus_peaks.append(peak_info)
             
             # 每处理10个分组更新一次进度 (45% - 60%)
             if i % 10 == 0 or i == total_groups - 1:
@@ -258,20 +264,53 @@ class DataPreprocessor:
         if not consensus_df.empty:
             consensus_df = consensus_df.sort_values('consensus_mz').reset_index(drop=True)
 
-        log_message(f"阶段2完成: {len(consensus_df)} 个峰群通过缺失率过滤，进入特征备选池")
+        log_message(f"阶段2完成: {len(consensus_df)} 个峰群进入特征备选池（缺失率过滤在阶段3执行）")
         
         # 更新进度到66%
         self._update_progress(0.66, "阶段2: 特征选择完成 (66%)")
         
         return consensus_df
     
+    def _phase3_filter_features(self, consensus_peaks: pd.DataFrame) -> pd.DataFrame:
+        """阶段3: 按全样本缺失率过滤特征备选池"""
+        threshold = 1 - MAX_MISSING_RATE
+        filtered = consensus_peaks[consensus_peaks['occurrence_rate'] >= threshold].reset_index(drop=True)
+        dropped = len(consensus_peaks) - len(filtered)
+        log_message(f"阶段3完成: {len(filtered)}/{len(consensus_peaks)} 个峰群通过缺失率过滤（丢弃 {dropped} 个）")
+        return filtered
+
     def _phase3_build_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame) -> pd.DataFrame:
-        """阶段3: 构建特征矩阵"""
-        start_progress = 0.66
-        progress_range = 0.34
-        
-        return self._build_unified_matrix(file_paths, consensus_peaks, 
-                                        start_progress, progress_range)
+        """阶段4(暂): 构建特征矩阵 → 归一化 → 转换输出格式"""
+        # 步骤1: 原始强度数值矩阵（行=样本，列=特征）
+        matrix = self._build_unified_matrix(file_paths, consensus_peaks, 0.70, 0.25)
+
+        # 步骤2: 样本内归一化
+        if self.current_normalization_enabled:
+            log_message(f"阶段4: 样本内归一化（{self.current_normalization_method}）")
+            for file_id in matrix.index:
+                if file_id in self.normalization_stats:
+                    norm_factor = self.normalization_stats[file_id].get(self.current_normalization_method, 0)
+                    if norm_factor > 0 and not np.isnan(norm_factor):
+                        matrix.loc[file_id, :] /= norm_factor
+                    else:
+                        log_message(f"警告：{file_id} 归一化因子无效，跳过", "WARNING")
+        else:
+            log_message("阶段4: 未启用归一化")
+
+        self._update_progress(0.96, "阶段4: 转换输出格式")
+
+        # 步骤3: 转换为输出格式（行=特征+class，列=['m/z']+样本）
+        feature_names = ['class'] + list(matrix.columns)
+        output = pd.DataFrame(pd.Series(feature_names, index=feature_names), columns=['m/z'])
+
+        for file_path in file_paths:
+            file_id = os.path.splitext(os.path.basename(file_path))[0]
+            file_class = self._get_file_classification(file_path)
+            intensities = matrix.loc[file_id].tolist() if file_id in matrix.index else [0.0] * len(matrix.columns)
+            file_series = pd.Series([file_class] + intensities, index=feature_names)
+            output = pd.concat([output, pd.DataFrame(file_series, columns=[file_id])], axis=1)
+
+        return output
 
     # 第三部分：核心算法方法
     def _discover_peaks_from_file(self, file_path: str) -> pd.DataFrame:
@@ -339,55 +378,25 @@ class DataPreprocessor:
             return pd.DataFrame()
 
     def _build_unified_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame,
-                        start_progress: float, progress_range: float) -> pd.DataFrame:
-        """统一的特征矩阵构建方法（提取原始强度后应用样本内归一化）"""
+                              start_progress: float, progress_range: float) -> pd.DataFrame:
+        """构建原始强度数值矩阵（行=样本，列=特征），不做任何归一化"""
+        feature_cols = [f"{peak['consensus_mz']:.1f}" for _, peak in consensus_peaks.iterrows()]
+        rows = {}
 
-        # 记录归一化状态
-        if self.current_normalization_enabled:
-            log_message(f"阶段3: 矩阵构建 + 样本内归一化（方法: {self.current_normalization_method}）")
-        else:
-            log_message("阶段3: 矩阵构建（未启用归一化）")
-
-        # 构建基础矩阵结构
-        feature_names = ['class'] + [f"{peak['consensus_mz']:.1f}"
-                                for _, peak in consensus_peaks.iterrows()]
-        all_results = pd.DataFrame(
-            pd.Series(feature_names, index=feature_names),
-            columns=['m/z']
-        )
-
-        # 处理每个文件
         for i, file_path in enumerate(file_paths):
             file_id = os.path.splitext(os.path.basename(file_path))[0]
-            file_class = self._get_file_classification(file_path)
             peaks_df = self.all_file_peaks_cache.get(file_id, pd.DataFrame())
 
-            # 提取原始强度值
-            intensities = [
+            rows[file_id] = [
                 self._extract_intensity(peaks_df, peak['consensus_mz'])
                 for _, peak in consensus_peaks.iterrows()
             ]
 
-            # 样本内归一化（基于阶段1缓存的统计量）
-            if self.current_normalization_enabled and file_id in self.normalization_stats:
-                norm_factor = self.normalization_stats[file_id].get(self.current_normalization_method, 0)
-                if norm_factor > 0 and not np.isnan(norm_factor):
-                    intensities = [v / norm_factor for v in intensities]
-                else:
-                    log_message(f"警告：{file_id} 归一化因子无效（{norm_factor}），跳过归一化", "WARNING")
-
-            file_results = [file_class] + intensities
-
-            # 添加到矩阵
-            file_series = pd.Series(file_results, index=feature_names)
-            file_df = pd.DataFrame(file_series, columns=[file_id])
-            all_results = pd.concat([all_results, file_df], axis=1)
-
-            # 动态进度更新
             progress = start_progress + (i + 1) / len(file_paths) * progress_range
             self._update_progress(progress, f"构建矩阵: {i+1}/{len(file_paths)}")
 
-        return all_results
+        # 行=样本，列=特征
+        return pd.DataFrame(rows, index=feature_cols).T
         
     def _extract_intensity(self, peaks_df: pd.DataFrame, target_mz: float) -> float:
         """提取原始强度值（归一化在调用方完成）"""
@@ -411,24 +420,28 @@ class DataPreprocessor:
         occurrence_rate = unique_file_count / total_files if total_files > 0 else 0
         return occurrence_rate >= (1 - MAX_MISSING_RATE)
     
-    def _calculate_peak_metrics(self, group_data, class_0_data, class_1_data, peak_index) -> dict:
+    def _calculate_peak_metrics(self, group_data, class_0_data, class_1_data, peak_index, total_files=1) -> dict:
         """计算峰的统计指标"""
         consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
         class_0_mean = class_0_data['intensity'].mean()
         class_1_mean = class_1_data['intensity'].mean()
-        
+
         fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
-        
+
         # 简化出现频率计算
         class_0_occurrence = class_0_data['file_id'].nunique() / data_store.get_file_classification()['class_0_files'].__len__()
         class_1_occurrence = class_1_data['file_id'].nunique() / data_store.get_file_classification()['class_1_files'].__len__()
-        
+
         coverage_score = (class_0_occurrence + class_1_occurrence) / 2
         ml_score = fold_change * coverage_score
-        
+
+        unique_file_count = group_data['file_id'].nunique()
+        occurrence_rate = unique_file_count / total_files if total_files > 0 else 0
+
         return {
             'consensus_mz': consensus_mz,
             'peak_id': f'Peak_{peak_index:03d}',
+            'occurrence_rate': occurrence_rate,
             'class_0_occurrence_rate': class_0_occurrence,
             'class_1_occurrence_rate': class_1_occurrence,
             'class_0_mean': class_0_mean,
