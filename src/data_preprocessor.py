@@ -193,10 +193,10 @@ class DataPreprocessor:
         total_files = all_peaks_df['file_id'].nunique()
         log_message(f"阶段2: 共 {total_files} 个样本（{class_0_name}: {class_0_files}, {class_1_name}: {class_1_files}），缺失率阈值 {MAX_MISSING_RATE:.0%}")
         
-        # 按m/z分组分析
+        # 按m/z分组分析（贪心聚类）
         all_peaks_df = all_peaks_df.copy()
-        all_peaks_df['mz_group'] = np.round(all_peaks_df['mz'] / 0.2) * 0.2
-        self._update_progress(0.45, "阶段2: 数据分组完成")  # 新增
+        all_peaks_df['mz_group'] = self._greedy_mz_grouping(all_peaks_df)
+        self._update_progress(0.45, "阶段2: 数据分组完成")
         
         consensus_peaks = []
         unique_groups = all_peaks_df['mz_group'].unique()
@@ -291,13 +291,16 @@ class DataPreprocessor:
         # 步骤3: 样本内归一化
         if self.current_normalization_enabled:
             log_message(f"阶段4: 样本内归一化（{self.current_normalization_method}）")
+            norm_factors = {}
             for file_id in matrix.index:
                 if file_id in self.normalization_stats:
-                    norm_factor = self.normalization_stats[file_id].get(self.current_normalization_method, 0)
-                    if norm_factor > 0 and not np.isnan(norm_factor):
-                        matrix.loc[file_id, :] /= norm_factor
+                    factor = self.normalization_stats[file_id].get(self.current_normalization_method, 0)
+                    if factor > 0 and not np.isnan(factor):
+                        norm_factors[file_id] = factor
                     else:
-                        log_message(f"警告：{file_id} 归一化因子无效，跳过", "WARNING")
+                        log_message(f"警告：{file_id} 归一化因子无效，以1代替", "WARNING")
+                        norm_factors[file_id] = 1.0
+            matrix = matrix.div(pd.Series(norm_factors), axis=0)
         else:
             log_message("阶段4: 未启用归一化")
 
@@ -427,6 +430,19 @@ class DataPreprocessor:
                 half_min = non_zero.min() / 2
                 result[col] = result[col].where(result[col] != 0, half_min) # 非零保留，零替换为 half_min，与原意完全一致，不经过 .loc 的字符串解析路径。
         return result
+
+    def _greedy_mz_grouping(self, peaks_df: pd.DataFrame, tolerance: float = 0.2) -> pd.Series:
+        """贪心聚类：按 m/z 升序扫描，与当前组起始峰差 > tolerance 则开新组"""
+        sorted_mz = peaks_df['mz'].sort_values()
+        group_ids = pd.Series(0, index=peaks_df.index, dtype=int)
+        group_id = 0
+        group_start = None
+        for idx, mz in sorted_mz.items():
+            if group_start is None or mz - group_start > tolerance:
+                group_id += 1
+                group_start = mz
+            group_ids[idx] = group_id
+        return group_ids
 
     def _passes_selection_criteria(self, group_data: pd.DataFrame, total_files: int) -> bool:
         """全样本缺失率过滤：峰群在超过 MAX_MISSING_RATE 比例的样本中缺失则丢弃"""
