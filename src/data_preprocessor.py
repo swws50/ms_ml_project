@@ -12,7 +12,8 @@ from tkinter import messagebox, filedialog
 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE,
-    MIN_FOLD_CHANGE, MAX_MISSING_RATE, LOG_TRANSFORM, SCALING_METHOD, get_output_paths
+    MIN_FOLD_CHANGE, MAX_MISSING_RATE, LOG_TRANSFORM, SCALING_METHOD,
+    P_VALUE_THRESHOLD, FDR_CORRECTION, get_output_paths
 )
 import data_store
 from data_store import class_manager
@@ -309,14 +310,19 @@ class DataPreprocessor:
             log_message("阶段4: log₂(x+1) 变换")
             matrix = self._log_transform(matrix)
 
-        # 步骤5: Pareto scaling
+        # 步骤5: Mann-Whitney U + BH-FDR 特征筛选
+        if P_VALUE_THRESHOLD is not None:
+            log_message(f"阶段4: Mann-Whitney U 筛选（p < {P_VALUE_THRESHOLD}，BH-FDR={FDR_CORRECTION}）")
+            matrix = self._select_features_mannwhitney(matrix, file_paths)
+
+        # 步骤6: Pareto scaling
         if SCALING_METHOD == 'pareto':
             log_message("阶段4: Pareto scaling")
             matrix = self._pareto_scale(matrix)
 
         self._update_progress(0.96, "阶段4: 转换输出格式")
 
-        # 步骤6: 转换为输出格式（行=特征+class，列=['m/z']+样本）
+        # 步骤7: 转换为输出格式（行=特征+class，列=['m/z']+样本）
         feature_names = ['class'] + list(matrix.columns)
         output = pd.DataFrame(pd.Series(feature_names, index=feature_names), columns=['m/z'])
 
@@ -431,6 +437,63 @@ class DataPreprocessor:
         else:
             return 0.0
             
+    def _select_features_mannwhitney(self, matrix: pd.DataFrame, file_paths: list) -> pd.DataFrame:
+        """Mann-Whitney U 检验 + BH-FDR 筛选显著差异特征"""
+        from scipy.stats import mannwhitneyu
+
+        # 建立 file_id → class 映射
+        id_to_class = {
+            os.path.splitext(os.path.basename(fp))[0]: self._get_file_classification(fp)
+            for fp in file_paths
+        }
+        class_names = list(dict.fromkeys(id_to_class.values()))  # 保序去重，取前两类
+        if len(class_names) < 2:
+            log_message("警告: 类别数不足2，跳过统计筛选", "WARNING")
+            return matrix
+
+        idx0 = [i for i in matrix.index if id_to_class.get(i) == class_names[0]]
+        idx1 = [i for i in matrix.index if id_to_class.get(i) == class_names[1]]
+
+        if len(idx0) < 2 or len(idx1) < 2:
+            log_message("警告: 每类样本量不足2，跳过统计筛选", "WARNING")
+            return matrix
+
+        pvalues = []
+        for col in matrix.columns:
+            g0 = matrix.loc[idx0, col].values
+            g1 = matrix.loc[idx1, col].values
+            try:
+                _, p = mannwhitneyu(g0, g1, alternative='two-sided')
+                pvalues.append(float(p) if not np.isnan(p) else 1.0)
+            except Exception:
+                pvalues.append(1.0)
+
+        adjusted = self._bh_correction(pvalues) if FDR_CORRECTION else np.array(pvalues)
+        # 按 adjusted p-value 升序排列，先过 p 值门槛，再截断到 MAX_FEATURES
+        col_pval = sorted(zip(matrix.columns, adjusted), key=lambda x: x[1])
+        kept = [col for col, p in col_pval if p < P_VALUE_THRESHOLD]
+        log_message(f"统计筛选完成: {len(kept)}/{len(matrix.columns)} 个特征通过（p < {P_VALUE_THRESHOLD}，BH-FDR={FDR_CORRECTION}）")
+        if not kept:
+            log_message("警告: 无特征通过统计筛选，请检查 P_VALUE_THRESHOLD 设置", "WARNING")
+            return matrix.iloc[:, :0]
+        if MAX_FEATURES is not None and len(kept) > MAX_FEATURES:
+            log_message(f"截断至前 {MAX_FEATURES} 个特征（按 adjusted p-value 升序）")
+            kept = kept[:MAX_FEATURES]
+        return matrix[kept]
+
+    def _bh_correction(self, pvalues: list) -> np.ndarray:
+        """Benjamini-Hochberg FDR 校正"""
+        n = len(pvalues)
+        if n == 0:
+            return np.array([])
+        arr = np.array(pvalues, dtype=float)
+        order = np.argsort(arr)
+        adj = arr[order] * n / (np.arange(1, n + 1))
+        adj = np.minimum.accumulate(adj[::-1])[::-1]
+        result = np.empty(n)
+        result[order] = np.minimum(adj, 1.0)
+        return result
+
     def _log_transform(self, matrix: pd.DataFrame) -> pd.DataFrame:
         """log₂(x+1) 变换，由 LOG_TRANSFORM 开关控制"""
         return np.log2(matrix + 1)
