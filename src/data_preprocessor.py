@@ -12,7 +12,7 @@ from tkinter import messagebox, filedialog
 
 from config import (
     OUTPUT_FILES, MZ_TOLERANCE, MAX_FEATURES, MIN_OCCURRENCE_RATE,
-    MIN_FOLD_CHANGE, MAX_MISSING_RATE, get_output_paths
+    MIN_FOLD_CHANGE, MAX_MISSING_RATE, LOG_TRANSFORM, SCALING_METHOD, get_output_paths
 )
 import data_store
 from data_store import class_manager
@@ -280,7 +280,7 @@ class DataPreprocessor:
         return filtered
 
     def _phase3_build_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame) -> pd.DataFrame:
-        """阶段4(暂): 构建特征矩阵 → half-min 填补 → 归一化 → 转换输出格式"""
+        """阶段4: 构建特征矩阵 → half-min 填补 → 归一化 → log₂(x+1) → Pareto scaling → 转换输出格式"""
         # 步骤1: 原始强度数值矩阵（行=样本，列=特征）
         matrix = self._build_unified_matrix(file_paths, consensus_peaks, 0.70, 0.25)
 
@@ -304,9 +304,19 @@ class DataPreprocessor:
         else:
             log_message("阶段4: 未启用归一化")
 
+        # 步骤4: log₂(x+1) 变换
+        if LOG_TRANSFORM:
+            log_message("阶段4: log₂(x+1) 变换")
+            matrix = self._log_transform(matrix)
+
+        # 步骤5: Pareto scaling
+        if SCALING_METHOD == 'pareto':
+            log_message("阶段4: Pareto scaling")
+            matrix = self._pareto_scale(matrix)
+
         self._update_progress(0.96, "阶段4: 转换输出格式")
 
-        # 步骤4: 转换为输出格式（行=特征+class，列=['m/z']+样本）
+        # 步骤6: 转换为输出格式（行=特征+class，列=['m/z']+样本）
         feature_names = ['class'] + list(matrix.columns)
         output = pd.DataFrame(pd.Series(feature_names, index=feature_names), columns=['m/z'])
 
@@ -421,6 +431,17 @@ class DataPreprocessor:
         else:
             return 0.0
             
+    def _log_transform(self, matrix: pd.DataFrame) -> pd.DataFrame:
+        """log₂(x+1) 变换，由 LOG_TRANSFORM 开关控制"""
+        return np.log2(matrix + 1)
+
+    def _pareto_scale(self, matrix: pd.DataFrame) -> pd.DataFrame:
+        """Pareto scaling：(x − μ) / √s，由 SCALING_METHOD 开关控制"""
+        col_mean = matrix.mean(axis=0)
+        col_std = matrix.std(axis=0, ddof=1)
+        col_std = col_std.replace(0, 1.0)
+        return (matrix - col_mean) / np.sqrt(col_std)
+
     def _impute_half_min(self, matrix: pd.DataFrame) -> pd.DataFrame:
         """按列（特征维度）用非零最小值的一半替换零值"""
         result = matrix.copy()
