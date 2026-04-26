@@ -280,11 +280,15 @@ class DataPreprocessor:
         return filtered
 
     def _phase3_build_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame) -> pd.DataFrame:
-        """阶段4(暂): 构建特征矩阵 → 归一化 → 转换输出格式"""
+        """阶段4(暂): 构建特征矩阵 → half-min 填补 → 归一化 → 转换输出格式"""
         # 步骤1: 原始强度数值矩阵（行=样本，列=特征）
         matrix = self._build_unified_matrix(file_paths, consensus_peaks, 0.70, 0.25)
 
-        # 步骤2: 样本内归一化
+        # 步骤2: half-min 填补（每列用该列非零最小值的一半替换零值）
+        log_message("阶段4: half-min 填补")
+        matrix = self._impute_half_min(matrix)
+
+        # 步骤3: 样本内归一化
         if self.current_normalization_enabled:
             log_message(f"阶段4: 样本内归一化（{self.current_normalization_method}）")
             for file_id in matrix.index:
@@ -299,7 +303,7 @@ class DataPreprocessor:
 
         self._update_progress(0.96, "阶段4: 转换输出格式")
 
-        # 步骤3: 转换为输出格式（行=特征+class，列=['m/z']+样本）
+        # 步骤4: 转换为输出格式（行=特征+class，列=['m/z']+样本）
         feature_names = ['class'] + list(matrix.columns)
         output = pd.DataFrame(pd.Series(feature_names, index=feature_names), columns=['m/z'])
 
@@ -380,7 +384,7 @@ class DataPreprocessor:
     def _build_unified_matrix(self, file_paths: List[str], consensus_peaks: pd.DataFrame,
                               start_progress: float, progress_range: float) -> pd.DataFrame:
         """构建原始强度数值矩阵（行=样本，列=特征），不做任何归一化"""
-        feature_cols = [f"{peak['consensus_mz']:.1f}" for _, peak in consensus_peaks.iterrows()]
+        feature_cols = [str(peak['consensus_mz']) for _, peak in consensus_peaks.iterrows()]
         rows = {}
 
         for i, file_path in enumerate(file_paths):
@@ -414,6 +418,16 @@ class DataPreprocessor:
         else:
             return 0.0
             
+    def _impute_half_min(self, matrix: pd.DataFrame) -> pd.DataFrame:
+        """按列（特征维度）用非零最小值的一半替换零值"""
+        result = matrix.copy()
+        for col in result.columns:
+            non_zero = result[col][result[col] > 0]
+            if not non_zero.empty:
+                half_min = non_zero.min() / 2
+                result[col] = result[col].where(result[col] != 0, half_min) # 非零保留，零替换为 half_min，与原意完全一致，不经过 .loc 的字符串解析路径。
+        return result
+
     def _passes_selection_criteria(self, group_data: pd.DataFrame, total_files: int) -> bool:
         """全样本缺失率过滤：峰群在超过 MAX_MISSING_RATE 比例的样本中缺失则丢弃"""
         unique_file_count = group_data['file_id'].nunique()
