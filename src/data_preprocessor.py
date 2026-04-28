@@ -246,7 +246,7 @@ class DataPreprocessor:
                     'fold_change': fold_change,
                 })
             
-            peak_info = self._calculate_peak_metrics(group_data, class_0_data, class_1_data, len(consensus_peaks), total_files)
+            peak_info = self._calculate_peak_metrics(group_data, len(consensus_peaks), total_files)
             consensus_peaks.append(peak_info)
             
             # 每处理10个分组更新一次进度 (45% - 60%)
@@ -459,6 +459,7 @@ class DataPreprocessor:
             return matrix
 
         pvalues = []
+        fc_values = []
         for col in matrix.columns:
             g0 = matrix.loc[idx0, col].values
             g1 = matrix.loc[idx1, col].values
@@ -467,14 +468,24 @@ class DataPreprocessor:
                 pvalues.append(float(p) if not np.isnan(p) else 1.0)
             except Exception:
                 pvalues.append(1.0)
+            # 反变换 log₂(x+1) → 原始空间再算倍数
+            m0 = 2**g0.mean() - 1
+            m1 = 2**g1.mean() - 1
+            fc_values.append(max(m0, m1) / (min(m0, m1) + 1e-6))
 
         adjusted = self._bh_correction(pvalues) if FDR_CORRECTION else np.array(pvalues)
-        # 按 adjusted p-value 升序排列，先过 p 值门槛，再截断到 MAX_FEATURES
+
+        # 三层交集：出现率（阶段3已完成）→ FC → MW U；按 adjusted p-value 升序，再截断
+        fc_mask = {col: fc_values[i] >= MIN_FOLD_CHANGE for i, col in enumerate(matrix.columns)}
         col_pval = sorted(zip(matrix.columns, adjusted), key=lambda x: x[1])
-        kept = [col for col, p in col_pval if p < P_VALUE_THRESHOLD]
-        log_message(f"统计筛选完成: {len(kept)}/{len(matrix.columns)} 个特征通过（p < {P_VALUE_THRESHOLD}，BH-FDR={FDR_CORRECTION}）")
+        kept_p   = [col for col, p in col_pval if p < P_VALUE_THRESHOLD]
+        kept     = [col for col in kept_p if fc_mask[col]]
+        log_message(
+            f"特征筛选: {len(matrix.columns)} → FC({MIN_FOLD_CHANGE}) → {sum(fc_mask.values())} "
+            f"→ MW-U(p<{P_VALUE_THRESHOLD}) → {len(kept_p)} → 交集 → {len(kept)}"
+        )
         if not kept:
-            log_message("警告: 无特征通过统计筛选，请检查 P_VALUE_THRESHOLD 设置", "WARNING")
+            log_message("警告: 无特征通过联合筛选，请检查 MIN_FOLD_CHANGE / P_VALUE_THRESHOLD 设置", "WARNING")
             return matrix.iloc[:, :0]
         if MAX_FEATURES is not None and len(kept) > MAX_FEATURES:
             log_message(f"截断至前 {MAX_FEATURES} 个特征（按 adjusted p-value 升序）")
@@ -534,21 +545,9 @@ class DataPreprocessor:
         occurrence_rate = unique_file_count / total_files if total_files > 0 else 0
         return occurrence_rate >= (1 - MAX_MISSING_RATE)
     
-    def _calculate_peak_metrics(self, group_data, class_0_data, class_1_data, peak_index, total_files=1) -> dict:
+    def _calculate_peak_metrics(self, group_data, peak_index, total_files=1) -> dict:
         """计算峰的统计指标"""
         consensus_mz = np.average(group_data['mz'], weights=group_data['intensity'])
-        class_0_mean = class_0_data['intensity'].mean()
-        class_1_mean = class_1_data['intensity'].mean()
-
-        fold_change = max(class_0_mean, class_1_mean) / (min(class_0_mean, class_1_mean) + 1e-6)
-
-        # 简化出现频率计算
-        class_0_occurrence = class_0_data['file_id'].nunique() / data_store.get_file_classification()['class_0_files'].__len__()
-        class_1_occurrence = class_1_data['file_id'].nunique() / data_store.get_file_classification()['class_1_files'].__len__()
-
-        coverage_score = (class_0_occurrence + class_1_occurrence) / 2
-        ml_score = fold_change * coverage_score
-
         unique_file_count = group_data['file_id'].nunique()
         occurrence_rate = unique_file_count / total_files if total_files > 0 else 0
 
@@ -556,12 +555,6 @@ class DataPreprocessor:
             'consensus_mz': consensus_mz,
             'peak_id': f'Peak_{peak_index:03d}',
             'occurrence_rate': occurrence_rate,
-            'class_0_occurrence_rate': class_0_occurrence,
-            'class_1_occurrence_rate': class_1_occurrence,
-            'class_0_mean': class_0_mean,
-            'class_1_mean': class_1_mean,
-            'fold_change': fold_change,
-            'ml_score': ml_score
         }
 
     # 第四部分：数据处理和保存
