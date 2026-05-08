@@ -33,7 +33,7 @@ SCALING_METHOD = 'pareto'        # 标度方法：'pareto'（Pareto scaling）�
 
 # v1.15.7 新增
 P_VALUE_THRESHOLD = 0.05         # Mann-Whitney U 显著性阈值
-FDR_CORRECTION = True            # 是否做 BH-FDR 校正
+FDR_CORRECTION = False           # 是否做 BH-FDR 校正（小样本场景下 BH 过于保守，改用原始 p 值 + MAX_FEATURES 截断）
 
 # 模型配置
 MODEL_CONFIGS = {

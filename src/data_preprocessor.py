@@ -473,6 +473,10 @@ class DataPreprocessor:
             m1 = 2**g1.mean() - 1
             fc_values.append(max(m0, m1) / (min(m0, m1) + 1e-6))
 
+        #bug调试
+        log_message(f"[DEBUG] FC range: min={min(fc_values):.4f}, max={max(fc_values):.4f},mean={sum(fc_values)/len(fc_values):.4f}")
+        log_message(f"[DEBUG] pvalue range: min={min(pvalues):.4f}, max={max(pvalues):.4f}")
+
         adjusted = self._bh_correction(pvalues) if FDR_CORRECTION else np.array(pvalues)
 
         # 三层交集：出现率（阶段3已完成）→ FC → MW U；按 adjusted p-value 升序，再截断
