@@ -4,7 +4,7 @@
 基于 SALDI 质谱与脂质指纹分析的肝癌早筛科研工具
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-orange.svg)]()
 [![Version](https://img.shields.io/badge/Version-1.13.1-green.svg)]()
 
 > **免责声明**：本软件仅供学术研究与科学实验使用，不构成医疗器械，结果不得作为临床诊断依据。任何医疗决策请咨询执业医师。
