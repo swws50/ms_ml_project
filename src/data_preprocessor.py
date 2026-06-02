@@ -56,6 +56,11 @@ class DataPreprocessor:
         # 静默模式（自动化工作流使用）
         self.silent_mode = False
 
+        # 预处理参数（预测时复现变换链用）
+        self._pareto_means = None
+        self._pareto_stds = None
+        self._half_min_values = {}
+
         # 预处理完成标志
         self.preprocessing_completed = False
 
@@ -322,6 +327,16 @@ class DataPreprocessor:
 
         self._update_progress(0.96, "阶段4: 转换输出格式")
 
+        # 保存预处理参数到 data_store，供训练时打包进 bundle
+        preprocessing_params = {
+            "log_transform": LOG_TRANSFORM,
+            "scaling_method": SCALING_METHOD,
+            "pareto_means": self._pareto_means if SCALING_METHOD == 'pareto' else None,
+            "pareto_stds": self._pareto_stds if SCALING_METHOD == 'pareto' else None,
+            "half_min_values": self._half_min_values,
+        }
+        data_store.set_preprocessing_params(preprocessing_params)
+
         # 步骤7: 转换为输出格式（行=特征+class，列=['m/z']+样本）
         feature_names = ['class'] + list(matrix.columns)
         output = pd.DataFrame(pd.Series(feature_names, index=feature_names), columns=['m/z'])
@@ -514,20 +529,25 @@ class DataPreprocessor:
         return np.log2(matrix + 1)
 
     def _pareto_scale(self, matrix: pd.DataFrame) -> pd.DataFrame:
-        """Pareto scaling：(x − μ) / √s，由 SCALING_METHOD 开关控制"""
+        """Pareto scaling：(x − μ) / √s，由 SCALING_METHOD 开关控制；参数存入实例供 bundle 使用"""
         col_mean = matrix.mean(axis=0)
         col_std = matrix.std(axis=0, ddof=1)
         col_std = col_std.replace(0, 1.0)
+        self._pareto_means = col_mean.tolist()
+        self._pareto_stds = col_std.tolist()
         return (matrix - col_mean) / np.sqrt(col_std)
 
     def _impute_half_min(self, matrix: pd.DataFrame) -> pd.DataFrame:
-        """按列（特征维度）用非零最小值的一半替换零值"""
+        """按列（特征维度）用非零最小值的一半替换零值；half_min 值存入实例供 bundle 使用"""
         result = matrix.copy()
+        half_min_values = {}
         for col in result.columns:
             non_zero = result[col][result[col] > 0]
             if not non_zero.empty:
                 half_min = non_zero.min() / 2
-                result[col] = result[col].where(result[col] != 0, half_min) # 非零保留，零替换为 half_min，与原意完全一致，不经过 .loc 的字符串解析路径。
+                result[col] = result[col].where(result[col] != 0, half_min)
+                half_min_values[str(col)] = float(half_min)
+        self._half_min_values = half_min_values
         return result
 
     def _greedy_mz_grouping(self, peaks_df: pd.DataFrame, tolerance: float = 0.2) -> pd.Series:

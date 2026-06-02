@@ -237,11 +237,19 @@ class ModelTrainer:
                 else:
                     norm_method = None
 
-                # 打包保存：模型 + 特征元数据 + PLS阈值（如有）
+                # 读取预处理参数（预测复现变换链用）
+                preprocessing_params = data_store.get_preprocessing_params() or {}
+
+                # 打包保存：模型 + 特征元数据 + 预处理参数 + PLS阈值（如有）
                 model_bundle = {
                     "model": self.best_model,
                     "training_features": training_features,
                     "normalization_method": norm_method,
+                    "log_transform": preprocessing_params.get("log_transform", False),
+                    "scaling_method": preprocessing_params.get("scaling_method", None),
+                    "pareto_means": preprocessing_params.get("pareto_means", None),
+                    "pareto_stds": preprocessing_params.get("pareto_stds", None),
+                    "half_min_values": preprocessing_params.get("half_min_values", {}),
                 }
                 if len(results['thresholds_used']) > 0:
                     mean_threshold = np.mean(results['thresholds_used'])

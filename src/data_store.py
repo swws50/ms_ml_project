@@ -111,6 +111,9 @@ _latest_trained_model = None
 _latest_model_path = None
 _latest_prediction = None
 
+# 预处理参数（用于预测时复现相同变换）
+_preprocessing_params = None
+
 
 # ==================== 文件分类相关函数 ====================
 
@@ -258,12 +261,25 @@ def clear_prediction_results():
     global _latest_prediction
     _latest_prediction = None
 
+
+# ==================== 预处理参数相关函数 ====================
+
+def set_preprocessing_params(params: dict):
+    """保存预处理参数（Pareto均值/标准差、half_min、变换开关）"""
+    global _preprocessing_params
+    _preprocessing_params = params.copy() if params else None
+
+def get_preprocessing_params() -> dict:
+    """获取预处理参数，未设置时返回 None"""
+    return _preprocessing_params.copy() if _preprocessing_params else None
+
 def clear_all_data():
     """清空所有数据"""
     clear_file_classification()
     clear_training_data()
     clear_model()
     clear_prediction_results()
+    set_preprocessing_params(None)
 
 
 # ==================== 状态检查函数 ====================

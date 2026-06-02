@@ -21,7 +21,7 @@ from ui_components import (
     VisualizationPanel, InfoPanel, PreprocessingPanel
 )
 from data_preprocessor import  DataPreprocessor
-from ui_components import ProgressComponent
+from ui_components import ProgressComponent 
 from print_manager import PrintManager
 # 在现有导入后添加
 from project_manager import ProjectManager

@@ -27,6 +27,11 @@ class FeatureDetector:
         self.training_features = None
         self.normalization_method = None  # 'max'/'sum'/'median'/None
         self.training_data_path = None
+        self.log_transform = False
+        self.scaling_method = None
+        self.pareto_means = None
+        self.pareto_stds = None
+        self.half_min_values = {}
     
     def load_training_features(self, force_reload=False):
         """
@@ -130,10 +135,30 @@ class FeatureDetector:
         results = []
         for target_mz in training_mz_values:
             intensity = self._extract_intensity(raw_data, target_mz, norm_method, sample_stats)
+            # half-min 填补：用训练时记录的同特征 half_min 替换零值
+            if intensity == 0.0 and self.half_min_values:
+                half_min = self.half_min_values.get(str(target_mz))
+                if half_min is not None:
+                    intensity = half_min
             results.append(intensity)
-        
-        log_message(f"处理样本完成: {os.path.basename(file_path)}, 特征数: {len(results)}")
-        return np.array(results).reshape(1, -1)
+
+        arr = np.array(results, dtype=float)
+
+        # log₂(x+1) 变换
+        if self.log_transform:
+            arr = np.log2(arr + 1)
+
+        # Pareto scaling
+        if (self.scaling_method == 'pareto'
+                and self.pareto_means is not None
+                and self.pareto_stds is not None):
+            means = np.array(self.pareto_means)
+            stds = np.array(self.pareto_stds)
+            stds = np.where(stds == 0, 1.0, stds)
+            arr = (arr - means) / np.sqrt(stds)
+
+        log_message(f"处理样本完成: {os.path.basename(file_path)}, 特征数: {len(arr)}")
+        return arr.reshape(1, -1)
     
     def _extract_intensity(self, raw_data, target_mz, norm_method, sample_stats):
         """为指定m/z值提取强度"""

@@ -37,6 +37,11 @@ class PredictionManager:
         self.temp_model_path = None
         self.feature_detector.training_features = None
         self.feature_detector.normalization_method = None
+        self.feature_detector.log_transform = False
+        self.feature_detector.scaling_method = None
+        self.feature_detector.pareto_means = None
+        self.feature_detector.pareto_stds = None
+        self.feature_detector.half_min_values = {}
 
     def _apply_loaded(self, loaded, source_label: str, model_path: str = None):
         """解包 joblib bundle：{"model": ..., "training_features": [...], "normalization_method": ...}"""
@@ -49,6 +54,11 @@ class PredictionManager:
         self.pls_threshold = loaded.get("pls_threshold", None)
         self.feature_detector.training_features = features if features else None
         self.feature_detector.normalization_method = norm
+        self.feature_detector.log_transform = loaded.get("log_transform", False)
+        self.feature_detector.scaling_method = loaded.get("scaling_method", None)
+        self.feature_detector.pareto_means = loaded.get("pareto_means", None)
+        self.feature_detector.pareto_stds = loaded.get("pareto_stds", None)
+        self.feature_detector.half_min_values = loaded.get("half_min_values", {})
         if model_path:
             data_store.set_latest_trained_model(self.model, model_path)
         log_message(f"{source_label}", "INFO")
@@ -456,31 +466,6 @@ class PredictionManager:
         
         return model_summary
 
-    def batch_predict(self, file_paths, progress_callback=None):
-        """
-        批量预测功能（修改版，返回结果）
-        
-        参数:
-            file_paths: 文件路径列表
-            progress_callback: 进度回调函数
-            
-        返回:
-            list: 预测结果列表
-        """
-        results = []
-        total_files = len(file_paths)
-        
-        for i, file_path in enumerate(file_paths):
-            result = self.predict_sample(file_path)
-            results.append(result)
-            
-            # 更新进度
-            if progress_callback:
-                progress = (i + 1) / total_files
-                progress_callback(progress, f"预测进度: {i+1}/{total_files}")
-        
-        return results
-    
     def predict_and_display(self, file_path, result_label):
         """
         执行预测并显示结果
