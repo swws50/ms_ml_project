@@ -4,8 +4,8 @@
 A SALDI mass spectrometry and lipid fingerprint analysis tool for early-stage liver cancer research
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)]()
-[![Version](https://img.shields.io/badge/Version-1.13.1-green.svg)]()
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-orange.svg)]()
+[![Version](https://img.shields.io/badge/Version-1.15.10-green.svg)]()
 
 > **Disclaimer**: This software is intended for academic research and scientific experimentation only. It is not a medical device, and its results must not be used as the basis for clinical diagnosis. For any medical decisions, please consult a licensed physician.
 
@@ -169,10 +169,16 @@ DETEQX/
 ### Feature Selection Parameters (`config.py`)
 
 ```python
-MAX_FEATURES = 50           # Maximum number of features
-MIN_OCCURRENCE_RATE = 0.5   # Minimum occurrence rate (present in ≥50% of samples)
-MIN_FOLD_CHANGE = 1.3       # Minimum fold change (30% intensity difference)
-MZ_TOLERANCE = 0.2          # m/z matching tolerance
+MAX_FEATURES = 50           # Maximum features (truncation ceiling)
+MAX_MISSING_RATE = 0.5      # Maximum missing rate (peaks missing in >50% of samples are discarded)
+MIN_FOLD_CHANGE = 1.3       # Minimum fold change (intersected with MW-U; computed in log₂ domain)
+MZ_TOLERANCE = 0.2          # m/z matching tolerance (prediction-side feature alignment)
+
+# Added in v1.15.x
+LOG_TRANSFORM = True        # log₂(x+1) transform toggle
+SCALING_METHOD = 'pareto'   # Scaling method: 'pareto' or None
+P_VALUE_THRESHOLD = 0.05    # Mann-Whitney U significance threshold
+FDR_CORRECTION = False      # BH-FDR correction toggle (too conservative for small-sample / high-feature settings; off by default)
 ```
 
 ### Cross-Validation Configuration
@@ -201,20 +207,24 @@ CV_RANDOM_STATE = 42        # Random seed (reproducible)
 
 ## 🔬 Technical Details
 
-### 1. Normalization Architecture (v1.9.8+)
+### 1. Preprocessing Pipeline SOP (v1.15.x)
 
-**Design principle**: Sample-level normalization (within-sample), not cross-sample — zero risk of data leakage.
+**Standard metabolomics SOP — four-phase pipeline**:
 
 ```
-Raw mass spectrometry data
+Phase 1: Peak detection + collect normalization statistics (do not apply normalization)
      ↓
-Peak detection (pyOpenMS)
+Phase 2: 0.2 Da greedy-clustering alignment → full consensus peak candidate pool
      ↓
-Collect statistical features {max, sum, median}
+Phase 3: Discard peaks missing in >50% of all samples
      ↓
-Apply normalization: intensity_norm = intensity_raw / stat_value
-     ↓
-Feature selection → Matrix construction
+Phase 4: Numerical matrix construction
+         → Half-minimum missing value imputation
+         → Within-sample normalization (max / sum / median)
+         → log₂(x+1) transformation
+         → Mann-Whitney U feature selection (p < 0.05, truncated to top 50)
+         → Pareto scaling
+         → Output feature matrix
 ```
 
 **Normalization Method Comparison**:
@@ -225,7 +235,7 @@ Feature selection → Matrix construction
 | sum (TIC)             | I / Σ(I)      | Eliminates injection volume variation      |
 | median                | I / median(I) | Robust to outliers                         |
 
-**Normalization at prediction time**: The normalization method is bundled with the model in the model bundle (v1.11.7+) and loaded automatically at prediction time — no dependency on filenames or training CSV files.
+**Prediction-time transform chain**: The normalization method, log₂ toggle, Pareto scaling parameters (per-feature mean and std vectors), and half-min imputation values are all bundled with the model (v1.15.10+). The full transform chain is automatically reproduced at prediction time — no dependency on training CSV files.
 
 ### 2. Cross-Validation Method (v1.9.7+)
 
@@ -286,10 +296,16 @@ model_bundle = {
     "training_features":    list of training feature m/z values (for feature alignment at prediction time),
     "normalization_method": 'max' / 'sum' / 'median' / None,
     "pls_threshold":        mean PLS decision threshold (PLS models only),
+    # Added in v1.15.10: prediction-side transform chain parameters
+    "log_transform":        True / False,
+    "scaling_method":       'pareto' / None,
+    "pareto_means":         [per-feature mean, ...],    # Pareto scaling training parameters
+    "pareto_stds":          [per-feature std, ...],
+    "half_min_values":      {"mz_string": half_min_value, ...},
 }
 ```
 
-Predictions can be made directly across sessions, automated pipelines, and model switches — no longer dependent on the training CSV file. The legacy format (plain sklearn object) is no longer supported and will raise an explicit error on load.
+Predictions can be made directly across sessions, automated pipelines, and model switches — no longer dependent on the training CSV file. Older bundles (missing v1.15.10 keys) are backward compatible: they load without error and fall back to normalization-only behavior.
 
 ### 7. Training Metrics File Format (v1.11.9+)
 
@@ -375,6 +391,18 @@ outputs/{project}/charts/
 
 ## 🔄 Version History
 
+### v1.15.x (2026-04 to 06) ⭐ Preprocessing SOP Refactor
+
+- **Four-phase pipeline refactor** (v1.15.1–1.15.3): Reorganized three-phase pipeline into four phases following standard metabolomics SOP. Normalization moved downstream to after matrix construction. Phase 2 now outputs a complete consensus peak candidate pool; Phase 3 independently handles filtering. All-sample missing rate >50% replaces the legacy per-class occurrence rate + ml_score hard cutoff.
+- **Post-processing chain completed** (v1.15.4–1.15.6): Added half-minimum missing value imputation, greedy clustering alignment (eliminates fixed-bin boundary effects), log₂(x+1) transformation, and Pareto scaling. Fixed GUI freeze during normalization (row-wise `.loc` assignment → `DataFrame.div` broadcast).
+- **Mann-Whitney U feature selection** (v1.15.7): Replaced fold-change placeholder with MW-U + BH-FDR statistical testing. Known external validation bug remains (pending fix).
+- **Fixed BH-FDR over-conservatism in small-sample settings** (v1.15.9): Batch 2 high-density data (2,076 features, ~52 samples) yielded all adjusted p = 1.0 after BH correction. Switched to raw p < 0.05 + MAX_FEATURES truncation; batch 2 AUC improved from 0.818 → 0.974.
+- **Prediction-side transform chain synchronized** (v1.15.10): Pareto means/stds, half-min values, and log₂ toggle are now bundled with the model. The full training transform chain is automatically reproduced at prediction time. Old-format bundles are backward compatible.
+
+### v1.14.x (2026-04) — Bilingual Help Wizard
+
+- **Help wizard language toggle**: Added `🌐中/EN` button to the menu bar. Clicking it switches the entire help wizard (all 5 tabs) between Chinese and English. Language state is maintained by `HelpSystem.lang`.
+
 ### v1.13.x (2026-03) — Compliance & Security
 
 - **First-launch disclaimer**: Mandatory usage notice with HMAC-SHA256 tamper-proof signing, bound to machine hostname
@@ -449,13 +477,63 @@ outputs/{project}/charts/
 
 ---
 
+## 📝 Development Notes
+
+### Adding New Features
+
+1. **UI features**: Create a new Panel class in `ui_components.py`
+2. **Business logic**: Create a new Manager class
+3. **Data operations**: Add management functions in `data_store.py`
+4. **Configuration parameters**: Add constants in `config.py`
+
+### Key Design Patterns
+
+- **Mediator pattern**: `MainGUIManager` coordinates all components
+- **Singleton pattern**: `data_store`, `class_manager`, `output_manager`
+- **Decorator pattern**: `validation_decorators.py` for unified error handling
+
+### Logging
+
+```python
+from utils import log_message
+log_message("Operation succeeded", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
+```
+
+---
+
 ### Known Limitations
 
 - **UI thread blocking**: Preprocessing and training both run on the main thread. For small datasets (20–40 samples), frequent `root.update()` calls mitigate this; large datasets or low-performance devices may still experience freezing. The fundamental fix is `threading.Thread` + a message queue.
+- **External validation bug**: The Mann-Whitney U feature filtering introduced in v1.15.7 has a known bug when used in external validation mode; pending fix.
 - **Hyperparameters are not persisted**: Changes made in `parameter_tuning_window.py` reset on restart. Impact is minimal for demo scenarios.
 - **Batch effects**: Cross-batch sample validation shows approximately 10% accuracy degradation — a scientific problem that depends on future data collection.
 
 ---
 
-**Last updated**: March 2026  
-**Current version**: v1.13.1.2
+---
+
+## 🗂️ Design Decision Records
+
+### Normalization Method Selection
+
+PQN (Probabilistic Quotient Normalization) with QC samples was investigated early on as a more batch-robust option: insert pooled QC samples at regular intervals during each batch run and use the median QC spectrum from the training set as a reference, correcting for batch drift during external validation using QC signal shifts.
+
+However, this approach requires experimental-level coordination — inserting one QC sample per every 10 samples, and ensuring QC samples are cryopreserved from the same batch throughout. The current dataset does not meet these prerequisites. The final choice was sample-level max/sum/median normalization: each sample relies only on its own statistics (maximum / sum / median), requires no cross-sample reference, and is simple and reliable in the absence of internal standards or QC samples — with no risk of training-set information leaking into prediction samples.
+
+If future data collection conditions improve (QC samples added), PQN support can be extended on top of the existing `NormalizationManager`.
+
+### Model Saving Strategy
+
+The 5-fold × 20-repeat cross-validation produces 100 fold models. Two saving strategies were considered:
+
+- **Strategy A (current)**: Save the model with the highest test score among the 100 folds
+- **Strategy B (academic convention)**: Use cross-validation for performance estimation only, then retrain a final model on the full dataset
+
+Strategy B is common in published research and theoretically provides more training data. However, its validity rests on the assumption that the final model's true performance approximates the cross-validation mean — but the final model itself has no independent test set evaluation and is therefore a black box.
+
+For small-sample research settings, the practical difference between the two is limited. The truly meaningful evaluation is external validation using independently collected data from different batches or institutions — which occurs outside the development pipeline and is largely independent of which model is saved. Strategy A is therefore retained to keep the workflow simple and fast-iterating.
+
+---
+
+**Last updated**: June 2026  
+**Current version**: v1.15.10
