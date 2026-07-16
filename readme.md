@@ -5,7 +5,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-orange.svg)]()
-[![Version](https://img.shields.io/badge/Version-1.15.10-green.svg)]()
+[![Version](https://img.shields.io/badge/Version-1.13.1-green.svg)]()
 
 > **免责声明**：本软件仅供学术研究与科学实验使用，不构成医疗器械，结果不得作为临床诊断依据。任何医疗决策请咨询执业医师。
 
@@ -169,16 +169,10 @@ DETEQX/
 ### 特征选择参数 (`config.py`)
 
 ```python
-MAX_FEATURES = 50           # 最大特征数量（截断上限）
-MAX_MISSING_RATE = 0.5      # 允许最大缺失率（> 50% 样本缺失则丢弃该峰）
-MIN_FOLD_CHANGE = 1.3       # 最小倍数变化（与 MW-U 取交集，log₂ 域计算）
-MZ_TOLERANCE = 0.2          # m/z匹配容差（预测侧特征对齐）
-
-# v1.15.x 新增
-LOG_TRANSFORM = True        # log₂(x+1) 变换开关
-SCALING_METHOD = 'pareto'   # 标度方法：'pareto' 或 None
-P_VALUE_THRESHOLD = 0.05    # Mann-Whitney U 显著性阈值
-FDR_CORRECTION = False      # BH-FDR 校正开关（小样本高特征场景下过保守，默认关闭）
+MAX_FEATURES = 50           # 最大特征数量
+MIN_OCCURRENCE_RATE = 0.5   # 最小出现频率（50%样本中出现）
+MIN_FOLD_CHANGE = 1.3       # 最小倍数变化（30%强度差异）
+MZ_TOLERANCE = 0.2          # m/z匹配容差
 ```
 
 ### 交叉验证配置
@@ -207,24 +201,20 @@ CV_RANDOM_STATE = 42        # 随机种子（可复现）
 
 ## 🔬 技术要点
 
-### 1. 预处理流程 SOP (v1.15.x)
+### 1. 归一化架构 (v1.9.8+)
 
-**标准代谢组学 SOP 四阶段流程**：
+**设计原则**：样本级归一化（within-sample），非跨样本操作，无数据泄露风险。
 
 ```
-阶段1：峰拾取 + 收集归一化统计量（不应用归一化）
+原始质谱数据
      ↓
-阶段2：0.2 Da 贪心聚类对齐 → 全量共识峰备选池
+峰发现（pyOpenMS）
      ↓
-阶段3：全样本缺失率 > 50% 过滤
+收集统计特征 {max, sum, median}
      ↓
-阶段4：数值矩阵构建
-         → half-minimum 缺失值填补
-         → 样本内归一化（max / sum / median）
-         → log₂(x+1) 变换
-         → Mann-Whitney U 特征筛选（p < 0.05，截断至前50）
-         → Pareto scaling
-         → 输出特征矩阵
+应用归一化: intensity_norm = intensity_raw / stat_value
+     ↓
+特征选择 → 矩阵构建
 ```
 
 **归一化方法对比**：
@@ -235,7 +225,7 @@ CV_RANDOM_STATE = 42        # 随机种子（可复现）
 | sum (TIC)    | I / Σ(I)      | 消除进样量差异        |
 | median       | I / median(I) | 对极端值稳健         |
 
-**预测时变换链**：归一化方法、log₂ 开关、Pareto scaling 参数（均值/标准差向量）、half-min 填补值均随模型打包进 bundle（v1.15.10+），预测时自动还原完整变换链，无需依赖训练 CSV。
+**预测时归一化**：归一化方法随模型一起打包保存于 model bundle（v1.11.7+），预测时直接读取，无需依赖文件名或训练 CSV。
 
 ### 2. 交叉验证方法 (v1.9.7+)
 
@@ -296,16 +286,10 @@ model_bundle = {
     "training_features":    训练特征 m/z 列表（用于预测时特征对齐）,
     "normalization_method": 'max' / 'sum' / 'median' / None,
     "pls_threshold":        PLS 决策阈值均值（仅 PLS 模型）,
-    # v1.15.10 新增：预测侧变换链参数
-    "log_transform":        True / False,
-    "scaling_method":       'pareto' / None,
-    "pareto_means":         [特征均值, ...],       # Pareto scaling 训练期参数
-    "pareto_stds":          [特征标准差, ...],
-    "half_min_values":      {"mz字符串": half_min值, ...},
 }
 ```
 
-跨会话、自动化流程、切换模型后均可直接预测，不再依赖训练 CSV 文件。旧格式 bundle（缺少 v1.15.10 新 key）向后兼容：加载时退化为仅做归一化的旧行为，不报错。
+跨会话、自动化流程、切换模型后均可直接预测，不再依赖训练 CSV 文件。旧格式（纯 sklearn 对象）不再兼容，加载时明确报错。
 
 ### 7. 训练指标文件格式 (v1.11.9+)
 
@@ -390,18 +374,6 @@ outputs/{project}/charts/
 ---
 
 ## 🔄 版本历史
-
-### v1.15.x (2026-04 ~ 06) ⭐ 预处理 SOP 重构
-
-- **四阶段流程重构**（v1.15.1–1.15.3）：按标准代谢组学 SOP 重组三阶段为四阶段；归一化下移至矩阵构建后；阶段2改为全量共识峰备选池，阶段3独立负责过滤；全样本缺失率 > 50% 替代原分类出现率 + ml_score 硬截断
-- **补齐后处理链**（v1.15.4–1.15.6）：依次加入 half-minimum 缺失值填补、贪心聚类对齐（消除固定 bin 边界效应）、log₂(x+1) 变换、Pareto scaling；修复归一化阶段 GUI 卡死（`.loc` 逐行赋值 → `DataFrame.div` 广播）
-- **Mann-Whitney U 特征筛选**（v1.15.7）：用 MW-U + BH-FDR 统计检验替代 fold change 暂留机制；含外部验证 bug 遗留（待修）
-- **修复 BH-FDR 小样本过保守**（v1.15.9）：批次2高密度数据（2076 特征，~52 样本）BH 校正后全部 adjusted p = 1.0；改用原始 p < 0.05 + MAX_FEATURES 截断，批次2 AUC 0.818 → 0.974
-- **预测侧变换链同步**（v1.15.10）：Pareto 均值/标准差、half-min 值、log₂ 开关随模型打包进 bundle；预测时自动复现完整训练变换链；旧格式 bundle 向后兼容
-
-### v1.14.x (2026-04) 双语向导
-
-- **帮助向导中英文切换**：菜单栏新增 `🌐中/EN` 按钮，点击后帮助向导整体切换语言（5 个 tab 全部翻译），语言状态由 `HelpSystem.lang` 维护
 
 ### v1.13.x (2026-03) 合规安全
 
@@ -502,7 +474,6 @@ log_message("操作成功", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
 ### 已知限制
 
 - **UI 线程阻塞**：预处理、训练均在主线程运行，小样本场景（20~40 个）通过增密 `root.update()` 缓解，大数据集或低性能设备仍可能卡顿；根本解决方案为 `threading.Thread` + 消息队列
-- **外部验证 bug**：v1.15.7 引入的 Mann-Whitney U 过滤在外部验证场景下存在已知 bug，待修复
 - **参数配置不持久化**：`parameter_tuning_window.py` 的超参数修改重启后重置，演示场景影响不大
 - **批次效应**：跨批次样本验证显示约 10% 精度下降，属科学问题，取决于后续数据
 
@@ -531,5 +502,5 @@ log_message("操作成功", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
 
 ---
 
-**最后更新**: 2026年6月
-**当前版本**: v1.15.10
+**最后更新**: 2026年3月
+**当前版本**: v1.13.1.2
