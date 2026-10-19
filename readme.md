@@ -1,47 +1,47 @@
 # DETEQX
 
-**基于质谱指纹图谱和AI的疾病样本智能分析系统**
-基于 SALDI 质谱与脂质指纹分析的肝癌早筛科研工具
+**AI-Powered Disease Sample Analysis System Based on Mass Spectrometry Fingerprinting**
+A SALDI mass spectrometry and lipid fingerprint analysis tool for early-stage liver cancer research
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-orange.svg)]()
-[![Version](https://img.shields.io/badge/Version-1.13.1-green.svg)]()
+[![Version](https://img.shields.io/badge/Version-1.15.10-green.svg)]()
 
-> **免责声明**：本软件仅供学术研究与科学实验使用，不构成医疗器械，结果不得作为临床诊断依据。任何医疗决策请咨询执业医师。
-
----
-
-## 📖 项目简介
-
-DETEQX 是一套端到端的质谱数据分析系统，立项起初专为肝细胞癌（HCC）早期筛查设计，不过对于所有疾病都可适用。系统通过分析血清样本的 SALDI 质谱数据（0-1000 m/z 范围），利用脂质指纹特征构建机器学习分类模型，实现对肝癌与正常样本的智能区分。
-
-### 核心能力
-
-- **智能峰发现**：集成 pyOpenMS 专业质谱分析，自动发现并筛选最优特征峰
-- **样本级归一化**：支持 Max/Sum/Median 三种归一化方法，消除技术变异
-- **严格交叉验证**：RepeatedStratifiedKFold (5折×20重复)，设计参考医疗AI规范
-- **多算法支持**：PLS、Random Forest、SVM、LDA、Logistic Regression、MLP
-- **完整评估体系**：95%置信区间、ROC曲线、混淆矩阵、敏感度/特异度分析
-- **PDF 诊断报告**：自动生成含模型性能指标与评估图表的结构化报告
-- **实时状态反馈**：预处理 / 训练 / 预测三阶段 Chip 状态栏，进度一目了然
+> **Disclaimer**: This software is intended for academic research and scientific experimentation only. It is not a medical device, and its results must not be used as the basis for clinical diagnosis. For any medical decisions, please consult a licensed physician.
 
 ---
 
-## 🔧 环境配置
+## 📖 Overview
 
-### 系统要求
+DETEQX is an end-to-end mass spectrometry data analysis system, originally designed for early hepatocellular carcinoma (HCC) screening but applicable to any disease classification task. The system analyzes SALDI mass spectrometry data from serum samples (0–1000 m/z range), leverages lipid fingerprint features to build machine learning classification models, and intelligently distinguishes cancer samples from normal ones.
+
+### Core Capabilities
+
+- **Intelligent Peak Detection**: Integrated pyOpenMS professional mass spectrometry analysis for automatic discovery and selection of optimal feature peaks
+- **Sample-Level Normalization**: Supports Max / Sum / Median normalization methods to eliminate technical variation
+- **Rigorous Cross-Validation**: RepeatedStratifiedKFold (5-fold × 20 repeats), designed in accordance with medical AI standards
+- **Multi-Algorithm Support**: PLS, Random Forest, SVM, LDA, Logistic Regression, MLP
+- **Comprehensive Evaluation**: 95% confidence intervals, ROC curves, confusion matrices, sensitivity/specificity analysis
+- **PDF Diagnostic Reports**: Auto-generated structured reports with model performance metrics and evaluation charts
+- **Real-Time Status Feedback**: Three-phase chip status bar (Preprocessing / Training / Prediction) for at-a-glance progress
+
+---
+
+## 🔧 Environment Setup
+
+### System Requirements
 
 - **Python**: 3.8+
-- **操作系统**: Windows / macOS / Linux
-- **内存**: 建议 4GB+
+- **Operating System**: Windows / macOS / Linux
+- **Memory**: 4 GB+ recommended
 
-### 依赖安装
+### Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 核心依赖
+### Core Dependencies
 
 ```
 numpy >= 1.21.0
@@ -52,255 +52,271 @@ matplotlib >= 3.5.0
 customtkinter >= 5.0.0
 pyopenms >= 3.0.0
 joblib >= 1.1.0
-pillow >= 9.0.0          # 登录界面图片显示
+pillow >= 9.0.0          # Login screen image display
 ```
 
 ---
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
 ```bash
 python main.py
 ```
 
-### 标准工作流程
+### Standard Workflow
 
 ```
-┌─────────────────┐
-│  1. 数据预处理   │  选择原始质谱文件夹 → 分类 → 选择归一化方法
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│  2. 特征提取     │  pyOpenMS峰发现 → 共识峰筛选 → 构建特征矩阵
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│  3. 模型训练     │  选择算法 → 5×20交叉验证 → 保存最优模型
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│  4. 性能评估     │  ROC曲线 / 混淆矩阵 / 95%CI / 敏感度特异度
-└────────┬────────┘
-         ↓
-┌─────────────────┐
-│  5. 样本预测     │  加载新样本 → 自动归一化 → 输出分类结果
-└─────────────────┘
+┌──────────────────────┐
+│  1. Data Preprocessing│  Select raw spectra folder → Classify → Choose normalization method
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│  2. Feature Extraction│  pyOpenMS peak detection → Consensus peak filtering → Build feature matrix
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│  3. Model Training    │  Select algorithm → 5×20 cross-validation → Save best model
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│  4. Performance Eval  │  ROC curve / Confusion matrix / 95% CI / Sensitivity & Specificity
+└──────────┬───────────┘
+           ↓
+┌──────────────────────┐
+│  5. Sample Prediction │  Load new samples → Auto-normalize → Output classification results
+└──────────────────────┘
 ```
 
 ---
 
-## 📁 项目架构
+## 📁 Project Structure
 
 ```
 DETEQX/
 ├── src/
 │   │
-│   │  # ===== 核心模块 =====
-│   ├── main.py                    # 程序入口，主界面管理 (MainGUIManager)
-│   ├── config.py                  # 全局配置参数
-│   ├── data_store.py              # 运行时数据仓库 + ClassMappingManager
+│   │  # ===== Core Modules =====
+│   ├── main.py                    # Entry point, main interface manager (MainGUIManager)
+│   ├── config.py                  # Global configuration parameters
+│   ├── data_store.py              # Runtime data store + ClassMappingManager
 │   │
-│   │  # ===== 数据处理 =====
-│   ├── data_preprocessor.py       # 数据预处理核心（峰发现+归一化）
-│   ├── data_processing.py         # 数据加载 + FeatureDetector
+│   │  # ===== Data Processing =====
+│   ├── data_preprocessor.py       # Core data preprocessing (peak detection + normalization)
+│   ├── data_processing.py         # Data loading + FeatureDetector
 │   │
-│   │  # ===== 机器学习 =====
-│   ├── model_training.py          # 模型训练引擎
-│   ├── model_predictor.py         # 样本预测管理
+│   │  # ===== Machine Learning =====
+│   ├── model_training.py          # Model training engine
+│   ├── model_predictor.py         # Sample prediction manager
 │   │
-│   │  # ===== 界面组件 =====
-│   ├── ui_components.py           # GUI组件库（各类Panel）
-│   ├── help_system.py             # 帮助系统与用户向导
-│   ├── visualization.py           # 图表生成（含95%CI）
-│   ├── print_manager.py           # 诊断报告打印
+│   │  # ===== UI Components =====
+│   ├── ui_components.py           # GUI component library (various Panels)
+│   ├── help_system.py             # Help system and user wizard
+│   ├── visualization.py           # Chart generation (including 95% CI)
+│   ├── print_manager.py           # Diagnostic report printing
 │   │
-│   │  # ===== 项目管理 =====
-│   ├── project_manager.py         # 多项目管理（创建/切换/删除）
-│   ├── output_manager.py          # 输出文件管理
+│   │  # ===== Project Management =====
+│   ├── project_manager.py         # Multi-project management (create/switch/delete)
+│   ├── output_manager.py          # Output file management
 │   │
-│   │  # ===== 辅助模块 =====
-│   ├── login_system.py            # 登录界面（演示用，无实际验证）
-│   ├── parameter_tuning_window.py # 模型参数调优窗口
-│   ├── automated_workflow.py      # 自动化工作流（一键预处理→训练→预测）
-│   ├── validation_decorators.py   # 验证装饰器
-│   └── utils.py                   # 工具函数
+│   │  # ===== Utility Modules =====
+│   ├── login_system.py            # Login screen (demo only, no real authentication)
+│   ├── parameter_tuning_window.py # Model hyperparameter tuning window
+│   ├── automated_workflow.py      # Automated workflow (one-click: preprocess → train → predict)
+│   ├── validation_decorators.py   # Validation decorators
+│   └── utils.py                   # Utility functions
 │
-├── outputs/                       # 输出目录（按项目隔离）
+├── outputs/                       # Output directory (isolated per project)
 │   └── {project_name}/
-│       ├── data/                  # 处理后的特征矩阵
-│       ├── models/                # 训练好的模型文件
-│       ├── metrics/               # 评估指标数据（每次训练 .json）
-│       └── charts/                # 可视化图表
-│           └── {model_stem}/      # 与模型同名的独立目录（永久绑定）
+│       ├── data/                  # Processed feature matrices
+│       ├── models/                # Trained model files
+│       ├── metrics/               # Evaluation metric data (per-training .json)
+│       └── charts/                # Visualization charts
+│           └── {model_stem}/      # Dedicated directory named after the model (permanently bound)
 │
-├── assets/                        # 图标资源
+├── assets/                        # Icon assets
 ├── requirements.txt
 ├── readme.md
 ├── README_EN.md
 └── THIRD_PARTY_LICENSES.txt
 ```
 
-### 核心模块职责
+### Core Module Responsibilities
 
-| 模块                           | 职责                                    | 关键类/函数                                               |
-| ---------------------------- | ------------------------------------- | ---------------------------------------------------- |
-| `data_preprocessor.py`       | 峰发现、归一化、特征矩阵构建                        | `DataPreprocessor`, `NormalizationManager`           |
-| `data_processing.py`         | 数据加载、预测样本处理                           | `FeatureDetector`, `open_data_file()`                |
-| `data_store.py`              | 全局状态管理、类别映射                           | `ClassMappingManager` (单例)                           |
-| `model_training.py`          | 交叉验证训练、保存 model bundle + metrics JSON | `ModelTrainer`, `train_model()`                      |
-| `model_predictor.py`         | 样本预测、结果格式化                            | `PredictionManager`                                  |
-| `visualization.py`           | 图表生成、性能指标计算，图表存入模型同名子目录               | `MetricsCalculator`, `generate_performance_charts()` |
-| `print_manager.py`           | PDF 诊断报告生成（ReportLab Platypus）        | `PrintManager`                                       |
-| `project_manager.py`         | 多项目管理                                 | `ProjectManager`, `ProjectCreationWizard`            |
-| `parameter_tuning_window.py` | 模型超参数调整                               | `ParameterTuningWindow`                              |
+| Module                       | Responsibility                                                                             | Key Classes / Functions                              |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `data_preprocessor.py`       | Peak detection, normalization, feature matrix construction                                 | `DataPreprocessor`, `NormalizationManager`           |
+| `data_processing.py`         | Data loading, prediction sample processing                                                 | `FeatureDetector`, `open_data_file()`                |
+| `data_store.py`              | Global state management, class mapping                                                     | `ClassMappingManager` (singleton)                    |
+| `model_training.py`          | Cross-validation training, save model bundle + metrics JSON                                | `ModelTrainer`, `train_model()`                      |
+| `model_predictor.py`         | Sample prediction, result formatting                                                       | `PredictionManager`                                  |
+| `visualization.py`           | Chart generation, performance metric calculation; charts saved in model-named subdirectory | `MetricsCalculator`, `generate_performance_charts()` |
+| `print_manager.py`           | PDF diagnostic report generation (ReportLab Platypus)                                      | `PrintManager`                                       |
+| `project_manager.py`         | Multi-project management                                                                   | `ProjectManager`, `ProjectCreationWizard`            |
+| `parameter_tuning_window.py` | Model hyperparameter adjustment                                                            | `ParameterTuningWindow`                              |
 
-### 辅助模块说明
+### Auxiliary Module Notes
 
-| 模块                              | 说明                  | 状态        |
-| ------------------------------- | ------------------- | --------- |
-| `login_system.py`               | 演示用登录界面，任意输入可通过     | × 计划删除    |
-| `automated_workflow.py`         | 一键完成预处理→训练→预测的自动化流程 | ✅ 可用      |
-| `consensus_peak_diagnostics.py` | 共识峰诊断调试脚本           | 🔧 已调整为可用 |
-
----
-
-## ⚙️ 配置参数
-
-### 特征选择参数 (`config.py`)
-
-```python
-MAX_FEATURES = 50           # 最大特征数量
-MIN_OCCURRENCE_RATE = 0.5   # 最小出现频率（50%样本中出现）
-MIN_FOLD_CHANGE = 1.3       # 最小倍数变化（30%强度差异）
-MZ_TOLERANCE = 0.2          # m/z匹配容差
-```
-
-### 交叉验证配置
-
-```python
-CV_SPLITS = 5               # 5折交叉验证
-CV_REPEATS = 20             # 重复20次
-CV_RANDOM_STATE = 42        # 随机种子（可复现）
-# 总训练次数: 5 × 20 = 100
-```
-
-### 支持的模型
-
-| 模型                         | 配置               | 适用场景         |
-| -------------------------- | ---------------- | ------------ |
-| **PLSRegression** (默认)     | n_components=4   | 质谱数据首选，高维小样本 |
-| RandomForestClassifier     | n_estimators=250 | 大数据集，稳定性优先   |
-| LinearSVC                  | max_iter=5000    | 线性可分数据       |
-| LinearDiscriminantAnalysis | shrinkage='auto' | 降维+分类        |
-| LogisticRegressionCV       | Cs=20, cv=5      | 小数据集，可解释性    |
-| MLPClassifier              | hidden=(100,)    | 复杂非线性模式      |
-
-> 💡 可通过菜单栏"参数调优"窗口修改模型超参数
+| Module                          | Description                                                | Status              |
+| ------------------------------- | ---------------------------------------------------------- | ------------------- |
+| `login_system.py`               | Demo login screen; any input is accepted                   | × Planned removal   |
+| `automated_workflow.py`         | One-click automated pipeline: preprocess → train → predict | ✅ Available         |
+| `consensus_peak_diagnostics.py` | Consensus peak diagnostic/debug script                     | 🔧 Adjusted, usable |
 
 ---
 
-## 🔬 技术要点
+## ⚙️ Configuration
 
-### 1. 归一化架构 (v1.9.8+)
+### Feature Selection Parameters (`config.py`)
 
-**设计原则**：样本级归一化（within-sample），非跨样本操作，无数据泄露风险。
+```python
+MAX_FEATURES = 50           # Maximum features (truncation ceiling)
+MAX_MISSING_RATE = 0.5      # Maximum missing rate (peaks missing in >50% of samples are discarded)
+MIN_FOLD_CHANGE = 1.3       # Minimum fold change (intersected with MW-U; computed in log₂ domain)
+MZ_TOLERANCE = 0.2          # m/z matching tolerance (prediction-side feature alignment)
+
+# Added in v1.15.x
+LOG_TRANSFORM = True        # log₂(x+1) transform toggle
+SCALING_METHOD = 'pareto'   # Scaling method: 'pareto' or None
+P_VALUE_THRESHOLD = 0.05    # Mann-Whitney U significance threshold
+FDR_CORRECTION = False      # BH-FDR correction toggle (too conservative for small-sample / high-feature settings; off by default)
+```
+
+### Cross-Validation Configuration
+
+```python
+CV_SPLITS = 5               # 5-fold cross-validation
+CV_REPEATS = 20             # 20 repeats
+CV_RANDOM_STATE = 42        # Random seed (reproducible)
+# Total training iterations: 5 × 20 = 100
+```
+
+### Supported Models
+
+| Model                       | Configuration    | Best Use Case                                                            |
+| --------------------------- | ---------------- | ------------------------------------------------------------------------ |
+| **PLSRegression** (default) | n_components=4   | First choice for mass spec data; high-dimensional, small-sample settings |
+| RandomForestClassifier      | n_estimators=250 | Large datasets, stability-first                                          |
+| LinearSVC                   | max_iter=5000    | Linearly separable data                                                  |
+| LinearDiscriminantAnalysis  | shrinkage='auto' | Dimensionality reduction + classification                                |
+| LogisticRegressionCV        | Cs=20, cv=5      | Small datasets, interpretability                                         |
+| MLPClassifier               | hidden=(100,)    | Complex non-linear patterns                                              |
+
+> 💡 Model hyperparameters can be modified via the "Parameter Tuning" window in the menu bar.
+
+---
+
+## 🔬 Technical Details
+
+### 1. Preprocessing Pipeline SOP (v1.15.x)
+
+**Standard metabolomics SOP — four-phase pipeline**:
 
 ```
-原始质谱数据
+Phase 1: Peak detection + collect normalization statistics (do not apply normalization)
      ↓
-峰发现（pyOpenMS）
+Phase 2: 0.2 Da greedy-clustering alignment → full consensus peak candidate pool
      ↓
-收集统计特征 {max, sum, median}
+Phase 3: Discard peaks missing in >50% of all samples
      ↓
-应用归一化: intensity_norm = intensity_raw / stat_value
-     ↓
-特征选择 → 矩阵构建
+Phase 4: Numerical matrix construction
+         → Half-minimum missing value imputation
+         → Within-sample normalization (max / sum / median)
+         → log₂(x+1) transformation
+         → Mann-Whitney U feature selection (p < 0.05, truncated to top 50)
+         → Pareto scaling
+         → Output feature matrix
 ```
 
-**归一化方法对比**：
+**Normalization Method Comparison**:
 
-| 方法           | 公式            | 特点             |
-| ------------ | ------------- | -------------- |
-| **max** (推荐) | I / I_max     | 保持相对强度，范围[0,1] |
-| sum (TIC)    | I / Σ(I)      | 消除进样量差异        |
-| median       | I / median(I) | 对极端值稳健         |
+| Method                | Formula       | Characteristics                            |
+| --------------------- | ------------- | ------------------------------------------ |
+| **max** (recommended) | I / I_max     | Preserves relative intensity; range [0, 1] |
+| sum (TIC)             | I / Σ(I)      | Eliminates injection volume variation      |
+| median                | I / median(I) | Robust to outliers                         |
 
-**预测时归一化**：归一化方法随模型一起打包保存于 model bundle（v1.11.7+），预测时直接读取，无需依赖文件名或训练 CSV。
+**Prediction-time transform chain**: The normalization method, log₂ toggle, Pareto scaling parameters (per-feature mean and std vectors), and half-min imputation values are all bundled with the model (v1.15.10+). The full transform chain is automatically reproduced at prediction time — no dependency on training CSV files.
 
-### 2. 交叉验证方法 (v1.9.7+)
+### 2. Cross-Validation Method (v1.9.7+)
 
-**从 Monte Carlo 升级为 RepeatedStratifiedKFold**：
+**Upgraded from Monte Carlo to RepeatedStratifiedKFold**:
 
-| 对比项    | 旧方法 (v1.9.6) | 新方法 (v1.9.7+)           |
-| ------ | ------------ | ----------------------- |
-| 方式     | 500次随机采样     | 5折×20重复                 |
-| 样本测试次数 | 不均匀          | 每样本恰好20次                |
-| 方差估计   | 可能低估         | 无偏估计                    |
-| 计算时间   | 基准           | ~20%基准                  |
-| 符合标准   | -            | FDA/NMPA, Nature/Lancet |
+| Criterion           | Old Method (v1.9.6)        | New Method (v1.9.7+)        |
+| ------------------- | -------------------------- | --------------------------- |
+| Approach            | 500 random samples         | 5-fold × 20 repeats         |
+| Test count/sample   | Uneven                     | Exactly 20 times per sample |
+| Variance estimate   | Potentially underestimated | Unbiased estimate           |
+| Computation time    | Baseline                   | ~20% of baseline            |
+| Standard compliance | —                          | FDA/NMPA, Nature/Lancet     |
 
-### 3. 类别映射管理 (v1.9.9+)
+### 3. Class Mapping Management (v1.9.9+)
 
-**统一使用 `ClassMappingManager` 单例**：
+**Unified `ClassMappingManager` singleton**:
 
 ```python
 from data_store import class_manager
 
-# 读取
+# Read
 class_manager.class_0_name      # 'HCC'
 class_manager.class_1_name      # 'Normal'
 class_manager.names             # ('HCC', 'Normal')
 
-# 编码/解码
+# Encode / Decode
 class_manager.encode('HCC')     # 0
 class_manager.decode(0)         # 'HCC'
 
-# 设置
+# Set
 class_manager.set_names('HCC', 'Normal')
 ```
 
-### 4. 可视化与统计 (v1.9.5+)
+### 4. Visualization & Statistics (v1.9.5+)
 
-**MetricsCalculator 统一计算所有指标**，避免重复计算：
+**`MetricsCalculator` computes all metrics in one place** to avoid redundant calculations:
 
-- 所有图表包含 **95%置信区间**（t分布）
-- 性能指标表格输出为 CSV（便于复制）
-- `MetricsTable.csv` 中 Sensitivity/Specificity 行标签绑定实际类别名（如 `Sensitivity – HCC`），避免类别互换时产生歧义（v1.11.8+）
-- 图表存储：每次训练生成独立子目录 `charts/{ModelType}_{timestamp}/`，与模型文件永久绑定，后续训练不覆盖旧图表（v1.12.5+）
+- All charts include **95% confidence intervals** (t-distribution)
+- Performance metric tables are exported as CSV for easy copying
+- Sensitivity/Specificity row labels in `MetricsTable.csv` are bound to actual class names (e.g., `Sensitivity – HCC`), eliminating ambiguity when classes are swapped (v1.11.8+)
+- Chart storage: each training run creates its own subdirectory `charts/{ModelType}_{timestamp}/`, permanently bound to the model file — subsequent training runs do not overwrite previous charts (v1.12.5+)
 
-### 5. 多项目管理
+### 5. Multi-Project Management
 
-**ProjectManager 支持**：
+**`ProjectManager` supports**:
 
-- 创建/删除/切换项目
-- 每个项目独立的输出目录
-- 项目描述和元信息管理
+- Creating, deleting, and switching between projects
+- Independent output directories per project
+- Project description and metadata management
 
-### 6. Model Bundle 格式 (v1.11.7+)
+### 6. Model Bundle Format (v1.11.7+)
 
-模型保存为 dict bundle，包含预测所需的全部元数据：
+Models are saved as a dict bundle containing all metadata required for prediction:
 
 ```python
 model_bundle = {
-    "model":                sklearn 模型对象,
-    "training_features":    训练特征 m/z 列表（用于预测时特征对齐）,
+    "model":                sklearn model object,
+    "training_features":    list of training feature m/z values (for feature alignment at prediction time),
     "normalization_method": 'max' / 'sum' / 'median' / None,
-    "pls_threshold":        PLS 决策阈值均值（仅 PLS 模型）,
+    "pls_threshold":        mean PLS decision threshold (PLS models only),
+    # Added in v1.15.10: prediction-side transform chain parameters
+    "log_transform":        True / False,
+    "scaling_method":       'pareto' / None,
+    "pareto_means":         [per-feature mean, ...],    # Pareto scaling training parameters
+    "pareto_stds":          [per-feature std, ...],
+    "half_min_values":      {"mz_string": half_min_value, ...},
 }
 ```
 
-跨会话、自动化流程、切换模型后均可直接预测，不再依赖训练 CSV 文件。旧格式（纯 sklearn 对象）不再兼容，加载时明确报错。
+Predictions can be made directly across sessions, automated pipelines, and model switches — no longer dependent on the training CSV file. Older bundles (missing v1.15.10 keys) are backward compatible: they load without error and fall back to normalization-only behavior.
 
-### 7. 训练指标文件格式 (v1.11.9+)
+### 7. Training Metrics File Format (v1.11.9+)
 
-每次训练生成 `metrics/{ModelType}_{timestamp}.json`，与模型文件同名同戳：
+Each training run generates `metrics/{ModelType}_{timestamp}.json`, matching the model file name and timestamp:
 
 ```json
 {
   "meta": {
     "model": "PLSRegression",
     "timestamp": "20260321_1805",
-    "cv": "5折×20次重复 (100次迭代)",
+    "cv": "5-fold × 20 repeats (100 iterations)",
     "n_samples": 19,
     "class_names": ["HCC", "Normal"],
     "threshold_strategy": "Youden's J"
@@ -313,37 +329,37 @@ model_bundle = {
 }
 ```
 
-历史数据永不覆盖，JSON 可直接查阅。
+Historical data is never overwritten; JSON files can be inspected directly.
 
-### 8. PDF 诊断报告 (v1.12.2+)
+### 8. PDF Diagnostic Report (v1.12.2+)
 
-使用 ReportLab Platypus 布局引擎生成结构化报告：
+Structured reports generated using the ReportLab Platypus layout engine:
 
-- **内容**：病人信息表格、预测结果、模型性能指标（AUC/灵敏度/特异度/F1，含 95% CI）、评估图表（ROC 曲线 + 混淆矩阵并排）
-- **图表绑定**：从 metrics JSON 反推 `charts/{stem}/` 路径，确保报告图表与模型一一对应
-- **预览**：生成临时 PDF 后调起系统默认阅读器，所见即所得
-- **免责声明**：报告末尾自动追加"仅供临床参考，不得作为诊断依据"声明
+- **Contents**: Patient information table, prediction results, model performance metrics (AUC / Sensitivity / Specificity / F1 with 95% CI), evaluation charts (ROC curve + confusion matrix side by side)
+- **Chart binding**: Resolves `charts/{stem}/` path from the metrics JSON to ensure a one-to-one correspondence between report charts and model
+- **Preview**: Generates a temporary PDF and opens it with the system default PDF reader — WYSIWYG
+- **Disclaimer**: A "For clinical reference only; not to be used as a diagnostic basis" statement is automatically appended at the end of every report
 
-### 9. 首次启动免责声明 (v1.13.1+)
+### 9. First-Launch Disclaimer (v1.13.1+)
 
-首次运行时强制弹出使用须知，用户勾选同意后方可继续：
+A mandatory usage notice is displayed on first launch; users must check the agreement checkbox to proceed:
 
-- 同意记录以 **HMAC-SHA256** 签名，存入 `help_config.json` 的 `_ev` 字段
-- 记录绑定机器 hostname，手动篡改任意字段后签名校验失败，下次启动重新弹出
-- 已同意的机器后续打开向导时不再显示须知 tab
+- The agreement record is signed with **HMAC-SHA256** and stored in the `_ev` field of `help_config.json`
+- The record is bound to the machine's hostname; manually tampering with any field causes signature verification to fail and the notice to reappear on the next launch
+- Machines that have already accepted the notice will not see the notice tab again when the wizard opens
 
 ---
 
-## 📊 输出文件
+## 📊 Output Files
 
-### 数据文件
+### Data Files
 
 ```
 outputs/{project}/data/
-└── data_{method}.csv          # 特征矩阵（method: max/sum/median/raw）
+└── data_{method}.csv          # Feature matrix (method: max / sum / median / raw)
 ```
 
-**CSV结构**：
+**CSV structure**:
 
 ```
 m/z_123.45, m/z_234.56, ..., label
@@ -351,156 +367,173 @@ m/z_123.45, m/z_234.56, ..., label
 0.12,       0.67,       ..., Normal
 ```
 
-### 模型文件
+### Model Files
 
 ```
 outputs/{project}/models/
-└── {ModelType}_{timestamp}.joblib    # 如 PLSRegression_20251201_143022.joblib
+└── {ModelType}_{timestamp}.joblib    # e.g. PLSRegression_20251201_143022.joblib
 ```
 
-### 评估图表
+### Evaluation Charts
 
 ```
 outputs/{project}/charts/
-└── {ModelType}_{timestamp}/          # 每次训练独立目录，与模型文件同名
-    ├── ClassPerformance.png          # Sensitivity/Specificity/Precision 小提琴图
-    ├── BalanceMetrics.png            # F1-Score/MCC 小提琴图
-    ├── ConfusionMatrix.png           # 平均混淆矩阵
-    ├── ROC_Curve.png                 # ROC曲线（含AUC±CI）
-    ├── MetricsTable.csv              # 性能指标汇总表（含类别标签）
-    └── PLS_Thresholds.png            # PLS阈值分布（仅PLS模型）
+└── {ModelType}_{timestamp}/          # Independent directory per training run, named after model file
+    ├── ClassPerformance.png          # Sensitivity / Specificity / Precision violin plots
+    ├── BalanceMetrics.png            # F1-Score / MCC violin plots
+    ├── ConfusionMatrix.png           # Averaged confusion matrix
+    ├── ROC_Curve.png                 # ROC curve (with AUC ± CI)
+    ├── MetricsTable.csv              # Performance metrics summary table (with class labels)
+    └── PLS_Thresholds.png            # PLS threshold distribution (PLS models only)
 ```
 
 ---
 
-## 🔄 版本历史
+## 🔄 Version History
 
-### v1.13.x (2026-03) 合规安全
+### v1.15.x (2026-04 to 06) ⭐ Preprocessing SOP Refactor
 
-- **首次启动免责声明**：强制弹出使用须知，HMAC-SHA256 签名防篡改，记录绑定机器 hostname
-- 向导弹窗尺寸扩大（750×600），措辞调整（"筛查"→"分析"，"符合"→"参考"）
+- **Four-phase pipeline refactor** (v1.15.1–1.15.3): Reorganized three-phase pipeline into four phases following standard metabolomics SOP. Normalization moved downstream to after matrix construction. Phase 2 now outputs a complete consensus peak candidate pool; Phase 3 independently handles filtering. All-sample missing rate >50% replaces the legacy per-class occurrence rate + ml_score hard cutoff.
+- **Post-processing chain completed** (v1.15.4–1.15.6): Added half-minimum missing value imputation, greedy clustering alignment (eliminates fixed-bin boundary effects), log₂(x+1) transformation, and Pareto scaling. Fixed GUI freeze during normalization (row-wise `.loc` assignment → `DataFrame.div` broadcast).
+- **Mann-Whitney U feature selection** (v1.15.7): Replaced fold-change placeholder with MW-U + BH-FDR statistical testing. Known external validation bug remains (pending fix).
+- **Fixed BH-FDR over-conservatism in small-sample settings** (v1.15.9): Batch 2 high-density data (2,076 features, ~52 samples) yielded all adjusted p = 1.0 after BH correction. Switched to raw p < 0.05 + MAX_FEATURES truncation; batch 2 AUC improved from 0.818 → 0.974.
+- **Prediction-side transform chain synchronized** (v1.15.10): Pareto means/stds, half-min values, and log₂ toggle are now bundled with the model. The full training transform chain is automatically reproduced at prediction time. Old-format bundles are backward compatible.
 
-### v1.12.x (2026-03) ⭐ 诊断报告重构
+### v1.14.x (2026-04) — Bilingual Help Wizard
 
-- **PDF 报告全面升级**：从 `canvas.drawString` 迁移至 ReportLab Platypus，支持表格、图表嵌入、自动分页
-- **模型性能指标入报告**：AUC / 灵敏度 / 特异度 / F1（含 95% CI）自动写入"模型信息"节
-- **预览改为真实 PDF**：生成临时文件后调起系统 PDF 阅读器，所见即所得
-- **图表存储架构重构**：`charts/latest` + `archive/` → `charts/{model_stem}/`，图表与模型永久绑定
-- 病人信息区域改为表格布局；标题行加入应用图标；末尾追加免责声明
-- 打印勾选项根据 `data_store` 当前数据自动设置默认状态
-- 修复自动化工作流加载数据少一个样本的 Bug
+- **Help wizard language toggle**: Added `🌐中/EN` button to the menu bar. Clicking it switches the entire help wizard (all 5 tabs) between Chinese and English. Language state is maintained by `HelpSystem.lang`.
 
-### v1.11.x (2026-03) 稳定性与架构
+### v1.13.x (2026-03) — Compliance & Security
 
-- **Model Bundle 格式**：模型保存为包含特征列表、归一化方法、PLS 阈值的 dict，跨会话预测不再依赖训练 CSV
-- **训练指标改为 JSON**：6 个分散文件合并为单个 `{stem}.json`，含具名混淆矩阵与元数据
-- **启动体验优化**：`-alpha=0` 方案消除逐步渲染；新增卡片式闪屏；修复高 DPI 子窗口居中偏移
-- Sensitivity/Specificity 标签绑定实际类别名，消除类别互换歧义
-- 修复面板宽度被长文字撑开的布局问题
-- 修复切换模型后特征缓存不刷新导致预测静默出错的 Bug
+- **First-launch disclaimer**: Mandatory usage notice with HMAC-SHA256 tamper-proof signing, bound to machine hostname
+- Wizard window enlarged (750×600); wording adjustments ("screening" → "analysis", "compliant with" → "reference to")
 
-### v1.10.x (2026-03) ⭐ 状态栏重构
+### v1.12.x (2026-03) ⭐ Diagnostic Report Overhaul
 
-- **新增三状态 Chip 栏**：预处理 / 训练 / 预测各有独立状态指示（○等待 / ◐进行中 / ✓完成 / ✗失败 / ◼已终止）
-- 自动化工作流适配回调机制，替代原轮询逻辑，修复 chip 不更新问题
-- 「开始训练」按钮防重入保护，操作期间自动禁用
+- **Full PDF report upgrade**: Migrated from `canvas.drawString` to ReportLab Platypus; supports tables, embedded charts, and automatic page breaks
+- **Model performance metrics added to report**: AUC / Sensitivity / Specificity / F1 (with 95% CI) automatically written into the "Model Information" section
+- **Preview now uses real PDF**: Generates a temporary file and opens it in the system PDF reader — WYSIWYG
+- **Chart storage architecture refactored**: `charts/latest` + `archive/` → `charts/{model_stem}/`; charts are permanently bound to their model
+- Patient information section redesigned as a table layout; app icon added to title row; disclaimer appended at the end
+- Print checkbox defaults automatically set based on current data in `data_store`
+- Fixed a bug in the automated workflow that caused one sample to be missing during data loading
+
+### v1.11.x (2026-03) — Stability & Architecture
+
+- **Model Bundle format**: Models now saved as a dict containing feature list, normalization method, and PLS threshold; cross-session prediction no longer depends on training CSV
+- **Training metrics converted to JSON**: 6 separate files consolidated into a single `{stem}.json` with named confusion matrices and metadata
+- **Startup experience improved**: `-alpha=0` approach eliminates incremental rendering; new card-style splash screen added; fixed high-DPI child window centering offset
+- Sensitivity/Specificity labels bound to actual class names, eliminating class-swap ambiguity
+- Fixed layout issue where long text caused panel width to expand unexpectedly
+- Fixed a silent prediction error caused by stale feature cache after model switching
+
+### v1.10.x (2026-03) ⭐ Status Bar Overhaul
+
+- **New three-state chip bar**: Independent status indicators for Preprocessing / Training / Prediction (○ Waiting / ◐ In Progress / ✓ Complete / ✗ Failed / ◼ Aborted)
+- Automated workflow adapted to callback mechanism, replacing polling logic; fixed chip not updating
+- "Start Training" button protected against re-entry; automatically disabled during operation
 
 ### v1.9.12.x (2026-03)
 
-- 自动化工作流级联更新，正式可用
-- 菜单栏改用 Unicode 图标，单一功能项减少点击层级
-- 新增「关于 DETEQX」对话框
-- 可视化面板空状态占位符
-- 项目命名支持更多字符，新增「+ 日期」快捷按钮
-- 帮助向导内容更新（修正 CSV 文件名、交叉验证轮数描述）
+- Automated workflow cascade updates; officially usable
+- Menu bar updated with Unicode icons; single-function items require fewer clicks
+- Added "About DETEQX" dialog
+- Visualization panel empty-state placeholder
+- Project naming supports more characters; added "＋ Date" shortcut button
+- Help wizard content updated (corrected CSV filename and cross-validation iteration count descriptions)
 
 ### v1.9.11 (2026-02)
 
-- 代码精简：删除未使用 import 6 处、未使用函数/方法 38 个，减少约 500 行
+- Code cleanup: removed 6 unused imports, 38 unused functions/methods; reduced codebase by ~500 lines
 
 ### v1.9.10.x (2025-12)
 
-- 修复 ROC 曲线使用硬标签的 Bug（改用连续分数）
-- 合并 `feature_detector.py` 到 `data_processing.py`
-- 统一 `normalization_method` 命名规范
+- Fixed ROC curve bug that used hard labels (switched to continuous probability scores)
+- Merged `feature_detector.py` into `data_processing.py`
+- Unified `normalization_method` naming convention
 
 ### v1.9.9 (2025-11)
 
-- 引入 `ClassMappingManager` 集中管理类别映射
-- 新增菜单栏"类别设置"对话框
+- Introduced `ClassMappingManager` for centralized class mapping management
+- Added "Class Settings" dialog to the menu bar
 
-### v1.9.8.x (2025-11) ⭐ 重大更新
+### v1.9.8.x (2025-11) ⭐ Major Update
 
-- **归一化架构重构**：样本级归一化，支持 max/sum/median
-- **新增 Max 归一化**：性能优于 TIC，成为默认方法
-- **图表归档系统**（已被 v1.12.5 取代）
+- **Normalization architecture refactored**: Sample-level normalization; supports max / sum / median
+- **Added Max normalization**: Outperforms TIC; set as the default method
+- **Chart archiving system** (superseded by v1.12.5)
 
-### v1.9.7 (2025-11) ⭐ 重大更新
+### v1.9.7 (2025-11) ⭐ Major Update
 
-- **交叉验证升级**：Monte Carlo → RepeatedStratifiedKFold
-- 训练次数从 500 降至 100，统计可靠性反而提升
-- 新增 95%CI 报告
+- **Cross-validation upgraded**: Monte Carlo → RepeatedStratifiedKFold
+- Training iterations reduced from 500 to 100 while statistical reliability improved
+- Added 95% CI reporting
 
 ### v1.9.5.x (2025-10)
 
-- 可视化模块重构，引入 `MetricsCalculator`
-- 所有图表增加 95%置信区间显示
-- 性能提升约 37.5%
+- Visualization module refactored; introduced `MetricsCalculator`
+- All charts now display 95% confidence intervals
+- ~37.5% performance improvement
 
 ---
 
-## 📝 开发备忘
+## 📝 Development Notes
 
-### 若要添加新功能
+### Adding New Features
 
-1. **UI 功能**：在 `ui_components.py` 创建新 Panel 类
-2. **业务逻辑**：创建新 Manager 类
-3. **数据操作**：在 `data_store.py` 添加管理函数
-4. **配置参数**：在 `config.py` 添加常量
+1. **UI features**: Create a new Panel class in `ui_components.py`
+2. **Business logic**: Create a new Manager class
+3. **Data operations**: Add management functions in `data_store.py`
+4. **Configuration parameters**: Add constants in `config.py`
 
-### 关键设计模式
+### Key Design Patterns
 
-- **中介者模式**：`MainGUIManager` 协调所有组件
-- **单例模式**：`data_store`, `class_manager`, `output_manager`
-- **装饰器模式**：`validation_decorators.py` 统一错误处理
+- **Mediator pattern**: `MainGUIManager` coordinates all components
+- **Singleton pattern**: `data_store`, `class_manager`, `output_manager`
+- **Decorator pattern**: `validation_decorators.py` for unified error handling
 
-### 日志记录
+### Logging
 
 ```python
 from utils import log_message
-log_message("操作成功", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
+log_message("Operation succeeded", "SUCCESS")  # INFO, SUCCESS, WARNING, ERROR
 ```
 
-### 已知限制
+---
 
-- **UI 线程阻塞**：预处理、训练均在主线程运行，小样本场景（20~40 个）通过增密 `root.update()` 缓解，大数据集或低性能设备仍可能卡顿；根本解决方案为 `threading.Thread` + 消息队列
-- **参数配置不持久化**：`parameter_tuning_window.py` 的超参数修改重启后重置，演示场景影响不大
-- **批次效应**：跨批次样本验证显示约 10% 精度下降，属科学问题，取决于后续数据
+### Known Limitations
+
+- **UI thread blocking**: Preprocessing and training both run on the main thread. For small datasets (20–40 samples), frequent `root.update()` calls mitigate this; large datasets or low-performance devices may still experience freezing. The fundamental fix is `threading.Thread` + a message queue.
+- **External validation bug**: The Mann-Whitney U feature filtering introduced in v1.15.7 has a known bug when used in external validation mode; pending fix.
+- **Hyperparameters are not persisted**: Changes made in `parameter_tuning_window.py` reset on restart. Impact is minimal for demo scenarios.
+- **Batch effects**: Cross-batch sample validation shows approximately 10% accuracy degradation — a scientific problem that depends on future data collection.
 
 ---
 
-## 🗂️ 设计决策记录
+---
 
-### 归一化方案选择
+## 🗂️ Design Decision Records
 
-早期调研过 PQN（概率商归一化）+ QC 样本方案，该方案对批次效应更稳健：每批采集中插入混合 QC 样本，以训练集 QC 的中位数谱为参考，外部验证时用 QC 信号漂移校正批次差异。
+### Normalization Method Selection
 
-但该方案要求实验层面的配合——每 10 个样本插入 1 个 QC、QC 样本全程用同一批次冻存——现有数据不具备该条件。最终选用样本级 max/sum/median 归一化：每个样本只依赖自身的统计量（最大值/总和/中位数），无需跨样本参考，在无内标、无 QC 的场景下简单可靠，且不存在训练集信息泄露至预测样本的风险。
+PQN (Probabilistic Quotient Normalization) with QC samples was investigated early on as a more batch-robust option: insert pooled QC samples at regular intervals during each batch run and use the median QC spectrum from the training set as a reference, correcting for batch drift during external validation using QC signal shifts.
 
-若未来数据采集条件改善（加入 QC 样本），可在 `NormalizationManager` 基础上扩展 PQN 支持。
+However, this approach requires experimental-level coordination — inserting one QC sample per every 10 samples, and ensuring QC samples are cryopreserved from the same batch throughout. The current dataset does not meet these prerequisites. The final choice was sample-level max/sum/median normalization: each sample relies only on its own statistics (maximum / sum / median), requires no cross-sample reference, and is simple and reliable in the absence of internal standards or QC samples — with no risk of training-set information leaking into prediction samples.
 
-### 模型保存策略
+If future data collection conditions improve (QC samples added), PQN support can be extended on top of the existing `NormalizationManager`.
 
-5折×20重复交叉验证共产生 100 个折叠模型，曾讨论过两种保存策略：
+### Model Saving Strategy
 
-- **方案 A（当前）**：保存 100 次中测试分数最高的模型
-- **方案 B（学术惯例）**：交叉验证仅用于评估泛化能力，评估完成后用全量数据重新训练一个最终模型
+The 5-fold × 20-repeat cross-validation produces 100 fold models. Two saving strategies were considered:
 
-方案 B 是发论文的常见做法，理论上训练数据更充分。但其合理性建立在一个假设上：最终模型的真实性能约等于交叉验证的平均性能，而该模型本身没有独立测试集评估，是个黑箱。
+- **Strategy A (current)**: Save the model with the highest test score among the 100 folds
+- **Strategy B (academic convention)**: Use cross-validation for performance estimation only, then retrain a final model on the full dataset
 
-在小样本科研场景下，两者实际差异有限。真正有意义的验证是用不同批次、不同机构采集的独立数据做外部验证——这发生在开发流程之外，与保存哪个模型关系不大。因此保留方案 A，优先保持流程简洁、快速迭代。
+Strategy B is common in published research and theoretically provides more training data. However, its validity rests on the assumption that the final model's true performance approximates the cross-validation mean — but the final model itself has no independent test set evaluation and is therefore a black box.
+
+For small-sample research settings, the practical difference between the two is limited. The truly meaningful evaluation is external validation using independently collected data from different batches or institutions — which occurs outside the development pipeline and is largely independent of which model is saved. Strategy A is therefore retained to keep the workflow simple and fast-iterating.
 
 ---
 
-**最后更新**: 2026年3月
-**当前版本**: v1.13.1.2
+**Last updated**: June 2026  
+**Current version**: v1.15.10
